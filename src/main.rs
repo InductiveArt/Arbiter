@@ -35,12 +35,48 @@ struct Finding {
 }
 
 fn main() -> ExitCode {
-    let asked = env::args().nth(1).unwrap_or_else(|| ".".to_string());
-    let Ok(root) = PathBuf::from(&asked).canonicalize() else {
+    let arguments: Vec<String> = env::args().skip(1).collect();
+    if arguments.first().map(String::as_str) == Some("blast") {
+        let Some(name) = arguments.get(1) else {
+            eprintln!("blast: name the symbol to look up");
+            return ExitCode::from(2);
+        };
+        let asked = arguments.get(2).cloned().unwrap_or_else(|| ".".to_string());
+        let Some((_, defs, edges)) = graph(&asked) else {
+            eprintln!("blast: no folder at {asked}");
+            return ExitCode::from(2);
+        };
+        blast(name, &defs, &edges);
+        return ExitCode::SUCCESS;
+    }
+    let asked = match arguments.first().map(String::as_str) {
+        Some("economy") => arguments.get(1).cloned().unwrap_or_else(|| ".".to_string()),
+        Some(folder) => folder.to_string(),
+        None => ".".to_string(),
+    };
+    let Some((repo, defs, edges)) = graph(&asked) else {
         eprintln!("economy: no folder at {asked}");
         return ExitCode::from(2);
     };
-    let repo = units::scan(&root);
+    let findings = judge(&defs, &edges, &repo);
+    report(&repo, &defs, &edges, &findings);
+    ExitCode::SUCCESS
+}
+
+fn graph(asked: &str) -> Option<(Repo, Vec<Def>, Vec<Edge>)> {
+    let root = PathBuf::from(asked).canonicalize().ok()?;
+    let mut repo = units::scan(&root);
+    for manifest in repo.manifests.clone() {
+        let Ok(source) = fs::read_to_string(root.join(&manifest)) else {
+            continue;
+        };
+        for module in python::manifest_entries(&source) {
+            if let Some(file) = python::module_file(&module, &repo.files) {
+                let unit = repo.unit_of(&file);
+                repo.units[unit].root_files.insert(file);
+            }
+        }
+    }
     let mut defs: Vec<Def> = Vec::new();
     let mut python_imports: Vec<(PathBuf, String, String)> = Vec::new();
     let mut typescript_imports: Vec<(PathBuf, String, String)> = Vec::new();
@@ -92,9 +128,35 @@ fn main() -> ExitCode {
     let mut edges = python::resolve(&python_imports, &defs, &repo);
     edges.extend(typescript::resolve(&typescript_imports, &defs, &repo));
     edges.extend(cpp::resolve(&cpp_sources, &defs, &repo));
-    let findings = judge(&defs, &edges, &repo);
-    report(&repo, &defs, &edges, &findings);
-    ExitCode::SUCCESS
+    Some((repo, defs, edges))
+}
+
+fn blast(name: &str, defs: &[Def], edges: &[Edge]) {
+    let matched: Vec<(usize, &Def)> = defs
+        .iter()
+        .enumerate()
+        .filter(|(_, def)| def.name == name)
+        .collect();
+    if matched.is_empty() {
+        println!("blast: no public symbol named {name}");
+        return;
+    }
+    for (index, def) in matched {
+        println!("{}:{} {}", def.file.to_string_lossy(), def.line, def.name);
+        let mut users: Vec<String> = edges
+            .iter()
+            .filter(|edge| edge.def == index && edge.file != def.file)
+            .map(|edge| format!("  used by {}", edge.file.to_string_lossy()))
+            .collect();
+        users.sort();
+        users.dedup();
+        if users.is_empty() {
+            println!("  used by nothing");
+        }
+        for user in users {
+            println!("{user}");
+        }
+    }
 }
 
 fn collect(

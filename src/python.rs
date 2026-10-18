@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
@@ -45,17 +45,11 @@ pub fn imports(tree: &Tree, source: &str) -> Vec<(String, String)> {
 pub fn resolve(imports: &[(PathBuf, String, String)], defs: &[Def], repo: &Repo) -> Vec<Edge> {
     let mut edges = Vec::new();
     for (file, module, name) in imports {
-        let path = module.replace('.', "/");
-        let endings = [format!("{path}.py"), format!("{path}/__init__.py")];
         for (index, def) in defs.iter().enumerate() {
             if def.lang != Lang::Python || def.name != *name {
                 continue;
             }
-            let shown = def.file.to_string_lossy();
-            let defined_there = endings
-                .iter()
-                .any(|ending| shown == *ending || shown.ends_with(&format!("/{ending}")));
-            if defined_there {
+            if is_module_file(module, &def.file) {
                 edges.push(Edge {
                     def: index,
                     file: file.clone(),
@@ -65,4 +59,50 @@ pub fn resolve(imports: &[(PathBuf, String, String)], defs: &[Def], repo: &Repo)
         }
     }
     edges
+}
+
+fn is_module_file(module: &str, file: &Path) -> bool {
+    let path = module.replace('.', "/");
+    let endings = [format!("{path}.py"), format!("{path}/__init__.py")];
+    let shown = file.to_string_lossy();
+    endings
+        .iter()
+        .any(|ending| shown == *ending || shown.ends_with(&format!("/{ending}")))
+}
+
+// An entry point is called by name from outside the repository, so its module is a root.
+pub fn manifest_entries(source: &str) -> Vec<String> {
+    let Ok(parsed) = source.parse::<toml::Value>() else {
+        return Vec::new();
+    };
+    let Some(project) = parsed.get("project") else {
+        return Vec::new();
+    };
+    let mut tables: Vec<&toml::Value> = Vec::new();
+    for name in ["scripts", "gui-scripts"] {
+        tables.extend(project.get(name));
+    }
+    if let Some(groups) = project.get("entry-points").and_then(toml::Value::as_table) {
+        tables.extend(groups.values());
+    }
+    let mut modules = Vec::new();
+    for table in tables {
+        let Some(table) = table.as_table() else {
+            continue;
+        };
+        for value in table.values() {
+            if let Some(reference) = value.as_str() {
+                let module = reference.split(':').next().unwrap_or(reference).trim();
+                modules.push(module.to_string());
+            }
+        }
+    }
+    modules
+}
+
+pub fn module_file(module: &str, files: &[(PathBuf, Lang)]) -> Option<PathBuf> {
+    files
+        .iter()
+        .find(|(file, lang)| *lang == Lang::Python && is_module_file(module, file))
+        .map(|(file, _)| file.clone())
 }

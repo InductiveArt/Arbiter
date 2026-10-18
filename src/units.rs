@@ -22,6 +22,7 @@ pub struct Unit {
 pub struct Repo {
     pub units: Vec<Unit>,
     pub files: Vec<(PathBuf, Lang)>,
+    pub manifests: Vec<PathBuf>,
 }
 
 impl Repo {
@@ -57,7 +58,8 @@ const BUILD_NAMES: [&str; 3] = ["BUILD.bazel", "BUILD.bazel.held", "BUILD"];
 pub fn scan(root: &Path) -> Repo {
     let mut builds = Vec::new();
     let mut files = Vec::new();
-    walk(root, root, &mut builds, &mut files);
+    let mut manifests = Vec::new();
+    walk(root, root, &mut builds, &mut files, &mut manifests);
     // The whole repository is the unit of last resort for a file no BUILD file claims.
     let mut units = vec![Unit {
         path: PathBuf::new(),
@@ -74,10 +76,20 @@ pub fn scan(root: &Path) -> Repo {
         }
     }
     files.sort_by(|a, b| a.0.cmp(&b.0));
-    Repo { units, files }
+    Repo {
+        units,
+        files,
+        manifests,
+    }
 }
 
-fn walk(root: &Path, folder: &Path, builds: &mut Vec<PathBuf>, files: &mut Vec<(PathBuf, Lang)>) {
+fn walk(
+    root: &Path,
+    folder: &Path,
+    builds: &mut Vec<PathBuf>,
+    files: &mut Vec<(PathBuf, Lang)>,
+    manifests: &mut Vec<PathBuf>,
+) {
     let Ok(entries) = fs::read_dir(folder) else {
         return;
     };
@@ -92,11 +104,13 @@ fn walk(root: &Path, folder: &Path, builds: &mut Vec<PathBuf>, files: &mut Vec<(
             if name.starts_with('.') || name.starts_with("bazel-") || SKIPPED.contains(&name.as_str()) {
                 continue;
             }
-            walk(root, &path, builds, files);
+            walk(root, &path, builds, files, manifests);
         } else if kind.is_file() {
             let relative = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
             if BUILD_NAMES.contains(&name.as_str()) {
                 builds.push(relative);
+            } else if name == "pyproject.toml" {
+                manifests.push(relative);
             } else if let Some(lang) = language_of(&name) {
                 files.push((relative, lang));
             }
