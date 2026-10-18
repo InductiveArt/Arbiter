@@ -49,6 +49,15 @@ fn main() -> ExitCode {
         blast(name, &defs, &edges);
         return ExitCode::SUCCESS;
     }
+    if arguments.first().map(String::as_str) == Some("findings") {
+        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let Some((repo, defs, edges)) = graph(&asked) else {
+            eprintln!("findings: no folder at {asked}");
+            return ExitCode::from(2);
+        };
+        emit(&judge(&defs, &edges, &repo), &arguments[2.min(arguments.len())..]);
+        return ExitCode::SUCCESS;
+    }
     let asked = match arguments.first().map(String::as_str) {
         Some("economy") => arguments.get(1).cloned().unwrap_or_else(|| ".".to_string()),
         Some(folder) => folder.to_string(),
@@ -129,6 +138,26 @@ fn graph(asked: &str) -> Option<(Repo, Vec<Def>, Vec<Edge>)> {
     edges.extend(typescript::resolve(&typescript_imports, &defs, &repo));
     edges.extend(cpp::resolve(&cpp_sources, &defs, &repo));
     Some((repo, defs, edges))
+}
+
+// One JSON object per line, held to the named files when any are named.
+fn emit(findings: &[Finding], files: &[String]) {
+    for finding in findings {
+        let shown = finding.file.to_string_lossy();
+        if !files.is_empty() && !files.iter().any(|file| *file == shown) {
+            continue;
+        }
+        println!(
+            "{}",
+            serde_json::json!({
+                "check": "economy",
+                "file": shown,
+                "line": finding.line,
+                "symbol": finding.name,
+                "reason": finding.reason,
+            })
+        );
+    }
 }
 
 fn blast(name: &str, defs: &[Def], edges: &[Edge]) {
