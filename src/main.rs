@@ -1,4 +1,5 @@
 mod cpp;
+mod pack;
 mod python;
 mod trees;
 mod typescript;
@@ -9,23 +10,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use units::{Lang, Repo};
-
-pub struct Def {
-    pub name: String,
-    pub file: PathBuf,
-    pub line: usize,
-    pub unit: usize,
-    pub lang: Lang,
-    // Whether the defining file itself names the symbol away from its definition line.
-    pub self_used: bool,
-}
-
-pub struct Edge {
-    pub def: usize,
-    pub file: PathBuf,
-    pub unit: usize,
-}
+use pack::{Def, Edge};
+use units::Repo;
 
 struct Finding {
     file: PathBuf,
@@ -74,141 +60,48 @@ fn main() -> ExitCode {
 
 fn graph(asked: &str) -> Option<(Repo, Vec<Def>, Vec<Edge>)> {
     let root = PathBuf::from(asked).canonicalize().ok()?;
-    let mut repo = units::scan(&root);
-    for manifest in repo.manifests.clone() {
-        let Ok(source) = fs::read_to_string(root.join(&manifest)) else {
-            continue;
-        };
-        for module in python::manifest_entries(&source) {
-            if let Some(file) = python::module_file(&module, &repo.files) {
-                let unit = repo.unit_of(&file);
-                repo.units[unit].root_files.insert(file);
-            }
-        }
+    let mut packs = pack::all();
+    let mut repo = units::scan(&root, &packs);
+    let rooted: Vec<PathBuf> = packs
+        .iter()
+        .flat_map(|pack| pack.roots(&root, &repo))
+        .collect();
+    for file in rooted {
+        let unit = repo.unit_of(&file);
+        repo.units[unit].root_files.insert(file);
     }
     let mut defs: Vec<Def> = Vec::new();
-    let mut python_imports: Vec<(PathBuf, String, String)> = Vec::new();
-    let mut typescript_imports: Vec<(PathBuf, String, String)> = Vec::new();
-    let mut cpp_sources: Vec<cpp::Source> = Vec::new();
-    for (file, lang) in &repo.files {
+    for file in &repo.files {
         let Ok(source) = fs::read_to_string(root.join(file)) else {
             continue;
         };
+        let name = file
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let Some(index) = packs.iter().position(|pack| pack.handles(&name)) else {
+            continue;
+        };
         let unit = repo.unit_of(file);
-        // Tests and a binary's entry are leaves of the graph, offering nothing for others to use.
+        // Tests and a root are leaves of the graph, offering nothing for others to use.
         let surface =
             !repo.is_test(unit, file) && !repo.units[unit].root_files.contains(file);
-        match lang {
-            Lang::Python => {
-                let Some(tree) = trees::parse(&python::language(), &source) else {
-                    continue;
-                };
-                if surface {
-                    let mentions = python::mentions(&tree, &source);
-                    collect(&mut defs, python::definitions(&tree, &source), &mentions, file, unit, *lang);
-                }
-                for (module, name) in python::imports(&tree, &source) {
-                    python_imports.push((file.clone(), module, name));
-                }
-            }
-            Lang::TypeScript => {
-                let Some(tree) = trees::parse(&typescript::language(), &source) else {
-                    continue;
-                };
-                if surface {
-                    let mentions = typescript::mentions(&tree, &source);
-                    collect(&mut defs, typescript::definitions(&tree, &source), &mentions, file, unit, *lang);
-                }
-                for (from, name) in typescript::imports(&tree, &source) {
-                    typescript_imports.push((file.clone(), from, name));
-                }
-            }
-            Lang::Cpp => {
-                let Some(tree) = trees::parse(&cpp::language(), &source) else {
-                    continue;
-                };
-                if surface && units::is_header(file) {
-                    collect(&mut defs, cpp::definitions(&tree, &source), &[], file, unit, *lang);
-                }
-                cpp_sources.push(cpp::read(file, &tree, &source));
-            }
+        for definition in packs[index].scan(file, &source, surface) {
+            defs.push(Def {
+                name: definition.name,
+                file: file.clone(),
+                line: definition.line,
+                unit,
+                pack: index,
+                self_used: definition.self_used,
+            });
         }
     }
-    let mut edges = python::resolve(&python_imports, &defs, &repo);
-    edges.extend(typescript::resolve(&typescript_imports, &defs, &repo));
-    edges.extend(cpp::resolve(&cpp_sources, &defs, &repo));
+    let mut edges = Vec::new();
+    for (index, pack) in packs.iter().enumerate() {
+        edges.extend(pack.resolve(index, &defs, &repo));
+    }
     Some((repo, defs, edges))
-}
-
-// One JSON object per line, held to the named files when any are named.
-fn emit(findings: &[Finding], files: &[String]) {
-    for finding in findings {
-        let shown = finding.file.to_string_lossy();
-        if !files.is_empty() && !files.iter().any(|file| *file == shown) {
-            continue;
-        }
-        println!(
-            "{}",
-            serde_json::json!({
-                "check": "economy",
-                "file": shown,
-                "line": finding.line,
-                "symbol": finding.name,
-                "reason": finding.reason,
-            })
-        );
-    }
-}
-
-fn blast(name: &str, defs: &[Def], edges: &[Edge]) {
-    let matched: Vec<(usize, &Def)> = defs
-        .iter()
-        .enumerate()
-        .filter(|(_, def)| def.name == name)
-        .collect();
-    if matched.is_empty() {
-        println!("blast: no public symbol named {name}");
-        return;
-    }
-    for (index, def) in matched {
-        println!("{}:{} {}", def.file.to_string_lossy(), def.line, def.name);
-        let mut users: Vec<String> = edges
-            .iter()
-            .filter(|edge| edge.def == index && edge.file != def.file)
-            .map(|edge| format!("  used by {}", edge.file.to_string_lossy()))
-            .collect();
-        users.sort();
-        users.dedup();
-        if users.is_empty() {
-            println!("  used by nothing");
-        }
-        for user in users {
-            println!("{user}");
-        }
-    }
-}
-
-fn collect(
-    defs: &mut Vec<Def>,
-    found: Vec<(String, usize)>,
-    mentions: &[(String, usize)],
-    file: &PathBuf,
-    unit: usize,
-    lang: Lang,
-) {
-    for (name, line) in found {
-        let self_used = mentions
-            .iter()
-            .any(|(mentioned, at)| *mentioned == name && *at != line);
-        defs.push(Def {
-            name,
-            file: file.clone(),
-            line,
-            unit,
-            lang,
-            self_used,
-        });
-    }
 }
 
 fn judge(defs: &[Def], edges: &[Edge], repo: &Repo) -> Vec<Finding> {
@@ -270,5 +163,53 @@ fn report(repo: &Repo, defs: &[Def], edges: &[Edge], findings: &[Finding]) {
             finding.name,
             finding.reason
         );
+    }
+}
+
+// One JSON object per line, held to the named files when any are named.
+fn emit(findings: &[Finding], files: &[String]) {
+    for finding in findings {
+        let shown = finding.file.to_string_lossy();
+        if !files.is_empty() && !files.iter().any(|file| *file == shown) {
+            continue;
+        }
+        println!(
+            "{}",
+            serde_json::json!({
+                "check": "economy",
+                "file": shown,
+                "line": finding.line,
+                "symbol": finding.name,
+                "reason": finding.reason,
+            })
+        );
+    }
+}
+
+fn blast(name: &str, defs: &[Def], edges: &[Edge]) {
+    let matched: Vec<(usize, &Def)> = defs
+        .iter()
+        .enumerate()
+        .filter(|(_, def)| def.name == name)
+        .collect();
+    if matched.is_empty() {
+        println!("blast: no public symbol named {name}");
+        return;
+    }
+    for (index, def) in matched {
+        println!("{}:{} {}", def.file.to_string_lossy(), def.line, def.name);
+        let mut users: Vec<String> = edges
+            .iter()
+            .filter(|edge| edge.def == index && edge.file != def.file)
+            .map(|edge| format!("  used by {}", edge.file.to_string_lossy()))
+            .collect();
+        users.sort();
+        users.dedup();
+        if users.is_empty() {
+            println!("  used by nothing");
+        }
+        for user in users {
+            println!("{user}");
+        }
     }
 }

@@ -1,20 +1,97 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
+use crate::pack::{Def, Definition, Edge, Pack};
 use crate::trees;
-use crate::units::{Lang, Repo};
-use crate::{Def, Edge};
+use crate::units::Repo;
 
 const DEFINITIONS: &str = include_str!("../packs/python/definitions.scm");
 const USES: &str = include_str!("../packs/python/uses.scm");
 const MENTIONS: &str = include_str!("../packs/python/mentions.scm");
 
-pub fn language() -> Language {
+pub struct Python {
+    imports: Vec<(PathBuf, String, String)>,
+}
+
+impl Python {
+    pub fn new() -> Self {
+        Self {
+            imports: Vec::new(),
+        }
+    }
+}
+
+impl Pack for Python {
+    fn handles(&self, name: &str) -> bool {
+        name.ends_with(".py")
+    }
+
+    fn roots(&self, root: &Path, repo: &Repo) -> Vec<PathBuf> {
+        let mut found = Vec::new();
+        for manifest in &repo.manifests {
+            if manifest.file_name().is_none_or(|name| name != "pyproject.toml") {
+                continue;
+            }
+            let Ok(source) = fs::read_to_string(root.join(manifest)) else {
+                continue;
+            };
+            for module in manifest_entries(&source) {
+                found.extend(module_file(&module, &repo.files));
+            }
+        }
+        found
+    }
+
+    fn scan(&mut self, file: &Path, source: &str, surface: bool) -> Vec<Definition> {
+        let Some(tree) = trees::parse(&language(), source) else {
+            return Vec::new();
+        };
+        for (module, name) in imports(&tree, source) {
+            self.imports.push((file.to_path_buf(), module, name));
+        }
+        if !surface {
+            return Vec::new();
+        }
+        let mentions = mentions(&tree, source);
+        definitions(&tree, source)
+            .into_iter()
+            .map(|(name, line)| Definition {
+                self_used: mentions
+                    .iter()
+                    .any(|(mentioned, at)| *mentioned == name && *at != line),
+                name,
+                line,
+            })
+            .collect()
+    }
+
+    fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
+        let mut edges = Vec::new();
+        for (file, module, name) in &self.imports {
+            for (index, def) in defs.iter().enumerate() {
+                if def.pack != mine || def.name != *name {
+                    continue;
+                }
+                if is_module_file(module, &def.file) {
+                    edges.push(Edge {
+                        def: index,
+                        file: file.clone(),
+                        unit: repo.unit_of(file),
+                    });
+                }
+            }
+        }
+        edges
+    }
+}
+
+fn language() -> Language {
     tree_sitter_python::LANGUAGE.into()
 }
 
-pub fn definitions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
+fn definitions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
     trees::matches(&language(), DEFINITIONS, tree, source)
         .into_iter()
         .flatten()
@@ -23,7 +100,7 @@ pub fn definitions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
         .collect()
 }
 
-pub fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
+fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
     trees::matches(&language(), MENTIONS, tree, source)
         .into_iter()
         .flatten()
@@ -31,7 +108,7 @@ pub fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
         .collect()
 }
 
-pub fn imports(tree: &Tree, source: &str) -> Vec<(String, String)> {
+fn imports(tree: &Tree, source: &str) -> Vec<(String, String)> {
     trees::matches(&language(), USES, tree, source)
         .into_iter()
         .filter_map(|captures| {
@@ -40,25 +117,6 @@ pub fn imports(tree: &Tree, source: &str) -> Vec<(String, String)> {
             Some((module.text.clone(), name.text.clone()))
         })
         .collect()
-}
-
-pub fn resolve(imports: &[(PathBuf, String, String)], defs: &[Def], repo: &Repo) -> Vec<Edge> {
-    let mut edges = Vec::new();
-    for (file, module, name) in imports {
-        for (index, def) in defs.iter().enumerate() {
-            if def.lang != Lang::Python || def.name != *name {
-                continue;
-            }
-            if is_module_file(module, &def.file) {
-                edges.push(Edge {
-                    def: index,
-                    file: file.clone(),
-                    unit: repo.unit_of(file),
-                });
-            }
-        }
-    }
-    edges
 }
 
 fn is_module_file(module: &str, file: &Path) -> bool {
@@ -71,7 +129,7 @@ fn is_module_file(module: &str, file: &Path) -> bool {
 }
 
 // An entry point is called by name from outside the repository, so its module is a root.
-pub fn manifest_entries(source: &str) -> Vec<String> {
+fn manifest_entries(source: &str) -> Vec<String> {
     let Ok(parsed) = source.parse::<toml::Value>() else {
         return Vec::new();
     };
@@ -100,9 +158,9 @@ pub fn manifest_entries(source: &str) -> Vec<String> {
     modules
 }
 
-pub fn module_file(module: &str, files: &[(PathBuf, Lang)]) -> Option<PathBuf> {
+fn module_file(module: &str, files: &[PathBuf]) -> Option<PathBuf> {
     files
         .iter()
-        .find(|(file, lang)| *lang == Lang::Python && is_module_file(module, file))
-        .map(|(file, _)| file.clone())
+        .find(|file| is_module_file(module, file))
+        .cloned()
 }

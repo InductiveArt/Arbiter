@@ -4,14 +4,8 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Node};
 
+use crate::pack::Pack;
 use crate::trees;
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Lang {
-    Python,
-    TypeScript,
-    Cpp,
-}
 
 pub struct Unit {
     pub path: PathBuf,
@@ -21,7 +15,7 @@ pub struct Unit {
 
 pub struct Repo {
     pub units: Vec<Unit>,
-    pub files: Vec<(PathBuf, Lang)>,
+    pub files: Vec<PathBuf>,
     pub manifests: Vec<PathBuf>,
 }
 
@@ -54,12 +48,13 @@ impl Repo {
 
 const SKIPPED: [&str; 2] = ["node_modules", "target"];
 const BUILD_NAMES: [&str; 3] = ["BUILD.bazel", "BUILD.bazel.held", "BUILD"];
+const MANIFEST_NAMES: [&str; 4] = ["pyproject.toml", "Cargo.toml", "package.json", "go.mod"];
 
-pub fn scan(root: &Path) -> Repo {
+pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Repo {
     let mut builds = Vec::new();
     let mut files = Vec::new();
     let mut manifests = Vec::new();
-    walk(root, root, &mut builds, &mut files, &mut manifests);
+    walk(root, root, packs, &mut builds, &mut files, &mut manifests);
     // The whole repository is the unit of last resort for a file no BUILD file claims.
     let mut units = vec![Unit {
         path: PathBuf::new(),
@@ -75,7 +70,7 @@ pub fn scan(root: &Path) -> Repo {
             units.push(unit);
         }
     }
-    files.sort_by(|a, b| a.0.cmp(&b.0));
+    files.sort();
     Repo {
         units,
         files,
@@ -86,8 +81,9 @@ pub fn scan(root: &Path) -> Repo {
 fn walk(
     root: &Path,
     folder: &Path,
+    packs: &[Box<dyn Pack>],
     builds: &mut Vec<PathBuf>,
-    files: &mut Vec<(PathBuf, Lang)>,
+    files: &mut Vec<PathBuf>,
     manifests: &mut Vec<PathBuf>,
 ) {
     let Ok(entries) = fs::read_dir(folder) else {
@@ -104,37 +100,18 @@ fn walk(
             if name.starts_with('.') || name.starts_with("bazel-") || SKIPPED.contains(&name.as_str()) {
                 continue;
             }
-            walk(root, &path, builds, files, manifests);
+            walk(root, &path, packs, builds, files, manifests);
         } else if kind.is_file() {
             let relative = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
             if BUILD_NAMES.contains(&name.as_str()) {
                 builds.push(relative);
-            } else if name == "pyproject.toml" {
+            } else if MANIFEST_NAMES.contains(&name.as_str()) {
                 manifests.push(relative);
-            } else if let Some(lang) = language_of(&name) {
-                files.push((relative, lang));
+            } else if packs.iter().any(|pack| pack.handles(&name)) {
+                files.push(relative);
             }
         }
     }
-}
-
-fn language_of(name: &str) -> Option<Lang> {
-    if name.ends_with(".d.ts") {
-        return None;
-    }
-    match name.rsplit('.').next()? {
-        "py" => Some(Lang::Python),
-        "ts" | "tsx" => Some(Lang::TypeScript),
-        "cc" | "cpp" | "cxx" | "h" | "hh" | "hpp" => Some(Lang::Cpp),
-        _ => None,
-    }
-}
-
-pub fn is_header(file: &Path) -> bool {
-    matches!(
-        file.extension().and_then(|extension| extension.to_str()),
-        Some("h" | "hh" | "hpp")
-    )
 }
 
 // Starlark is a subset of Python's syntax, so the Python grammar reads a BUILD file.
