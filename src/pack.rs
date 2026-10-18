@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::cpp::Cpp;
 use crate::python::Python;
+use crate::rust::Rust;
 use crate::typescript::TypeScript;
 use crate::units::Repo;
 
@@ -44,6 +45,7 @@ pub fn all() -> Vec<Box<dyn Pack>> {
     vec![
         Box::new(Cpp::new()),
         Box::new(Python::new()),
+        Box::new(Rust::new()),
         Box::new(TypeScript::new()),
     ]
 }

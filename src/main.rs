@@ -1,6 +1,7 @@
 mod cpp;
 mod pack;
 mod python;
+mod rust;
 mod trees;
 mod typescript;
 mod units;
