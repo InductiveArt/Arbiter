@@ -11,6 +11,7 @@ const DEFINITIONS: &str = include_str!("../packs/python/definitions.scm");
 const USES: &str = include_str!("../packs/python/uses.scm");
 const MENTIONS: &str = include_str!("../packs/python/mentions.scm");
 
+#[derive(Default)]
 pub struct Python {
     imports: Vec<(PathBuf, String, String)>,
 }
@@ -31,7 +32,10 @@ impl Pack for Python {
     fn roots(&self, root: &Path, repo: &Repo) -> Vec<PathBuf> {
         let mut found = Vec::new();
         for manifest in &repo.manifests {
-            if manifest.file_name().is_none_or(|name| name != "pyproject.toml") {
+            if manifest
+                .file_name()
+                .is_none_or(|name| name != "pyproject.toml")
+            {
                 continue;
             }
             let Ok(source) = fs::read_to_string(root.join(manifest)) else {
@@ -163,4 +167,29 @@ fn module_file(module: &str, files: &[PathBuf]) -> Option<PathBuf> {
         .iter()
         .find(|file| is_module_file(module, file))
         .cloned()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::is_module_file;
+
+    #[test]
+    fn a_module_path_reaches_its_file_or_its_package() {
+        assert!(is_module_file(
+            "used.calc",
+            Path::new("libs/used_py/src/used/calc.py")
+        ));
+        assert!(is_module_file("used", Path::new("src/used/__init__.py")));
+    }
+
+    #[test]
+    fn a_longer_name_sharing_a_suffix_is_another_module() {
+        assert!(!is_module_file(
+            "used.calc",
+            Path::new("src/used/recalc.py")
+        ));
+        assert!(!is_module_file("calc", Path::new("src/used/calc.pyi")));
+    }
 }

@@ -10,6 +10,7 @@ const DEFINITIONS: &str = include_str!("../packs/rust/definitions.scm");
 const USES: &str = include_str!("../packs/rust/uses.scm");
 const MENTIONS: &str = include_str!("../packs/rust/mentions.scm");
 
+#[derive(Default)]
 pub struct Rust {
     uses: Vec<(PathBuf, String, String)>,
 }
@@ -133,4 +134,25 @@ fn uses(tree: &Tree, source: &str) -> Vec<(String, String)> {
             Some((module.text.clone(), name.text.clone()))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::is_module_file;
+
+    #[test]
+    fn the_crate_keyword_reaches_either_crate_root() {
+        assert!(is_module_file("crate", Path::new("src/main.rs")));
+        assert!(is_module_file("crate", Path::new("src/lib.rs")));
+        assert!(!is_module_file("crate", Path::new("src/pack.rs")));
+    }
+
+    #[test]
+    fn a_segment_reaches_its_module_file_and_no_lookalike() {
+        assert!(is_module_file("pack", Path::new("src/pack.rs")));
+        assert!(is_module_file("pack", Path::new("src/pack/mod.rs")));
+        assert!(!is_module_file("pack", Path::new("src/backpack.rs")));
+    }
 }

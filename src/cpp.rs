@@ -15,6 +15,7 @@ struct Source {
     calls: Vec<String>,
 }
 
+#[derive(Default)]
 pub struct Cpp {
     sources: Vec<Source>,
 }
@@ -64,15 +65,14 @@ impl Pack for Cpp {
                 if def.pack != mine {
                     continue;
                 }
-                let Some(header) = def.file.file_name().map(|name| name.to_string_lossy())
-                else {
+                let Some(header) = def.file.file_name().map(|name| name.to_string_lossy()) else {
                     continue;
                 };
                 let included = source
                     .includes
                     .iter()
                     .any(|name| *name == header || name.ends_with(&format!("/{header}")));
-                let called = source.calls.iter().any(|call| *call == def.name);
+                let called = source.calls.contains(&def.name);
                 if included && called {
                     edges.push(Edge {
                         def: index,

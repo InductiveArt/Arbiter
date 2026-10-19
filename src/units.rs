@@ -102,14 +102,19 @@ fn walk(
         return;
     };
     for entry in entries.flatten() {
-        let Ok(kind) = entry.file_type() else { continue };
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
         if kind.is_symlink() {
             continue;
         }
         let name = entry.file_name().to_string_lossy().to_string();
         let path = entry.path();
         if kind.is_dir() {
-            if name.starts_with('.') || name.starts_with("bazel-") || SKIPPED.contains(&name.as_str()) {
+            if name.starts_with('.')
+                || name.starts_with("bazel-")
+                || SKIPPED.contains(&name.as_str())
+            {
                 continue;
             }
             walk(root, &path, packs, builds, files, manifests);
@@ -215,4 +220,45 @@ fn unquoted(quoted: &str) -> String {
 
 fn text(node: Node, source: &str) -> String {
     node.utf8_text(source.as_bytes()).unwrap_or("").to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use std::path::{Path, PathBuf};
+
+    use super::{Repo, Unit};
+
+    fn repo(paths: &[&str]) -> Repo {
+        Repo {
+            units: paths
+                .iter()
+                .map(|path| Unit {
+                    path: PathBuf::from(path),
+                    test_files: HashSet::new(),
+                    root_files: HashSet::new(),
+                })
+                .collect(),
+            files: Vec::new(),
+            manifests: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn the_deepest_unit_claims_the_file() {
+        let repo = repo(&["", "libs", "libs/a"]);
+        assert_eq!(repo.unit_of(Path::new("libs/a/src/x.py")), 2);
+        assert_eq!(repo.unit_of(Path::new("libs/b/src/x.py")), 1);
+        assert_eq!(repo.unit_of(Path::new("apps/x.py")), 0);
+    }
+
+    #[test]
+    fn a_test_is_told_by_its_name_or_its_folder() {
+        let repo = repo(&[""]);
+        assert!(repo.is_test(0, Path::new("tests/anything.py")));
+        assert!(repo.is_test(0, Path::new("src/test_calc.py")));
+        assert!(repo.is_test(0, Path::new("src/calc_test.cc")));
+        assert!(repo.is_test(0, Path::new("conftest.py")));
+        assert!(!repo.is_test(0, Path::new("src/calc.py")));
+    }
 }

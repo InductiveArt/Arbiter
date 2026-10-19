@@ -11,6 +11,7 @@ const DEFINITIONS: &str = include_str!("../packs/typescript/definitions.scm");
 const USES: &str = include_str!("../packs/typescript/uses.scm");
 const MENTIONS: &str = include_str!("../packs/typescript/mentions.scm");
 
+#[derive(Default)]
 pub struct TypeScript {
     imports: Vec<(PathBuf, String, String)>,
 }
@@ -135,4 +136,23 @@ fn normalized(path: &Path) -> PathBuf {
         }
     }
     parts.iter().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    use super::normalized;
+
+    #[test]
+    fn dots_fold_away_and_parents_climb() {
+        assert_eq!(
+            normalized(Path::new("web/src/./sib")),
+            PathBuf::from("web/src/sib")
+        );
+        assert_eq!(
+            normalized(Path::new("web/src/../lib/x")),
+            PathBuf::from("web/lib/x")
+        );
+    }
 }

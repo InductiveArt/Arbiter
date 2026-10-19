@@ -25,9 +25,9 @@ each defining `value` stay three symbols.
 - A root is where reachability starts, so its symbols are never findings: a
   binary target's entry file, the module a Python manifest's entry points or
   scripts name, and the src/main.rs beside a Cargo manifest.
-- A test keeps nothing alive: a symbol only its own tests reach is reported.
-  A `*_test` target's srcs are tests; where no target claims a file, its name
-  and folder say.
+- A test keeps nothing alive, wherever it lives: a symbol only tests reach
+  is reported. A `*_test` target's srcs are tests; where no target claims a
+  file, its name and folder say.
 - A language is a pack: one module behind one trait, whose
   `packs/<language>/*.scm` tree-sitter queries say what defines a symbol,
   what uses one, and what a file mentions. The core resolves and judges; it
