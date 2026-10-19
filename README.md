@@ -4,15 +4,18 @@ A quality gate for repositories worked on by agents at scale. Its pillars are
 correctness, integrity and economy; economy is the new one: public surface
 nothing uses is a finding, and the gate invites its deletion.
 
-What exists is the economy spike, three commands over one resolved graph,
-across Python, TypeScript, C++ and Rust:
+Four commands stand over one resolved graph, across Python, TypeScript, C++
+and Rust:
 
 - `arbiter economy <folder>` reports every public symbol with no user
   outside its own unit.
+- `arbiter integrity <folder>` reports the structure broken across units:
+  units importing each other in a cycle, and a name re-exported, whether by
+  an `__init__.py` import or a TypeScript `export ... from`.
 - `arbiter blast <name> <folder>` prints each definition of a name and
-  every file using that one, so a same-named symbol elsewhere stays out.
-- `arbiter findings <folder> [file...]` answers the same findings as data,
-  one JSON line each, held to the files a caller names.
+  every place using that one, so a same-named symbol elsewhere stays out.
+- `arbiter findings <folder> [file...]` answers every check's findings as
+  data, one JSON line each, held to the files a caller names.
 - `arbiter verify <folder>` runs each pack's declared tools over every unit
   holding its manifest, one line per check, failing output shown last lines
   first. A unit of a language whose pack declares no tools is named, never
@@ -27,13 +30,16 @@ across Python, TypeScript, C++ and Rust:
   TypeScript runs biome and tsc. The tools' own defaults are the bar until
   packs carry their configurations, which is the next step of the bar.
 
-  Before a TypeScript unit's tools run, `wiring` holds its resolved tsconfig
-  to the pack's bar, `packs/typescript/bar.toml`: settings may add, never
-  lower. Environment options, target, module and their kin, stay the unit's
-  own; each strictness option unset or lowered is a finding naming it and
-  the value the bar says. A unit with no tsconfig has declared no
-  environment, and wiring says so. The bar wants each option written down: a
-  compiler default that happens to match is not a declaration.
+  Before a unit's tools run, `wiring` holds its declared environment to the
+  pack's bar: settings may add, never lower. TypeScript's resolved tsconfig
+  must state each option `packs/typescript/bar.toml` names, environment
+  options staying the unit's own, and a compiler default that happens to
+  match is not a declaration. A Python manifest setting that ignores a lint
+  rule, excludes a source file, lowers the type checker or trims the tests
+  is named with the reason `packs/python/bar.toml` gives. A Cargo `[lints]`
+  entry turned to allow is named: the bar denies every warning. A unit with
+  no manifest for its language has declared no environment, and wiring says
+  so.
 
 A use is resolved, never matched by name: an import reaches the file its
 module path names, a call reaches a header the caller includes. Three units
