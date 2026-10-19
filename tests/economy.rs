@@ -75,3 +75,17 @@ fn every_manifest_declares_a_unit() {
         );
     }
 }
+
+#[test]
+fn a_whole_module_import_reaches_the_name_through_its_chain() {
+    let found = graph(DEMO).expect("the fixture folder exists");
+    let value = found
+        .defs
+        .iter()
+        .position(|def| def.name == "value")
+        .expect("the fixture defines value");
+    assert!(found
+        .edges
+        .iter()
+        .any(|edge| edge.def == value && edge.file.to_string_lossy() == "app/src/app/plain.py"));
+}

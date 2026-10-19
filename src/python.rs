@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -19,6 +20,8 @@ const MODES: [&str; 3] = ["strict", "recommended", "all"];
 pub struct Python {
     imports: Vec<(PathBuf, String, String, usize)>,
     init_imports: Vec<(PathBuf, String, usize)>,
+    plains: Vec<(PathBuf, String)>,
+    chains: Vec<(PathBuf, String, usize)>,
 }
 
 impl Python {
@@ -95,6 +98,12 @@ impl Pack for Python {
             }
             self.imports.push((file.to_path_buf(), module, name, line));
         }
+        for text in captured(&tree, source, "plain") {
+            self.plains.push((file.to_path_buf(), text.0));
+        }
+        for (chain, line) in captured(&tree, source, "chain") {
+            self.chains.push((file.to_path_buf(), chain, line));
+        }
         if !surface {
             return Vec::new();
         }
@@ -143,6 +152,43 @@ impl Pack for Python {
                 }
             }
         }
+        // A whole-module import reaches a name through a dotted chain: the longest
+        // leading piece naming a module in the repository owns the segment after it.
+        let mut imported: HashMap<&PathBuf, HashSet<&str>> = HashMap::new();
+        for (file, name) in &self.plains {
+            let first = name.split('.').next().unwrap_or(name);
+            imported.entry(file).or_default().insert(first);
+        }
+        for (file, chain, line) in &self.chains {
+            let parts: Vec<&str> = chain.split('.').map(str::trim).collect();
+            let Some(roots) = imported.get(file) else {
+                continue;
+            };
+            if !roots.contains(parts[0]) {
+                continue;
+            }
+            for split in (1..parts.len()).rev() {
+                let prefix = parts[..split].join(".");
+                let mut found = false;
+                for (index, def) in defs.iter().enumerate() {
+                    if def.pack != mine || def.name != parts[split] {
+                        continue;
+                    }
+                    if is_module_file(&prefix, &def.file) {
+                        edges.push(Edge {
+                            def: index,
+                            file: file.clone(),
+                            line: *line,
+                            unit: repo.unit_of(file),
+                        });
+                        found = true;
+                    }
+                }
+                if found {
+                    break;
+                }
+            }
+        }
         edges
     }
 }
@@ -164,6 +210,15 @@ fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
     trees::matches(&language(), MENTIONS, tree, source)
         .into_iter()
         .flatten()
+        .map(|capture| (capture.text, capture.line))
+        .collect()
+}
+
+fn captured(tree: &Tree, source: &str, wanted: &str) -> Vec<(String, usize)> {
+    trees::matches(&language(), USES, tree, source)
+        .into_iter()
+        .flatten()
+        .filter(|capture| capture.name == wanted)
         .map(|capture| (capture.text, capture.line))
         .collect()
 }
