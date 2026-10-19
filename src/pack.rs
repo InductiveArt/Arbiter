@@ -23,6 +23,15 @@ pub struct Edge {
     pub unit: usize,
 }
 
+pub struct Finding {
+    pub check: &'static str,
+    pub file: PathBuf,
+    // Zero where the finding has no single line, as a cycle between units has none.
+    pub line: usize,
+    pub name: String,
+    pub reason: String,
+}
+
 pub struct Definition {
     pub name: String,
     pub line: usize,
@@ -56,6 +65,12 @@ pub trait Pack {
     fn wiring(&self, folder: &Path) -> Option<Vec<String>> {
         let _ = folder;
         None
+    }
+
+    // What the pack saw while scanning that breaks a structural rule of its language.
+    fn integrity(&self, repo: &Repo) -> Vec<Finding> {
+        let _ = repo;
+        Vec::new()
     }
 
     // Files whose symbols live by being named from outside the repository.

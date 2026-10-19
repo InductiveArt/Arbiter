@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::pack::{Def, Definition, Edge, Pack};
+use crate::pack::{Def, Definition, Edge, Finding, Pack};
 use crate::trees;
 use crate::units::Repo;
 
@@ -18,13 +18,12 @@ const MODES: [&str; 3] = ["strict", "recommended", "all"];
 #[derive(Default)]
 pub struct Python {
     imports: Vec<(PathBuf, String, String, usize)>,
+    init_imports: Vec<(PathBuf, String, usize)>,
 }
 
 impl Python {
     pub fn new() -> Self {
-        Self {
-            imports: Vec::new(),
-        }
+        Self::default()
     }
 }
 
@@ -88,7 +87,12 @@ impl Pack for Python {
         let Some(tree) = trees::parse(&language(), source) else {
             return Vec::new();
         };
+        let in_init = file.file_name().is_some_and(|name| name == "__init__.py");
         for (module, name, line) in imports(&tree, source) {
+            if surface && in_init {
+                self.init_imports
+                    .push((file.to_path_buf(), name.clone(), line));
+            }
             self.imports.push((file.to_path_buf(), module, name, line));
         }
         if !surface {
@@ -103,6 +107,21 @@ impl Pack for Python {
                     .any(|(mentioned, at)| *mentioned == name && *at != line),
                 name,
                 line,
+            })
+            .collect()
+    }
+
+    fn integrity(&self, _repo: &Repo) -> Vec<Finding> {
+        self.init_imports
+            .iter()
+            .map(|(file, name, line)| Finding {
+                check: "integrity",
+                file: file.clone(),
+                line: *line,
+                name: "no-reexport".to_string(),
+                reason: format!(
+                    "__init__.py imports {name}; a symbol is imported from the module defining it"
+                ),
             })
             .collect()
     }

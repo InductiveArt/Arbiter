@@ -3,7 +3,7 @@ use std::path::{Component, Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::pack::{Def, Definition, Edge, Pack};
+use crate::pack::{Def, Definition, Edge, Finding, Pack};
 use crate::trees;
 use crate::units::Repo;
 
@@ -11,6 +11,7 @@ const DEFINITIONS: &str = include_str!("../packs/typescript/definitions.scm");
 const USES: &str = include_str!("../packs/typescript/uses.scm");
 const MENTIONS: &str = include_str!("../packs/typescript/mentions.scm");
 const BAR: &str = include_str!("../packs/typescript/bar.toml");
+const REEXPORTS: &str = include_str!("../packs/typescript/reexports.scm");
 
 const RESOLVE: [&str; 8] = [
     "npx",
@@ -26,13 +27,12 @@ const RESOLVE: [&str; 8] = [
 #[derive(Default)]
 pub struct TypeScript {
     imports: Vec<(PathBuf, String, String, usize)>,
+    reexports: Vec<(PathBuf, String, usize)>,
 }
 
 impl TypeScript {
     pub fn new() -> Self {
-        Self {
-            imports: Vec::new(),
-        }
+        Self::default()
     }
 }
 
@@ -92,6 +92,12 @@ impl Pack for TypeScript {
         if !surface {
             return Vec::new();
         }
+        for captures in trees::matches(&language(), REEXPORTS, &tree, source) {
+            for capture in captures {
+                self.reexports
+                    .push((file.to_path_buf(), capture.text, capture.line));
+            }
+        }
         let mentions = mentions(&tree, source);
         definitions(&tree, source)
             .into_iter()
@@ -101,6 +107,19 @@ impl Pack for TypeScript {
                     .any(|(mentioned, at)| *mentioned == name && *at != line),
                 name,
                 line,
+            })
+            .collect()
+    }
+
+    fn integrity(&self, _repo: &Repo) -> Vec<Finding> {
+        self.reexports
+            .iter()
+            .map(|(file, from, line)| Finding {
+                check: "integrity",
+                file: file.clone(),
+                line: *line,
+                name: "no-reexport".to_string(),
+                reason: format!("re-exports from \"{from}\"; a module offers only its own names"),
             })
             .collect()
     }

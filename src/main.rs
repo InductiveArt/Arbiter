@@ -2,8 +2,8 @@ use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use arbiter::graph::{graph, judge, Finding};
-use arbiter::pack::{Def, Edge};
+use arbiter::graph::{graph, integrity, judge};
+use arbiter::pack::{Def, Edge, Finding};
 use arbiter::units::Repo;
 use arbiter::{pack, units, verify};
 
@@ -51,23 +51,46 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         };
         let asked = arguments.get(2).cloned().unwrap_or_else(|| ".".to_string());
-        let Some((_, defs, edges)) = graph(&asked) else {
+        let Some(found) = graph(&asked) else {
             eprintln!("blast: no folder at {asked}");
             return ExitCode::from(2);
         };
-        blast(name, &defs, &edges);
+        blast(name, &found.defs, &found.edges);
         return ExitCode::SUCCESS;
     }
     if arguments.first().map(String::as_str) == Some("findings") {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
-        let Some((repo, defs, edges)) = graph(&asked) else {
+        let Some(found) = graph(&asked) else {
             eprintln!("findings: no folder at {asked}");
             return ExitCode::from(2);
         };
-        emit(
-            &judge(&defs, &edges, &repo),
-            &arguments[2.min(arguments.len())..],
-        );
+        let mut all = judge(&found.defs, &found.edges, &found.repo);
+        all.extend(integrity(
+            &found.packs,
+            &found.defs,
+            &found.edges,
+            &found.repo,
+        ));
+        all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
+        emit(&all, &arguments[2.min(arguments.len())..]);
+        return ExitCode::SUCCESS;
+    }
+    if arguments.first().map(String::as_str) == Some("integrity") {
+        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let Some(found) = graph(&asked) else {
+            eprintln!("integrity: no folder at {asked}");
+            return ExitCode::from(2);
+        };
+        let findings = integrity(&found.packs, &found.defs, &found.edges, &found.repo);
+        if findings.is_empty() {
+            println!("integrity: every unit stands on its own");
+            return ExitCode::SUCCESS;
+        }
+        let plural = if findings.len() == 1 { "" } else { "s" };
+        println!("integrity: {} finding{plural}:", findings.len());
+        for finding in &findings {
+            println!("  {} {}", place(finding), finding.reason);
+        }
         return ExitCode::SUCCESS;
     }
     let asked = match arguments.first().map(String::as_str) {
@@ -75,13 +98,22 @@ fn main() -> ExitCode {
         Some(folder) => folder.to_string(),
         None => ".".to_string(),
     };
-    let Some((repo, defs, edges)) = graph(&asked) else {
+    let Some(found) = graph(&asked) else {
         eprintln!("economy: no folder at {asked}");
         return ExitCode::from(2);
     };
-    let findings = judge(&defs, &edges, &repo);
-    report(&repo, &defs, &edges, &findings);
+    let findings = judge(&found.defs, &found.edges, &found.repo);
+    report(&found.repo, &found.defs, &found.edges, &findings);
     ExitCode::SUCCESS
+}
+
+// The file alone where no single line holds the finding.
+fn place(finding: &Finding) -> String {
+    if finding.line == 0 {
+        finding.file.to_string_lossy().to_string()
+    } else {
+        format!("{}:{}", finding.file.to_string_lossy(), finding.line)
+    }
 }
 
 fn report(repo: &Repo, defs: &[Def], edges: &[Edge], findings: &[Finding]) {
@@ -103,9 +135,8 @@ fn report(repo: &Repo, defs: &[Def], edges: &[Edge], findings: &[Finding]) {
     );
     for finding in findings {
         println!(
-            "  {}:{} {} has {}",
-            finding.file.to_string_lossy(),
-            finding.line,
+            "  {} {} has {}",
+            place(finding),
             finding.name,
             finding.reason
         );
@@ -122,7 +153,7 @@ fn emit(findings: &[Finding], files: &[String]) {
         println!(
             "{}",
             serde_json::json!({
-                "check": "economy",
+                "check": finding.check,
                 "file": shown,
                 "line": finding.line,
                 "symbol": finding.name,

@@ -1,11 +1,11 @@
-use arbiter::graph::{graph, judge};
+use arbiter::graph::{graph, integrity, judge};
 
 const DEMO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/demo");
 
 #[test]
 fn the_fixture_yields_its_known_findings() {
-    let (repo, defs, edges) = graph(DEMO).expect("the fixture folder exists");
-    let shown: Vec<String> = judge(&defs, &edges, &repo)
+    let found = graph(DEMO).expect("the fixture folder exists");
+    let shown: Vec<String> = judge(&found.defs, &found.edges, &found.repo)
         .iter()
         .map(|finding| {
             format!(
@@ -28,21 +28,42 @@ fn the_fixture_yields_its_known_findings() {
 }
 
 #[test]
+fn integrity_names_the_cycle_and_each_reexport() {
+    let found = graph(DEMO).expect("the fixture folder exists");
+    let shown: Vec<String> = integrity(&found.packs, &found.defs, &found.edges, &found.repo)
+        .iter()
+        .map(|finding| format!("{} {}", finding.file.to_string_lossy(), finding.reason))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            "libs/cyc_a units import each other: libs/cyc_a, libs/cyc_b",
+            "libs/facade/src/facade/__init__.py __init__.py imports shine; \
+             a symbol is imported from the module defining it",
+            "web/src/barrel.ts re-exports from \"./index\"; a module offers only its own names",
+        ]
+    );
+}
+
+#[test]
 fn a_used_symbol_keeps_its_resolved_user() {
-    let (_, defs, edges) = graph(DEMO).expect("the fixture folder exists");
-    let value = defs
+    let found = graph(DEMO).expect("the fixture folder exists");
+    let value = found
+        .defs
         .iter()
         .position(|def| def.name == "value")
         .expect("the fixture defines value");
-    assert!(edges
+    assert!(found
+        .edges
         .iter()
         .any(|edge| edge.def == value && edge.file.to_string_lossy() == "app/src/app/main.py"));
 }
 
 #[test]
 fn every_manifest_declares_a_unit() {
-    let (repo, _, _) = graph(DEMO).expect("the fixture folder exists");
-    let paths: Vec<String> = repo
+    let found = graph(DEMO).expect("the fixture folder exists");
+    let paths: Vec<String> = found
+        .repo
         .units
         .iter()
         .map(|unit| unit.path.to_string_lossy().to_string())
