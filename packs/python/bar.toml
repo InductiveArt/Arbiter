@@ -1,0 +1,15 @@
+# Settings may add, never lower. Each entry names a manifest setting that lowers the
+# bar, with the reason it is refused. The type checker's own keys are judged in code:
+# a typeCheckingMode below strict, or a report rule set under error, is a finding.
+[refused]
+"tool.ruff.ignore" = "a finding is fixed, never ignored"
+"tool.ruff.extend-ignore" = "a finding is fixed, never ignored"
+"tool.ruff.exclude" = "every source file is read"
+"tool.ruff.extend-exclude" = "every source file is read"
+"tool.ruff.per-file-ignores" = "a finding is fixed, never ignored"
+"tool.ruff.lint.ignore" = "a finding is fixed, never ignored"
+"tool.ruff.lint.extend-ignore" = "a finding is fixed, never ignored"
+"tool.ruff.lint.per-file-ignores" = "a finding is fixed, never ignored"
+"tool.ruff.lint.extend-per-file-ignores" = "a finding is fixed, never ignored"
+"tool.pytest.ini_options.addopts" = "options that change which tests run stay out of the manifest"
+"tool.pytest.ini_options.norecursedirs" = "every test is collected"

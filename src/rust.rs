@@ -38,6 +38,15 @@ impl Pack for Rust {
         Some(include_str!("../packs/rust/tools.toml"))
     }
 
+    fn wiring(&self, folder: &Path) -> Option<Vec<String>> {
+        let Ok(manifest) = std::fs::read_to_string(folder.join("Cargo.toml")) else {
+            return Some(vec![
+                "no Cargo.toml; the unit declares no environment".to_string()
+            ]);
+        };
+        Some(manifest_findings(&manifest))
+    }
+
     // Cargo's convention: a crate's binary entry is src/main.rs beside its manifest.
     fn roots(&self, _root: &Path, repo: &Repo) -> Vec<PathBuf> {
         let mut found = Vec::new();
@@ -104,6 +113,46 @@ impl Pack for Rust {
     }
 }
 
+// The bar denies every warning, so a lint turned to allow in the manifest lowers it.
+fn manifest_findings(manifest: &str) -> Vec<String> {
+    let Ok(parsed) = manifest.parse::<toml::Value>() else {
+        return vec!["Cargo.toml does not parse".to_string()];
+    };
+    let mut findings = Vec::new();
+    for base in ["lints", "workspace.lints"] {
+        for group in ["rust", "clippy"] {
+            let path = format!("{base}.{group}");
+            let Some(table) = table_at(&parsed, &path) else {
+                continue;
+            };
+            for (name, level) in table {
+                if allows(level) {
+                    findings.push(format!(
+                        "{path}.{name} is allow; the bar denies every warning"
+                    ));
+                }
+            }
+        }
+    }
+    findings
+}
+
+fn table_at<'manifest>(
+    parsed: &'manifest toml::Value,
+    path: &str,
+) -> Option<&'manifest toml::Table> {
+    let mut value = parsed;
+    for part in path.split('.') {
+        value = value.get(part)?;
+    }
+    value.as_table()
+}
+
+fn allows(level: &toml::Value) -> bool {
+    level.as_str() == Some("allow")
+        || level.get("level").and_then(toml::Value::as_str) == Some("allow")
+}
+
 fn is_module_file(segment: &str, file: &Path) -> bool {
     let shown = file.to_string_lossy();
     // The crate's own root module answers for the crate keyword.
@@ -153,7 +202,26 @@ fn uses(tree: &Tree, source: &str) -> Vec<(String, String, usize)> {
 mod tests {
     use std::path::Path;
 
-    use super::is_module_file;
+    use super::{is_module_file, manifest_findings};
+
+    #[test]
+    fn a_lint_turned_to_allow_is_named_in_either_form() {
+        let manifest = "[lints.clippy]\ncmp_owned = \"allow\"\n\
+                        [workspace.lints.rust]\ndead_code = { level = \"allow\", priority = 1 }\n";
+        let findings = manifest_findings(manifest);
+        assert!(findings
+            .iter()
+            .any(|finding| finding.starts_with("lints.clippy.cmp_owned is allow;")));
+        assert!(findings
+            .iter()
+            .any(|finding| finding.starts_with("workspace.lints.rust.dead_code is allow;")));
+    }
+
+    #[test]
+    fn a_lint_raised_to_deny_passes_the_wiring() {
+        let manifest = "[lints.clippy]\nunwrap_used = \"deny\"\n";
+        assert!(manifest_findings(manifest).is_empty());
+    }
 
     #[test]
     fn the_crate_keyword_reaches_either_crate_root() {
