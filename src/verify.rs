@@ -46,6 +46,17 @@ pub fn verify(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> (Vec<Outcome
                 ));
                 continue;
             }
+            let started = Instant::now();
+            if let Some(findings) = pack.wiring(&folder) {
+                outcomes.push(Outcome {
+                    unit: shown.clone(),
+                    pack: pack.label(),
+                    check: "wiring".to_string(),
+                    passed: findings.is_empty(),
+                    seconds: started.elapsed().as_secs_f64(),
+                    tail: findings.join("\n"),
+                });
+            }
             let Some(adapter) = pack.adapter() else {
                 notes.push(format!(
                     "{shown} is {}, which declares no tools yet",

@@ -50,6 +50,13 @@ pub trait Pack {
         false
     }
 
+    // Holds the unit's declared environment to the pack's bar; None where no bar exists yet.
+    // Settings may add, never lower: each finding names one option sitting below the bar.
+    fn wiring(&self, folder: &Path) -> Option<Vec<String>> {
+        let _ = folder;
+        None
+    }
+
     // Files whose symbols live by being named from outside the repository.
     fn roots(&self, root: &Path, repo: &Repo) -> Vec<PathBuf>;
 

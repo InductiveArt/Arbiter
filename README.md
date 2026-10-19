@@ -27,6 +27,14 @@ across Python, TypeScript, C++ and Rust:
   TypeScript runs biome and tsc. The tools' own defaults are the bar until
   packs carry their configurations, which is the next step of the bar.
 
+  Before a TypeScript unit's tools run, `wiring` holds its resolved tsconfig
+  to the pack's bar, `packs/typescript/bar.toml`: settings may add, never
+  lower. Environment options, target, module and their kin, stay the unit's
+  own; each strictness option unset or lowered is a finding naming it and
+  the value the bar says. A unit with no tsconfig has declared no
+  environment, and wiring says so. The bar wants each option written down: a
+  compiler default that happens to match is not a declaration.
+
 A use is resolved, never matched by name: an import reaches the file its
 module path names, a call reaches a header the caller includes. Three units
 each defining `value` stay three symbols.

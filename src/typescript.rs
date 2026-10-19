@@ -10,6 +10,18 @@ use crate::units::Repo;
 const DEFINITIONS: &str = include_str!("../packs/typescript/definitions.scm");
 const USES: &str = include_str!("../packs/typescript/uses.scm");
 const MENTIONS: &str = include_str!("../packs/typescript/mentions.scm");
+const BAR: &str = include_str!("../packs/typescript/bar.toml");
+
+const RESOLVE: [&str; 8] = [
+    "npx",
+    "--yes",
+    "--package",
+    "typescript@7.0.2",
+    "tsc",
+    "--showConfig",
+    "-p",
+    ".",
+];
 
 #[derive(Default)]
 pub struct TypeScript {
@@ -39,6 +51,31 @@ impl Pack for TypeScript {
 
     fn adapter(&self) -> Option<&'static str> {
         Some(include_str!("../packs/typescript/tools.toml"))
+    }
+
+    fn wiring(&self, folder: &Path) -> Option<Vec<String>> {
+        let finished = std::process::Command::new(RESOLVE[0])
+            .args(&RESOLVE[1..])
+            .current_dir(folder)
+            .output();
+        let Ok(output) = finished else {
+            return Some(vec![format!("{} did not start", RESOLVE[0])]);
+        };
+        if !output.status.success() {
+            return Some(vec![
+                "no tsconfig.json resolves here; the unit declares no environment".to_string(),
+            ]);
+        }
+        let Ok(resolved) = serde_json::from_slice::<serde_json::Value>(&output.stdout) else {
+            return Some(vec![
+                "tsc --showConfig answered something unreadable".to_string()
+            ]);
+        };
+        let options = resolved
+            .get("compilerOptions")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+        Some(option_findings(&options))
     }
 
     fn roots(&self, _root: &Path, _repo: &Repo) -> Vec<PathBuf> {
@@ -135,6 +172,36 @@ fn imports(tree: &Tree, source: &str) -> Vec<(String, String)> {
         .collect()
 }
 
+fn option_findings(options: &serde_json::Value) -> Vec<String> {
+    let bar = BAR.parse::<toml::Value>().expect("a pack's bar parses");
+    let Some(required) = bar.get("compilerOptions").and_then(toml::Value::as_table) else {
+        return Vec::new();
+    };
+    let mut findings = Vec::new();
+    for (name, needed) in required {
+        let actual = options.get(name);
+        if actual.is_some_and(|value| meets(value, needed)) {
+            continue;
+        }
+        let found = match actual {
+            None => "unset".to_string(),
+            Some(value) => value.to_string(),
+        };
+        findings.push(format!(
+            "compilerOptions.{name} is {found}; the bar says {needed}"
+        ));
+    }
+    findings
+}
+
+fn meets(actual: &serde_json::Value, needed: &toml::Value) -> bool {
+    match (actual, needed) {
+        (serde_json::Value::Bool(found), toml::Value::Boolean(asked)) => found == asked,
+        (serde_json::Value::String(found), toml::Value::String(asked)) => found == asked,
+        _ => false,
+    }
+}
+
 fn normalized(path: &Path) -> PathBuf {
     let mut parts: Vec<&OsStr> = Vec::new();
     for component in path.components() {
@@ -154,7 +221,26 @@ fn normalized(path: &Path) -> PathBuf {
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use super::normalized;
+    use super::{normalized, option_findings};
+
+    #[test]
+    fn the_bar_names_each_unset_option_and_leaves_a_met_one() {
+        let options = serde_json::json!({ "strict": true });
+        let findings = option_findings(&options);
+        assert!(findings
+            .iter()
+            .any(|finding| finding.contains("noUnusedLocals is unset")));
+        assert!(!findings.iter().any(|finding| finding.contains("strict is")));
+    }
+
+    #[test]
+    fn a_lowered_option_is_named_with_its_value() {
+        let options = serde_json::json!({ "allowUnreachableCode": true });
+        assert!(option_findings(&options)
+            .iter()
+            .any(|finding| finding
+                == "compilerOptions.allowUnreachableCode is true; the bar says false"));
+    }
 
     #[test]
     fn dots_fold_away_and_parents_climb() {
