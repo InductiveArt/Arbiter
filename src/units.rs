@@ -70,6 +70,18 @@ pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Repo {
             units.push(unit);
         }
     }
+    // A manifest declares a unit the way a BUILD file does, with nothing to add to it.
+    for manifest in &manifests {
+        let folder = manifest.parent().unwrap_or(Path::new("")).to_path_buf();
+        if folder.as_os_str().is_empty() || units.iter().any(|unit| unit.path == folder) {
+            continue;
+        }
+        units.push(Unit {
+            path: folder,
+            test_files: HashSet::new(),
+            root_files: HashSet::new(),
+        });
+    }
     files.sort();
     Repo {
         units,

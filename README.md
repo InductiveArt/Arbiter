@@ -18,7 +18,10 @@ A use is resolved, never matched by name: an import reaches the file its
 module path names, a call reaches a header the caller includes. Three units
 each defining `value` stay three symbols.
 
-- A unit is a folder with a BUILD file; the repository itself where none is.
+- A unit is a folder that declares itself: a manifest such as pyproject.toml,
+  Cargo.toml, package.json or go.mod, or a BUILD file read as one more
+  dialect. The repository itself answers for a file no folder claims. No
+  build system is run or required.
 - A root is where reachability starts, so its symbols are never findings: a
   binary target's entry file, the module a Python manifest's entry points or
   scripts name, and the src/main.rs beside a Cargo manifest.
