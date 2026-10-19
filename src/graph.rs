@@ -66,18 +66,13 @@ pub fn graph(asked: &str) -> Option<Graph> {
     })
 }
 
-pub fn integrity(
-    root: &Path,
-    packs: &[Box<dyn Pack>],
-    defs: &[Def],
-    edges: &[Edge],
-    repo: &Repo,
-) -> Vec<Finding> {
-    let mut findings = cycles(defs, edges, repo);
-    for pack in packs {
-        findings.extend(pack.integrity(root, repo));
+pub fn integrity(found: &Graph) -> Vec<Finding> {
+    let mut findings = cycles(&found.defs, &found.edges, &found.repo);
+    for pack in &found.packs {
+        findings.extend(pack.integrity(&found.root, &found.repo));
     }
-    findings.extend(one_version(root, repo, packs));
+    findings.extend(one_version(&found.root, &found.repo, &found.packs));
+    findings.extend(crate::declared::boundaries(found));
     findings.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     findings
 }

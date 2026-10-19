@@ -1,4 +1,5 @@
 pub mod cpp;
+pub mod declared;
 pub mod graph;
 pub mod ledger;
 pub mod pack;

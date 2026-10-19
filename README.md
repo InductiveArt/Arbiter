@@ -17,6 +17,12 @@ and Rust:
   party imported that no manifest declares; and a third party locked at two
   versions across the repository's lockfiles, which is the one-version rule
   as a judgment instead of a resolver constraint.
+
+  `.arbiter/units.toml` declares the unit graph in root-anchored paths, and
+  integrity holds the resolved graph to it, one unit at a time as the file
+  grows. A unit declaring `visibility` names who may use it, exactly or with
+  a folder and star; one declaring `deps` is held both ways: a unit it uses
+  without declaring is a finding, and so is one it declares and never uses.
 - `arbiter blast <name> <folder>` prints each definition of a name and
   every place using that one, so a same-named symbol elsewhere stays out.
 - `arbiter findings <folder> [file...]` answers every check's findings as
