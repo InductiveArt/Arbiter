@@ -1,0 +1,12 @@
+# The adapter: what holds a Rust unit to the bar, in the order run.
+[[check]]
+name = "fmt"
+run = ["cargo", "fmt", "--check"]
+
+[[check]]
+name = "clippy"
+run = ["cargo", "clippy", "--all-targets", "--quiet", "--", "-D", "warnings"]
+
+[[check]]
+name = "test"
+run = ["cargo", "test", "--quiet"]

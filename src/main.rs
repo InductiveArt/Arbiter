@@ -1,12 +1,50 @@
 use std::env;
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use arbiter::graph::{graph, judge, Finding};
 use arbiter::pack::{Def, Edge};
 use arbiter::units::Repo;
+use arbiter::{pack, units, verify};
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = env::args().skip(1).collect();
+    if arguments.first().map(String::as_str) == Some("verify") {
+        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let Ok(root) = PathBuf::from(&asked).canonicalize() else {
+            eprintln!("verify: no folder at {asked}");
+            return ExitCode::from(2);
+        };
+        let packs = pack::all();
+        let repo = units::scan(&root, &packs);
+        let (outcomes, notes) = verify::verify(&root, &repo, &packs);
+        for outcome in &outcomes {
+            let answer = if outcome.passed { "ok    " } else { "failed" };
+            println!(
+                "  {}/{} {:10} {answer} {:.1}s",
+                outcome.unit, outcome.pack, outcome.check, outcome.seconds
+            );
+            if !outcome.passed && !outcome.tail.is_empty() {
+                for line in outcome.tail.lines() {
+                    println!("    {line}");
+                }
+            }
+        }
+        for note in &notes {
+            println!("verify: {note}");
+        }
+        if outcomes.is_empty() {
+            println!("verify: no unit declares any tools, so nothing was judged");
+            return ExitCode::from(2);
+        }
+        let failed = outcomes.iter().filter(|outcome| !outcome.passed).count();
+        if failed == 0 {
+            println!("verify: {} checks passed", outcomes.len());
+            return ExitCode::SUCCESS;
+        }
+        println!("verify: {failed} of {} checks failed", outcomes.len());
+        return ExitCode::FAILURE;
+    }
     if arguments.first().map(String::as_str) == Some("blast") {
         let Some(name) = arguments.get(1) else {
             eprintln!("blast: name the symbol to look up");

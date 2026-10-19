@@ -6,3 +6,4 @@ pub mod rust;
 pub mod trees;
 pub mod typescript;
 pub mod units;
+pub mod verify;

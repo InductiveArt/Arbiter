@@ -25,8 +25,16 @@ impl TypeScript {
 }
 
 impl Pack for TypeScript {
+    fn label(&self) -> &'static str {
+        "typescript"
+    }
+
     fn handles(&self, name: &str) -> bool {
         !name.ends_with(".d.ts") && (name.ends_with(".ts") || name.ends_with(".tsx"))
+    }
+
+    fn manifest(&self) -> Option<&'static str> {
+        Some("package.json")
     }
 
     fn roots(&self, _root: &Path, _repo: &Repo) -> Vec<PathBuf> {

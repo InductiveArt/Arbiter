@@ -25,8 +25,16 @@ impl Python {
 }
 
 impl Pack for Python {
+    fn label(&self) -> &'static str {
+        "python"
+    }
+
     fn handles(&self, name: &str) -> bool {
         name.ends_with(".py")
+    }
+
+    fn manifest(&self) -> Option<&'static str> {
+        Some("pyproject.toml")
     }
 
     fn roots(&self, root: &Path, repo: &Repo) -> Vec<PathBuf> {

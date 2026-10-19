@@ -13,6 +13,11 @@ across Python, TypeScript, C++ and Rust:
   every file using that one, so a same-named symbol elsewhere stays out.
 - `arbiter findings <folder> [file...]` answers the same findings as data,
   one JSON line each, held to the files a caller names.
+- `arbiter verify <folder>` runs each pack's declared tools over every unit
+  holding its manifest, one line per check, failing output shown last lines
+  first. A unit of a language whose pack declares no tools is named, never
+  passed over in silence; a unit on a test path is a fixture and is not
+  judged. Nothing to run at all is a failure, not a pass.
 
 A use is resolved, never matched by name: an import reaches the file its
 module path names, a call reaches a header the caller includes. Three units
@@ -30,8 +35,10 @@ each defining `value` stay three symbols.
   file, its name and folder say.
 - A language is a pack: one module behind one trait, whose
   `packs/<language>/*.scm` tree-sitter queries say what defines a symbol,
-  what uses one, and what a file mentions. The core resolves and judges; it
-  knows no language.
+  what uses one, and what a file mentions, and whose
+  `packs/<language>/tools.toml` is its adapter: the tools holding a unit of
+  that language to the bar. The core resolves, judges and runs; it knows no
+  language.
 
 ## Measured
 
@@ -57,3 +64,9 @@ lines changed, a module declaration, an import, a registry entry and a
 dependency, and no logic anywhere. Arbiter judges its own source clean, all
 15 public symbols used; a planted dead `pub fn` is reported at its line and
 the run is clean again when it goes.
+
+Arbiter holds itself to its own bar: `arbiter verify .` runs the Rust
+adapter, rustfmt, clippy denying every warning, and its tests, three checks
+in under three seconds. The judgment is itself tested, against a committed
+corpus with a known answer. A file formatted wrongly on purpose failed two
+of the three checks with the diff in the output, and the exit code said so.

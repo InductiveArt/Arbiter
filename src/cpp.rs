@@ -29,6 +29,10 @@ impl Cpp {
 }
 
 impl Pack for Cpp {
+    fn label(&self) -> &'static str {
+        "cpp"
+    }
+
     fn handles(&self, name: &str) -> bool {
         let Some(extension) = name.rsplit('.').next() else {
             return false;

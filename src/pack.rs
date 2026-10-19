@@ -30,7 +30,19 @@ pub struct Definition {
 
 // A language. It says what defines a symbol and what uses one; the core knows no language.
 pub trait Pack {
+    fn label(&self) -> &'static str;
+
     fn handles(&self, name: &str) -> bool;
+
+    // The manifest file marking a folder as a unit of this language.
+    fn manifest(&self) -> Option<&'static str> {
+        None
+    }
+
+    // The adapter: the tools that hold a unit of this language to the bar, as TOML.
+    fn adapter(&self) -> Option<&'static str> {
+        None
+    }
 
     // Files whose symbols live by being named from outside the repository.
     fn roots(&self, root: &Path, repo: &Repo) -> Vec<PathBuf>;

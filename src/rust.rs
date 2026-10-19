@@ -22,8 +22,20 @@ impl Rust {
 }
 
 impl Pack for Rust {
+    fn label(&self) -> &'static str {
+        "rust"
+    }
+
     fn handles(&self, name: &str) -> bool {
         name.ends_with(".rs")
+    }
+
+    fn manifest(&self) -> Option<&'static str> {
+        Some("Cargo.toml")
+    }
+
+    fn adapter(&self) -> Option<&'static str> {
+        Some(include_str!("../packs/rust/tools.toml"))
     }
 
     // Cargo's convention: a crate's binary entry is src/main.rs beside its manifest.
