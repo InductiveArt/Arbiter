@@ -13,7 +13,7 @@ const MENTIONS: &str = include_str!("../packs/python/mentions.scm");
 
 #[derive(Default)]
 pub struct Python {
-    imports: Vec<(PathBuf, String, String)>,
+    imports: Vec<(PathBuf, String, String, usize)>,
 }
 
 impl Python {
@@ -75,8 +75,8 @@ impl Pack for Python {
         let Some(tree) = trees::parse(&language(), source) else {
             return Vec::new();
         };
-        for (module, name) in imports(&tree, source) {
-            self.imports.push((file.to_path_buf(), module, name));
+        for (module, name, line) in imports(&tree, source) {
+            self.imports.push((file.to_path_buf(), module, name, line));
         }
         if !surface {
             return Vec::new();
@@ -96,7 +96,7 @@ impl Pack for Python {
 
     fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
         let mut edges = Vec::new();
-        for (file, module, name) in &self.imports {
+        for (file, module, name, line) in &self.imports {
             for (index, def) in defs.iter().enumerate() {
                 if def.pack != mine || def.name != *name {
                     continue;
@@ -105,6 +105,7 @@ impl Pack for Python {
                     edges.push(Edge {
                         def: index,
                         file: file.clone(),
+                        line: *line,
                         unit: repo.unit_of(file),
                     });
                 }
@@ -135,13 +136,13 @@ fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
         .collect()
 }
 
-fn imports(tree: &Tree, source: &str) -> Vec<(String, String)> {
+fn imports(tree: &Tree, source: &str) -> Vec<(String, String, usize)> {
     trees::matches(&language(), USES, tree, source)
         .into_iter()
         .filter_map(|captures| {
             let module = captures.iter().find(|capture| capture.name == "module")?;
             let name = captures.iter().find(|capture| capture.name == "name")?;
-            Some((module.text.clone(), name.text.clone()))
+            Some((module.text.clone(), name.text.clone(), name.line))
         })
         .collect()
 }

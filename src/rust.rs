@@ -12,7 +12,7 @@ const MENTIONS: &str = include_str!("../packs/rust/mentions.scm");
 
 #[derive(Default)]
 pub struct Rust {
-    uses: Vec<(PathBuf, String, String)>,
+    uses: Vec<(PathBuf, String, String, usize)>,
 }
 
 impl Rust {
@@ -58,8 +58,8 @@ impl Pack for Rust {
         let Some(tree) = trees::parse(&language(), source) else {
             return Vec::new();
         };
-        for (module, name) in uses(&tree, source) {
-            self.uses.push((file.to_path_buf(), module, name));
+        for (module, name, line) in uses(&tree, source) {
+            self.uses.push((file.to_path_buf(), module, name, line));
         }
         if !surface {
             return Vec::new();
@@ -79,7 +79,7 @@ impl Pack for Rust {
 
     fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
         let mut edges = Vec::new();
-        for (file, module, name) in &self.uses {
+        for (file, module, name, line) in &self.uses {
             let Some(segment) = module.rsplit("::").next() else {
                 continue;
             };
@@ -94,6 +94,7 @@ impl Pack for Rust {
                     edges.push(Edge {
                         def: index,
                         file: file.clone(),
+                        line: *line,
                         unit: repo.unit_of(file),
                     });
                 }
@@ -137,13 +138,13 @@ fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
         .collect()
 }
 
-fn uses(tree: &Tree, source: &str) -> Vec<(String, String)> {
+fn uses(tree: &Tree, source: &str) -> Vec<(String, String, usize)> {
     trees::matches(&language(), USES, tree, source)
         .into_iter()
         .filter_map(|captures| {
             let module = captures.iter().find(|capture| capture.name == "module")?;
             let name = captures.iter().find(|capture| capture.name == "name")?;
-            Some((module.text.clone(), name.text.clone()))
+            Some((module.text.clone(), name.text.clone(), name.line))
         })
         .collect()
 }

@@ -147,7 +147,7 @@ fn blast(name: &str, defs: &[Def], edges: &[Edge]) {
         let mut users: Vec<String> = edges
             .iter()
             .filter(|edge| edge.def == index && edge.file != def.file)
-            .map(|edge| format!("  used by {}", edge.file.to_string_lossy()))
+            .map(|edge| format!("  used by {}:{}", edge.file.to_string_lossy(), edge.line))
             .collect();
         users.sort();
         users.dedup();

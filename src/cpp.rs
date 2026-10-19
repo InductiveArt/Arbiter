@@ -12,7 +12,7 @@ const USES: &str = include_str!("../packs/cpp/uses.scm");
 struct Source {
     file: PathBuf,
     includes: Vec<String>,
-    calls: Vec<String>,
+    calls: Vec<(String, usize)>,
 }
 
 #[derive(Default)]
@@ -76,11 +76,12 @@ impl Pack for Cpp {
                     .includes
                     .iter()
                     .any(|name| *name == header || name.ends_with(&format!("/{header}")));
-                let called = source.calls.contains(&def.name);
-                if included && called {
+                let called = source.calls.iter().find(|(call, _)| *call == def.name);
+                if let (true, Some((_, line))) = (included, called) {
                     edges.push(Edge {
                         def: index,
                         file: source.file.clone(),
+                        line: *line,
                         unit: repo.unit_of(&source.file),
                     });
                 }
@@ -117,7 +118,7 @@ fn read(file: &Path, tree: &Tree, source: &str) -> Source {
         for capture in captures {
             match capture.name.as_str() {
                 "include" => includes.push(capture.text.trim_matches('"').to_string()),
-                "use" => calls.push(capture.text),
+                "use" => calls.push((capture.text, capture.line)),
                 _ => {}
             }
         }

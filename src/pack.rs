@@ -19,6 +19,7 @@ pub struct Def {
 pub struct Edge {
     pub def: usize,
     pub file: PathBuf,
+    pub line: usize,
     pub unit: usize,
 }
 

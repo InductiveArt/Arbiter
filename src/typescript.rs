@@ -25,7 +25,7 @@ const RESOLVE: [&str; 8] = [
 
 #[derive(Default)]
 pub struct TypeScript {
-    imports: Vec<(PathBuf, String, String)>,
+    imports: Vec<(PathBuf, String, String, usize)>,
 }
 
 impl TypeScript {
@@ -86,8 +86,8 @@ impl Pack for TypeScript {
         let Some(tree) = trees::parse(&language(), source) else {
             return Vec::new();
         };
-        for (from, name) in imports(&tree, source) {
-            self.imports.push((file.to_path_buf(), from, name));
+        for (from, name, line) in imports(&tree, source) {
+            self.imports.push((file.to_path_buf(), from, name, line));
         }
         if !surface {
             return Vec::new();
@@ -107,7 +107,7 @@ impl Pack for TypeScript {
 
     fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
         let mut edges = Vec::new();
-        for (file, from, name) in &self.imports {
+        for (file, from, name, line) in &self.imports {
             // A bare specifier names a package, which is not this repository's code.
             if !from.starts_with('.') {
                 continue;
@@ -131,6 +131,7 @@ impl Pack for TypeScript {
                     edges.push(Edge {
                         def: index,
                         file: file.clone(),
+                        line: *line,
                         unit: repo.unit_of(file),
                     });
                 }
@@ -161,13 +162,13 @@ fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
         .collect()
 }
 
-fn imports(tree: &Tree, source: &str) -> Vec<(String, String)> {
+fn imports(tree: &Tree, source: &str) -> Vec<(String, String, usize)> {
     trees::matches(&language(), USES, tree, source)
         .into_iter()
         .filter_map(|captures| {
             let from = captures.iter().find(|capture| capture.name == "source")?;
             let name = captures.iter().find(|capture| capture.name == "name")?;
-            Some((from.text.clone(), name.text.clone()))
+            Some((from.text.clone(), name.text.clone(), name.line))
         })
         .collect()
 }
