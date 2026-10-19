@@ -10,8 +10,13 @@ and Rust:
 - `arbiter economy <folder>` reports every public symbol with no user
   outside its own unit.
 - `arbiter integrity <folder>` reports the structure broken across units:
-  units importing each other in a cycle, and a name re-exported, whether by
-  an `__init__.py` import or a TypeScript `export ... from`.
+  units importing each other in a cycle; a name re-exported, whether by an
+  `__init__.py` import or a TypeScript `export ... from`; a name imported
+  under an alias, which only whoever knows the alias can search for; a
+  comment naming what nothing in its file defines, uses or quotes; a third
+  party imported that no manifest declares; and a third party locked at two
+  versions across the repository's lockfiles, which is the one-version rule
+  as a judgment instead of a resolver constraint.
 - `arbiter blast <name> <folder>` prints each definition of a name and
   every place using that one, so a same-named symbol elsewhere stays out.
 - `arbiter findings <folder> [file...]` answers every check's findings as
