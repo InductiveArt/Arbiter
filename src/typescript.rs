@@ -15,6 +15,7 @@ const BAR: &str = include_str!("../packs/typescript/bar.toml");
 const REEXPORTS: &str = include_str!("../packs/typescript/reexports.scm");
 const SUPPRESSIONS: &str = include_str!("../packs/typescript/suppressions.scm");
 const PROSE: &str = include_str!("../packs/typescript/prose.scm");
+const BUILTINS: &str = include_str!("../packs/typescript/builtins.txt");
 
 const RESOLVE: [&str; 8] = [
     "npx",
@@ -157,7 +158,7 @@ impl Pack for TypeScript {
         &self.suppressions
     }
 
-    fn integrity(&self, _repo: &Repo) -> Vec<Finding> {
+    fn integrity(&self, root: &Path, repo: &Repo) -> Vec<Finding> {
         let mut findings: Vec<Finding> = self
             .reexports
             .iter()
@@ -185,6 +186,36 @@ impl Pack for TypeScript {
                 "a comment names {token}, which nothing in the file defines, uses or quotes"
             ),
         }));
+        let declared = declared_packages(root, repo);
+        let builtins: std::collections::HashSet<&str> = BUILTINS.lines().collect();
+        let mut named = std::collections::BTreeSet::new();
+        for (file, from, _, line) in &self.imports {
+            let unit = repo.unit_of(file);
+            let home = repo.units[unit].path.clone();
+            if repo.is_test(unit, &home) {
+                continue;
+            }
+            if from.starts_with('.') || from.starts_with("node:") {
+                continue;
+            }
+            let package = if from.starts_with('@') {
+                from.splitn(3, '/').take(2).collect::<Vec<&str>>().join("/")
+            } else {
+                from.split('/').next().unwrap_or(from).to_string()
+            };
+            if builtins.contains(package.as_str()) || declared.contains(&package) {
+                continue;
+            }
+            if named.insert(package.clone()) {
+                findings.push(Finding {
+                    check: "integrity",
+                    file: file.clone(),
+                    line: *line,
+                    name: "undeclared-dependency".to_string(),
+                    reason: format!("{package} is imported, and no manifest declares it"),
+                });
+            }
+        }
         findings
     }
 
@@ -280,6 +311,38 @@ fn option_findings(options: &serde_json::Value) -> Vec<String> {
         ));
     }
     findings
+}
+
+fn declared_packages(root: &Path, repo: &Repo) -> std::collections::HashSet<String> {
+    let mut declared = std::collections::HashSet::new();
+    for manifest in &repo.manifests {
+        if manifest
+            .file_name()
+            .is_none_or(|name| name != "package.json")
+        {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(root.join(manifest)) else {
+            continue;
+        };
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) else {
+            continue;
+        };
+        for table in [
+            "dependencies",
+            "devDependencies",
+            "peerDependencies",
+            "optionalDependencies",
+        ] {
+            let Some(entries) = parsed.get(table).and_then(serde_json::Value::as_object) else {
+                continue;
+            };
+            for name in entries.keys() {
+                declared.insert(name.clone());
+            }
+        }
+    }
+    declared
 }
 
 fn prose_parts(tree: &Tree, source: &str) -> (Vec<(String, usize)>, String) {

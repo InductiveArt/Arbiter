@@ -84,9 +84,14 @@ pub trait Pack {
     }
 
     // What the pack saw while scanning that breaks a structural rule of its language.
-    fn integrity(&self, repo: &Repo) -> Vec<Finding> {
-        let _ = repo;
+    fn integrity(&self, root: &Path, repo: &Repo) -> Vec<Finding> {
+        let _ = (root, repo);
         Vec::new()
+    }
+
+    // The lockfile recording what the ecosystem resolved, for holding versions to one.
+    fn lockfile(&self) -> Option<&'static str> {
+        None
     }
 
     // Every suppression the pack's language can write, seen while scanning.

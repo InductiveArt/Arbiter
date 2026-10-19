@@ -16,10 +16,14 @@ const PROSE: &str = include_str!("../packs/rust/prose.scm");
 #[derive(Default)]
 pub struct Rust {
     uses: Vec<(PathBuf, String, String, usize)>,
+    // The first segment of each use declaration: where an external crate enters.
+    entries: Vec<(PathBuf, String, usize)>,
     suppressions: Vec<Suppression>,
     aliases: Vec<(PathBuf, String, usize)>,
     overreaches: Vec<(PathBuf, String, usize)>,
 }
+
+const BUILTIN_CRATES: [&str; 5] = ["std", "core", "alloc", "proc_macro", "test"];
 
 impl Rust {
     pub fn new() -> Self {
@@ -73,7 +77,11 @@ impl Pack for Rust {
         let Some(tree) = trees::parse(&language(), source) else {
             return Vec::new();
         };
-        for (module, name, line) in uses(&tree, source) {
+        for (module, name, line, from_use) in uses(&tree, source) {
+            if from_use {
+                let first = module.split("::").next().unwrap_or(&module).to_string();
+                self.entries.push((file.to_path_buf(), first, line));
+            }
             self.uses.push((file.to_path_buf(), module, name, line));
         }
         for captures in trees::matches(&language(), SUPPRESSIONS, &tree, source) {
@@ -147,7 +155,11 @@ impl Pack for Rust {
         &["target"]
     }
 
-    fn integrity(&self, _repo: &Repo) -> Vec<Finding> {
+    fn lockfile(&self) -> Option<&'static str> {
+        Some("Cargo.lock")
+    }
+
+    fn integrity(&self, root: &Path, repo: &Repo) -> Vec<Finding> {
         let mut findings: Vec<Finding> = self
             .aliases
             .iter()
@@ -168,6 +180,41 @@ impl Pack for Rust {
                 "a comment names {token}, which nothing in the file defines, uses or quotes"
             ),
         }));
+        let declared = declared_crates(root, repo);
+        let mut named = std::collections::BTreeSet::new();
+        for (file, first, line) in &self.entries {
+            let unit = repo.unit_of(file);
+            let home = repo.units[unit].path.clone();
+            if repo.is_test(unit, &home) {
+                continue;
+            }
+            if first == "crate"
+                || first == "self"
+                || first == "super"
+                || BUILTIN_CRATES.contains(&first.as_str())
+            {
+                continue;
+            }
+            if repo
+                .files
+                .iter()
+                .any(|candidate| is_module_file(first, candidate))
+            {
+                continue;
+            }
+            if declared.contains(&first.replace('_', "-")) {
+                continue;
+            }
+            if named.insert(first.clone()) {
+                findings.push(Finding {
+                    check: "integrity",
+                    file: file.clone(),
+                    line: *line,
+                    name: "undeclared-dependency".to_string(),
+                    reason: format!("{first} is imported, and no manifest declares it"),
+                });
+            }
+        }
         findings
     }
 
@@ -196,6 +243,42 @@ impl Pack for Rust {
         }
         edges
     }
+}
+
+// The keys of every dependency table, dashed, which is how crates are published.
+fn declared_crates(root: &Path, repo: &Repo) -> std::collections::HashSet<String> {
+    let mut declared = std::collections::HashSet::new();
+    for manifest in &repo.manifests {
+        if manifest.file_name().is_none_or(|name| name != "Cargo.toml") {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(root.join(manifest)) else {
+            continue;
+        };
+        let Ok(parsed) = text.parse::<toml::Value>() else {
+            continue;
+        };
+        // A crate's own name: its library half is imported under it from its binaries.
+        if let Some(own) = table_at(&parsed, "package").and_then(|package| package.get("name")) {
+            if let Some(own) = own.as_str() {
+                declared.insert(own.replace('_', "-"));
+            }
+        }
+        for path in [
+            "dependencies",
+            "dev-dependencies",
+            "build-dependencies",
+            "workspace.dependencies",
+        ] {
+            let Some(table) = table_at(&parsed, path) else {
+                continue;
+            };
+            for name in table.keys() {
+                declared.insert(name.replace('_', "-"));
+            }
+        }
+    }
+    declared
 }
 
 // The bar denies every warning, so a lint turned to allow in the manifest lowers it.
@@ -290,13 +373,20 @@ fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
         .collect()
 }
 
-fn uses(tree: &Tree, source: &str) -> Vec<(String, String, usize)> {
+fn uses(tree: &Tree, source: &str) -> Vec<(String, String, usize, bool)> {
     trees::matches(&language(), USES, tree, source)
         .into_iter()
         .filter_map(|captures| {
-            let module = captures.iter().find(|capture| capture.name == "module")?;
+            let module = captures
+                .iter()
+                .find(|capture| capture.name == "module" || capture.name == "declared_module")?;
             let name = captures.iter().find(|capture| capture.name == "name")?;
-            Some((module.text.clone(), name.text.clone(), name.line))
+            Some((
+                module.text.clone(),
+                name.text.clone(),
+                name.line,
+                module.name == "declared_module",
+            ))
         })
         .collect()
 }

@@ -66,6 +66,7 @@ fn main() -> ExitCode {
         };
         let mut all = judge(&found.defs, &found.edges, &found.repo);
         all.extend(integrity(
+            &found.root,
             &found.packs,
             &found.defs,
             &found.edges,
@@ -159,7 +160,13 @@ fn main() -> ExitCode {
             eprintln!("integrity: no folder at {asked}");
             return ExitCode::from(2);
         };
-        let findings = integrity(&found.packs, &found.defs, &found.edges, &found.repo);
+        let findings = integrity(
+            &found.root,
+            &found.packs,
+            &found.defs,
+            &found.edges,
+            &found.repo,
+        );
         if findings.is_empty() {
             println!("integrity: every unit stands on its own");
             return ExitCode::SUCCESS;

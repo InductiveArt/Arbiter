@@ -30,15 +30,24 @@ fn the_fixture_yields_its_known_findings() {
 #[test]
 fn integrity_names_the_cycle_and_each_reexport() {
     let found = graph(DEMO).expect("the fixture folder exists");
-    let shown: Vec<String> = integrity(&found.packs, &found.defs, &found.edges, &found.repo)
-        .iter()
-        .map(|finding| format!("{} {}", finding.file.to_string_lossy(), finding.reason))
-        .collect();
+    let shown: Vec<String> = integrity(
+        &found.root,
+        &found.packs,
+        &found.defs,
+        &found.edges,
+        &found.repo,
+    )
+    .iter()
+    .map(|finding| format!("{} {}", finding.file.to_string_lossy(), finding.reason))
+    .collect();
     assert_eq!(
         shown,
         [
             "app/src/app/alias.py imported as v; a symbol keeps its own name",
+            "app/src/app/web.py requests is imported, and no manifest declares it",
             "libs/cyc_a units import each other: libs/cyc_a, libs/cyc_b",
+            "libs/dead_py/uv.lock requests is locked at 2.31.0 in libs/dead_py/uv.lock \
+             and 2.32.0 in libs/used_py/uv.lock",
             "libs/facade/src/facade/__init__.py __init__.py imports shine; \
              a symbol is imported from the module defining it",
             "libs/facade/src/facade/inner.py a comment names dashboard_frontend, \

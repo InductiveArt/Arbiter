@@ -17,6 +17,7 @@ pub struct Repo {
     pub units: Vec<Unit>,
     pub files: Vec<PathBuf>,
     pub manifests: Vec<PathBuf>,
+    pub lockfiles: Vec<PathBuf>,
 }
 
 impl Repo {
@@ -51,9 +52,12 @@ const MANIFEST_NAMES: [&str; 4] = ["pyproject.toml", "Cargo.toml", "package.json
 
 pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Repo {
     let mut builds = Vec::new();
-    let mut files = Vec::new();
-    let mut manifests = Vec::new();
-    walk(root, root, packs, &mut builds, &mut files, &mut manifests);
+    let mut found = Found {
+        files: Vec::new(),
+        manifests: Vec::new(),
+        lockfiles: Vec::new(),
+    };
+    walk(root, root, packs, &mut builds, &mut found);
     // The whole repository is the unit of last resort for a file no BUILD file claims.
     let mut units = vec![Unit {
         path: PathBuf::new(),
@@ -70,7 +74,7 @@ pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Repo {
         }
     }
     // A manifest declares a unit the way a BUILD file does, with nothing to add to it.
-    for manifest in &manifests {
+    for manifest in &found.manifests {
         let folder = manifest.parent().unwrap_or(Path::new("")).to_path_buf();
         if folder.as_os_str().is_empty() || units.iter().any(|unit| unit.path == folder) {
             continue;
@@ -81,12 +85,19 @@ pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Repo {
             root_files: HashSet::new(),
         });
     }
-    files.sort();
+    found.files.sort();
     Repo {
         units,
-        files,
-        manifests,
+        files: found.files,
+        manifests: found.manifests,
+        lockfiles: found.lockfiles,
     }
+}
+
+struct Found {
+    files: Vec<PathBuf>,
+    manifests: Vec<PathBuf>,
+    lockfiles: Vec<PathBuf>,
 }
 
 fn walk(
@@ -94,8 +105,7 @@ fn walk(
     folder: &Path,
     packs: &[Box<dyn Pack>],
     builds: &mut Vec<PathBuf>,
-    files: &mut Vec<PathBuf>,
-    manifests: &mut Vec<PathBuf>,
+    found: &mut Found,
 ) {
     let Ok(entries) = fs::read_dir(folder) else {
         return;
@@ -118,15 +128,20 @@ fn walk(
             {
                 continue;
             }
-            walk(root, &path, packs, builds, files, manifests);
+            walk(root, &path, packs, builds, found);
         } else if kind.is_file() {
             let relative = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
             if BUILD_NAMES.contains(&name.as_str()) {
                 builds.push(relative);
             } else if MANIFEST_NAMES.contains(&name.as_str()) {
-                manifests.push(relative);
+                found.manifests.push(relative);
+            } else if packs
+                .iter()
+                .any(|pack| pack.lockfile() == Some(name.as_str()))
+            {
+                found.lockfiles.push(relative);
             } else if packs.iter().any(|pack| pack.handles(&name)) {
-                files.push(relative);
+                found.files.push(relative);
             }
         }
     }
@@ -242,6 +257,7 @@ mod tests {
                 .collect(),
             files: Vec::new(),
             manifests: Vec::new(),
+            lockfiles: Vec::new(),
         }
     }
 

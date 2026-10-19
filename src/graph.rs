@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::pack;
 use crate::pack::{Def, Edge, Finding, Pack};
@@ -67,6 +67,7 @@ pub fn graph(asked: &str) -> Option<Graph> {
 }
 
 pub fn integrity(
+    root: &Path,
     packs: &[Box<dyn Pack>],
     defs: &[Def],
     edges: &[Edge],
@@ -74,9 +75,76 @@ pub fn integrity(
 ) -> Vec<Finding> {
     let mut findings = cycles(defs, edges, repo);
     for pack in packs {
-        findings.extend(pack.integrity(repo));
+        findings.extend(pack.integrity(root, repo));
     }
+    findings.extend(one_version(root, repo, packs));
     findings.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
+    findings
+}
+
+// Bazel's one-version rule as a judgment: a third party resolved at two versions
+// across the repository's lockfiles is named with every version and its place.
+fn one_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    for pack in packs {
+        let Some(lock) = pack.lockfile() else {
+            continue;
+        };
+        let mut versions: std::collections::BTreeMap<
+            String,
+            std::collections::BTreeMap<String, PathBuf>,
+        > = std::collections::BTreeMap::new();
+        for path in &repo.lockfiles {
+            if path.file_name().is_none_or(|name| name != lock) {
+                continue;
+            }
+            let unit = repo.unit_of(path);
+            let home = repo.units[unit].path.clone();
+            if repo.is_test(unit, &home) {
+                continue;
+            }
+            let Ok(text) = fs::read_to_string(root.join(path)) else {
+                continue;
+            };
+            let Ok(parsed) = text.parse::<toml::Value>() else {
+                continue;
+            };
+            let Some(packages) = parsed.get("package").and_then(toml::Value::as_array) else {
+                continue;
+            };
+            for entry in packages {
+                let name = entry.get("name").and_then(toml::Value::as_str);
+                let version = entry.get("version").and_then(toml::Value::as_str);
+                let (Some(name), Some(version)) = (name, version) else {
+                    continue;
+                };
+                versions
+                    .entry(name.to_string())
+                    .or_default()
+                    .entry(version.to_string())
+                    .or_insert_with(|| path.clone());
+            }
+        }
+        for (name, seen) in versions {
+            if seen.len() < 2 {
+                continue;
+            }
+            let places: Vec<String> = seen
+                .iter()
+                .map(|(version, place)| format!("{version} in {}", place.to_string_lossy()))
+                .collect();
+            let Some(anchor) = seen.values().min() else {
+                continue;
+            };
+            findings.push(Finding {
+                check: "integrity",
+                file: anchor.clone(),
+                line: 0,
+                name: "one-version".to_string(),
+                reason: format!("{name} is locked at {}", places.join(" and ")),
+            });
+        }
+    }
     findings
 }
 

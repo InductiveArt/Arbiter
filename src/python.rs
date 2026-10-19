@@ -15,6 +15,8 @@ const MENTIONS: &str = include_str!("../packs/python/mentions.scm");
 const BAR: &str = include_str!("../packs/python/bar.toml");
 const SUPPRESSIONS: &str = include_str!("../packs/python/suppressions.scm");
 const PROSE: &str = include_str!("../packs/python/prose.scm");
+const STDLIB: &str = include_str!("../packs/python/stdlib.txt");
+const DISTRIBUTIONS: &str = include_str!("../packs/python/distributions.toml");
 
 const CHECKERS: [&str; 2] = ["basedpyright", "pyright"];
 const MODES: [&str; 3] = ["strict", "recommended", "all"];
@@ -23,7 +25,7 @@ const MODES: [&str; 3] = ["strict", "recommended", "all"];
 pub struct Python {
     imports: Vec<(PathBuf, String, String, usize)>,
     init_imports: Vec<(PathBuf, String, usize)>,
-    plains: Vec<(PathBuf, String)>,
+    plains: Vec<(PathBuf, String, usize)>,
     chains: Vec<(PathBuf, String, usize)>,
     suppressions: Vec<Suppression>,
     aliases: Vec<(PathBuf, String, usize)>,
@@ -108,8 +110,8 @@ impl Pack for Python {
             }
             self.imports.push((file.to_path_buf(), module, name, line));
         }
-        for text in captured(&tree, source, "plain") {
-            self.plains.push((file.to_path_buf(), text.0));
+        for (name, line) in captured(&tree, source, "plain") {
+            self.plains.push((file.to_path_buf(), name, line));
         }
         for (chain, line) in captured(&tree, source, "chain") {
             self.chains.push((file.to_path_buf(), chain, line));
@@ -161,7 +163,11 @@ impl Pack for Python {
         &["__pycache__"]
     }
 
-    fn integrity(&self, _repo: &Repo) -> Vec<Finding> {
+    fn lockfile(&self) -> Option<&'static str> {
+        Some("uv.lock")
+    }
+
+    fn integrity(&self, root: &Path, repo: &Repo) -> Vec<Finding> {
         let mut findings: Vec<Finding> = self
             .init_imports
             .iter()
@@ -191,6 +197,43 @@ impl Pack for Python {
                 "a comment names {token}, which nothing in the file defines, uses or quotes"
             ),
         }));
+        let declared = declared_distributions(root, repo);
+        let stdlib: HashSet<&str> = STDLIB.lines().collect();
+        let known = distribution_map();
+        let mut named = std::collections::BTreeSet::new();
+        let modules = self
+            .imports
+            .iter()
+            .map(|(file, module, _, line)| (file, module, *line))
+            .chain(
+                self.plains
+                    .iter()
+                    .map(|(file, name, line)| (file, name, *line)),
+            );
+        for (file, module, line) in modules {
+            let unit = repo.unit_of(file);
+            let home = repo.units[unit].path.clone();
+            if repo.is_test(unit, &home) {
+                continue;
+            }
+            let top = module.split('.').next().unwrap_or(module);
+            if stdlib.contains(top) || module_file(module, &repo.files).is_some() {
+                continue;
+            }
+            let distribution = known.get(top).cloned().unwrap_or_else(|| top.to_string());
+            if declared.contains(&normalized(&distribution)) {
+                continue;
+            }
+            if named.insert(top.to_string()) {
+                findings.push(Finding {
+                    check: "integrity",
+                    file: file.clone(),
+                    line,
+                    name: "undeclared-dependency".to_string(),
+                    reason: format!("{top} is imported, and no manifest declares it"),
+                });
+            }
+        }
         findings
     }
 
@@ -214,7 +257,7 @@ impl Pack for Python {
         // A whole-module import reaches a name through a dotted chain: the longest
         // leading piece naming a module in the repository owns the segment after it.
         let mut imported: HashMap<&PathBuf, HashSet<&str>> = HashMap::new();
-        for (file, name) in &self.plains {
+        for (file, name, _) in &self.plains {
             let first = name.split('.').next().unwrap_or(name);
             imported.entry(file).or_default().insert(first);
         }
@@ -270,6 +313,85 @@ fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
         .into_iter()
         .flatten()
         .map(|capture| (capture.text, capture.line))
+        .collect()
+}
+
+// Distribution names as PEP 503 reads them: lowercased, runs of separators as one dash.
+fn normalized(name: &str) -> String {
+    name.to_lowercase()
+        .replace(['_', '.'], "-")
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<&str>>()
+        .join("-")
+}
+
+fn declared_distributions(root: &Path, repo: &Repo) -> HashSet<String> {
+    let mut declared = HashSet::new();
+    for manifest in &repo.manifests {
+        if manifest
+            .file_name()
+            .is_none_or(|name| name != "pyproject.toml")
+        {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(root.join(manifest)) else {
+            continue;
+        };
+        let Ok(parsed) = text.parse::<toml::Value>() else {
+            continue;
+        };
+        let mut lists: Vec<&toml::Value> = Vec::new();
+        lists.extend(
+            parsed
+                .get("project")
+                .and_then(|project| project.get("dependencies")),
+        );
+        for groups in ["optional-dependencies", "dependency-groups"] {
+            let table = match groups {
+                "optional-dependencies" => parsed
+                    .get("project")
+                    .and_then(|project| project.get(groups)),
+                _ => parsed.get(groups),
+            };
+            if let Some(table) = table.and_then(toml::Value::as_table) {
+                lists.extend(table.values());
+            }
+        }
+        for list in lists {
+            let Some(entries) = list.as_array() else {
+                continue;
+            };
+            for entry in entries {
+                if let Some(requirement) = entry.as_str() {
+                    let name: String = requirement
+                        .chars()
+                        .take_while(|part| {
+                            part.is_ascii_alphanumeric() || matches!(part, '-' | '_' | '.')
+                        })
+                        .collect();
+                    declared.insert(normalized(&name));
+                }
+            }
+        }
+    }
+    declared
+}
+
+fn distribution_map() -> HashMap<String, String> {
+    let Ok(parsed) = DISTRIBUTIONS.parse::<toml::Value>() else {
+        return HashMap::new();
+    };
+    let Some(imports) = parsed.get("imports").and_then(toml::Value::as_table) else {
+        return HashMap::new();
+    };
+    imports
+        .iter()
+        .filter_map(|(import, distribution)| {
+            distribution
+                .as_str()
+                .map(|name| (import.clone(), name.to_string()))
+        })
         .collect()
 }
 
