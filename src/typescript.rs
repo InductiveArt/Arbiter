@@ -37,6 +37,10 @@ impl Pack for TypeScript {
         Some("package.json")
     }
 
+    fn adapter(&self) -> Option<&'static str> {
+        Some(include_str!("../packs/typescript/tools.toml"))
+    }
+
     fn roots(&self, _root: &Path, _repo: &Repo) -> Vec<PathBuf> {
         Vec::new()
     }

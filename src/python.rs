@@ -37,6 +37,21 @@ impl Pack for Python {
         Some("pyproject.toml")
     }
 
+    fn adapter(&self) -> Option<&'static str> {
+        Some(include_str!("../packs/python/tools.toml"))
+    }
+
+    fn container(&self, manifest: &str) -> bool {
+        let Ok(parsed) = manifest.parse::<toml::Value>() else {
+            return false;
+        };
+        let workspace = parsed
+            .get("tool")
+            .and_then(|tool| tool.get("uv"))
+            .and_then(|uv| uv.get("workspace"));
+        parsed.get("project").is_none() && workspace.is_some()
+    }
+
     fn roots(&self, root: &Path, repo: &Repo) -> Vec<PathBuf> {
         let mut found = Vec::new();
         for manifest in &repo.manifests {

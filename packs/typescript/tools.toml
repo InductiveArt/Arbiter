@@ -1,0 +1,9 @@
+# The adapter: what holds a TypeScript unit to the bar, in the order run.
+# Each tool is pinned, so every unit is held to one bar, not to a machine's.
+[[check]]
+name = "lint"
+run = ["npx", "--yes", "@biomejs/biome@2.5.15", "check", "."]
+
+[[check]]
+name = "types"
+run = ["npx", "--yes", "--package", "typescript@7.0.2", "tsc", "--noEmit", "-p", "."]

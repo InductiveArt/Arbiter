@@ -44,6 +44,12 @@ pub trait Pack {
         None
     }
 
+    // A manifest declaring members and no code of its own bounds a unit without being one to judge.
+    fn container(&self, manifest: &str) -> bool {
+        let _ = manifest;
+        false
+    }
+
     // Files whose symbols live by being named from outside the repository.
     fn roots(&self, root: &Path, repo: &Repo) -> Vec<PathBuf>;
 

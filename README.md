@@ -17,7 +17,15 @@ across Python, TypeScript, C++ and Rust:
   holding its manifest, one line per check, failing output shown last lines
   first. A unit of a language whose pack declares no tools is named, never
   passed over in silence; a unit on a test path is a fixture and is not
-  judged. Nothing to run at all is a failure, not a pass.
+  judged; a workspace manifest with members and no code of its own is a
+  container, named while its members are judged. Nothing to run at all is a
+  failure, not a pass.
+
+  Three adapters exist, each tool pinned so every unit is held to one bar:
+  Rust runs rustfmt, clippy denying every warning, and cargo test; Python
+  runs ruff format and check, basedpyright, and pytest, through uv; and
+  TypeScript runs biome and tsc. The tools' own defaults are the bar until
+  packs carry their configurations, which is the next step of the bar.
 
 A use is resolved, never matched by name: an import reaches the file its
 module path names, a call reaches a header the caller includes. Three units

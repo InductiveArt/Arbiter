@@ -36,7 +36,14 @@ pub fn verify(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> (Vec<Outcome
             let Some(manifest) = pack.manifest() else {
                 continue;
             };
-            if !folder.join(manifest).is_file() {
+            let Ok(declared) = std::fs::read_to_string(folder.join(manifest)) else {
+                continue;
+            };
+            if pack.container(&declared) {
+                notes.push(format!(
+                    "{shown} is a {} workspace; its members are the units judged",
+                    pack.label()
+                ));
                 continue;
             }
             let Some(adapter) = pack.adapter() else {
