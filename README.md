@@ -27,8 +27,11 @@ and Rust:
   Three adapters exist, each tool pinned so every unit is held to one bar:
   Rust runs rustfmt, clippy denying every warning, and cargo test; Python
   runs ruff format and check, basedpyright, and pytest, through uv; and
-  TypeScript runs biome and tsc. The tools' own defaults are the bar until
-  packs carry their configurations, which is the next step of the bar.
+  TypeScript runs biome and tsc. A pack carries the configuration its tools
+  read, ruff's TOML and biome's JSON, written outside the judged repository
+  at a place `{pack}` in a declared command resolves to, so the bar is the
+  pack's, never a tool's default, and a run changes nothing in the
+  repository.
 
   Before a unit's tools run, `wiring` holds its declared environment to the
   pack's bar: settings may add, never lower. TypeScript's resolved tsconfig

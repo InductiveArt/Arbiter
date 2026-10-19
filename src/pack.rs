@@ -54,6 +54,12 @@ pub trait Pack {
         None
     }
 
+    // Configuration files the adapter's tools read, carried by the pack so the bar is
+    // the pack's, never a tool's default. A command reaches them where {pack} says.
+    fn configs(&self) -> &'static [(&'static str, &'static str)] {
+        &[]
+    }
+
     // A manifest declaring members and no code of its own bounds a unit without being one to judge.
     fn container(&self, manifest: &str) -> bool {
         let _ = manifest;

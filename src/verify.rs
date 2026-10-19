@@ -64,7 +64,12 @@ pub fn verify(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> (Vec<Outcome
                 ));
                 continue;
             };
+            let home = materialized(pack.as_ref());
             for check in checks(adapter) {
+                let check = Check {
+                    name: check.name,
+                    run: filled(&check.run, home.as_deref()),
+                };
                 outcomes.push(run(&shown, pack.label(), &folder, &check));
             }
         }
@@ -75,6 +80,33 @@ pub fn verify(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> (Vec<Outcome
 struct Check {
     name: String,
     run: Vec<String>,
+}
+
+// The pack's configuration files, written outside the judged repository so a run
+// changes nothing in it, at a place {pack} in a command resolves to.
+fn materialized(pack: &dyn Pack) -> Option<std::path::PathBuf> {
+    let configs = pack.configs();
+    if configs.is_empty() {
+        return None;
+    }
+    let folder = std::env::temp_dir()
+        .join("arbiter-packs")
+        .join(pack.label());
+    std::fs::create_dir_all(&folder).ok()?;
+    for (name, content) in configs {
+        std::fs::write(folder.join(name), content).ok()?;
+    }
+    Some(folder)
+}
+
+fn filled(run: &[String], home: Option<&Path>) -> Vec<String> {
+    let Some(home) = home else {
+        return run.to_vec();
+    };
+    let shown = home.to_string_lossy();
+    run.iter()
+        .map(|word| word.replace("{pack}", &shown))
+        .collect()
 }
 
 fn checks(adapter: &str) -> Vec<Check> {

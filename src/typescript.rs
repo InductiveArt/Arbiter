@@ -53,6 +53,10 @@ impl Pack for TypeScript {
         Some(include_str!("../packs/typescript/tools.toml"))
     }
 
+    fn configs(&self) -> &'static [(&'static str, &'static str)] {
+        &[("biome.json", include_str!("../packs/typescript/biome.json"))]
+    }
+
     fn wiring(&self, folder: &Path) -> Option<Vec<String>> {
         let finished = std::process::Command::new(RESOLVE[0])
             .args(&RESOLVE[1..])

@@ -2,7 +2,7 @@
 # Each tool is pinned, so every unit is held to one bar, not to a machine's.
 [[check]]
 name = "lint"
-run = ["npx", "--yes", "@biomejs/biome@2.5.15", "check", "."]
+run = ["npx", "--yes", "@biomejs/biome@2.5.15", "check", "--config-path", "{pack}", "."]
 
 [[check]]
 name = "types"

@@ -47,6 +47,10 @@ impl Pack for Python {
         Some(include_str!("../packs/python/tools.toml"))
     }
 
+    fn configs(&self) -> &'static [(&'static str, &'static str)] {
+        &[("ruff.toml", include_str!("../packs/python/ruff.toml"))]
+    }
+
     fn container(&self, manifest: &str) -> bool {
         let Ok(parsed) = manifest.parse::<toml::Value>() else {
             return false;
