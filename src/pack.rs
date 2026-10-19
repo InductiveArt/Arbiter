@@ -32,6 +32,18 @@ pub struct Finding {
     pub reason: String,
 }
 
+impl Finding {
+    pub fn integrity(file: &Path, line: usize, name: &str, reason: String) -> Self {
+        Finding {
+            check: "integrity",
+            file: file.to_path_buf(),
+            line,
+            name: name.to_string(),
+            reason,
+        }
+    }
+}
+
 pub struct Suppression {
     pub file: PathBuf,
     pub line: usize,

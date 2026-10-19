@@ -139,7 +139,7 @@ impl Pack for Python {
         }
         let mentions = mentions(&tree, source);
         let idents: HashSet<String> = mentions.iter().map(|(name, _)| name.clone()).collect();
-        let (comments, quoted) = prose_parts(&tree, source);
+        let (comments, quoted) = trees::prose_parts(&language(), PROSE, &tree, source);
         for (token, line) in prose::overreaches(&comments, &idents, &quoted) {
             self.overreaches.push((file.to_path_buf(), token, line));
         }
@@ -300,20 +300,14 @@ fn language() -> Language {
 }
 
 fn definitions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
-    trees::matches(&language(), DEFINITIONS, tree, source)
+    trees::texts(&language(), DEFINITIONS, tree, source, "def")
         .into_iter()
-        .flatten()
-        .filter(|capture| capture.name == "def" && !capture.text.starts_with('_'))
-        .map(|capture| (capture.text, capture.line))
+        .filter(|(name, _)| !name.starts_with('_'))
         .collect()
 }
 
 fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
-    trees::matches(&language(), MENTIONS, tree, source)
-        .into_iter()
-        .flatten()
-        .map(|capture| (capture.text, capture.line))
-        .collect()
+    trees::texts(&language(), MENTIONS, tree, source, "mention")
 }
 
 // Distribution names as PEP 503 reads them: lowercased, runs of separators as one dash.
@@ -411,24 +405,6 @@ fn allowed_aliases() -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn prose_parts(tree: &Tree, source: &str) -> (Vec<(String, usize)>, String) {
-    let mut comments = Vec::new();
-    let mut quoted = String::new();
-    for captures in trees::matches(&language(), PROSE, tree, source) {
-        for capture in captures {
-            match capture.name.as_str() {
-                "comment" => comments.push((capture.text, capture.line)),
-                "quoted" => {
-                    quoted.push_str(&capture.text);
-                    quoted.push('\n');
-                }
-                _ => {}
-            }
-        }
-    }
-    (comments, quoted)
-}
-
 // Whether a comment suppresses, and whether it quiets more than one named rule.
 fn suppression_of(text: &str) -> Option<bool> {
     if text.contains("noqa") {
@@ -444,12 +420,7 @@ fn suppression_of(text: &str) -> Option<bool> {
 }
 
 fn captured(tree: &Tree, source: &str, wanted: &str) -> Vec<(String, usize)> {
-    trees::matches(&language(), USES, tree, source)
-        .into_iter()
-        .flatten()
-        .filter(|capture| capture.name == wanted)
-        .map(|capture| (capture.text, capture.line))
-        .collect()
+    trees::texts(&language(), USES, tree, source, wanted)
 }
 
 fn imports(tree: &Tree, source: &str) -> Vec<(String, String, usize)> {

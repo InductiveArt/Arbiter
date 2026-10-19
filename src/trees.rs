@@ -13,6 +13,46 @@ pub fn parse(language: &Language, source: &str) -> Option<Tree> {
     parser.parse(source, None)
 }
 
+// The text and line of every capture bearing one name.
+pub fn texts(
+    language: &Language,
+    query: &str,
+    tree: &Tree,
+    source: &str,
+    wanted: &str,
+) -> Vec<(String, usize)> {
+    matches(language, query, tree, source)
+        .into_iter()
+        .flatten()
+        .filter(|capture| capture.name == wanted)
+        .map(|capture| (capture.text, capture.line))
+        .collect()
+}
+
+// A file's comments with their lines, and everything it quotes as one text.
+pub fn prose_parts(
+    language: &Language,
+    query: &str,
+    tree: &Tree,
+    source: &str,
+) -> (Vec<(String, usize)>, String) {
+    let mut comments = Vec::new();
+    let mut quoted = String::new();
+    for captures in matches(language, query, tree, source) {
+        for capture in captures {
+            match capture.name.as_str() {
+                "comment" => comments.push((capture.text, capture.line)),
+                "quoted" => {
+                    quoted.push_str(&capture.text);
+                    quoted.push('\n');
+                }
+                _ => {}
+            }
+        }
+    }
+    (comments, quoted)
+}
+
 pub fn matches(
     language: &Language,
     query_source: &str,

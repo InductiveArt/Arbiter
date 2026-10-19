@@ -103,12 +103,7 @@ fn is_header(file: &Path) -> bool {
 }
 
 fn definitions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
-    trees::matches(&language(), DEFINITIONS, tree, source)
-        .into_iter()
-        .flatten()
-        .filter(|capture| capture.name == "def")
-        .map(|capture| (capture.text, capture.line))
-        .collect()
+    trees::texts(&language(), DEFINITIONS, tree, source, "def")
 }
 
 fn read(file: &Path, tree: &Tree, source: &str) -> Source {
