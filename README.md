@@ -16,6 +16,15 @@ and Rust:
   every place using that one, so a same-named symbol elsewhere stays out.
 - `arbiter findings <folder> [file...]` answers every check's findings as
   data, one JSON line each, held to the files a caller names.
+- `arbiter ledger <folder>` lists every suppression, `#[allow]` and `unsafe`
+  in Rust, `noqa` and `pyright: ignore` in Python, `biome-ignore` and
+  `@ts-expect-error` in TypeScript, against the reference
+  `arbiter accept <folder>` records in `.arbiter/reference.json`, so each
+  run names what was added since. An entry is a file and the directive as
+  written, never a line number, which moves with every edit above it. A
+  blanket form, a bare `noqa`, a `type: ignore`, an inner `#![allow]`, a
+  `@ts-nocheck`, quiets more than one named rule: it is a finding, never
+  counted and never accepted.
 - `arbiter verify <folder>` runs each pack's declared tools over every unit
   holding its manifest, one line per check, failing output shown last lines
   first. A unit of a language whose pack declares no tools is named, never

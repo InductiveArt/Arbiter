@@ -3,7 +3,7 @@ use std::path::{Component, Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::pack::{Def, Definition, Edge, Finding, Pack};
+use crate::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
 use crate::trees;
 use crate::units::Repo;
 
@@ -12,6 +12,7 @@ const USES: &str = include_str!("../packs/typescript/uses.scm");
 const MENTIONS: &str = include_str!("../packs/typescript/mentions.scm");
 const BAR: &str = include_str!("../packs/typescript/bar.toml");
 const REEXPORTS: &str = include_str!("../packs/typescript/reexports.scm");
+const SUPPRESSIONS: &str = include_str!("../packs/typescript/suppressions.scm");
 
 const RESOLVE: [&str; 8] = [
     "npx",
@@ -28,6 +29,7 @@ const RESOLVE: [&str; 8] = [
 pub struct TypeScript {
     imports: Vec<(PathBuf, String, String, usize)>,
     reexports: Vec<(PathBuf, String, usize)>,
+    suppressions: Vec<Suppression>,
 }
 
 impl TypeScript {
@@ -93,6 +95,18 @@ impl Pack for TypeScript {
         for (from, name, line) in imports(&tree, source) {
             self.imports.push((file.to_path_buf(), from, name, line));
         }
+        for captures in trees::matches(&language(), SUPPRESSIONS, &tree, source) {
+            for capture in captures {
+                if let Some(blanket) = suppression_of(&capture.text) {
+                    self.suppressions.push(Suppression {
+                        file: file.to_path_buf(),
+                        line: capture.line,
+                        text: capture.text.trim().to_string(),
+                        blanket,
+                    });
+                }
+            }
+        }
         if !surface {
             return Vec::new();
         }
@@ -113,6 +127,10 @@ impl Pack for TypeScript {
                 line,
             })
             .collect()
+    }
+
+    fn suppressions(&self) -> &[Suppression] {
+        &self.suppressions
     }
 
     fn integrity(&self, _repo: &Repo) -> Vec<Finding> {
@@ -216,6 +234,17 @@ fn option_findings(options: &serde_json::Value) -> Vec<String> {
         ));
     }
     findings
+}
+
+// Whether a comment suppresses, and whether it quiets more than one named rule.
+fn suppression_of(text: &str) -> Option<bool> {
+    if text.contains("biome-ignore") || text.contains("@ts-expect-error") {
+        return Some(false);
+    }
+    if text.contains("@ts-ignore") || text.contains("@ts-nocheck") {
+        return Some(true);
+    }
+    None
 }
 
 fn meets(actual: &serde_json::Value, needed: &toml::Value) -> bool {

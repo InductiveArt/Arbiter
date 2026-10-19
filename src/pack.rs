@@ -32,6 +32,16 @@ pub struct Finding {
     pub reason: String,
 }
 
+pub struct Suppression {
+    pub file: PathBuf,
+    pub line: usize,
+    // The directive as written, which with the file is the entry's identity:
+    // a line number moves with every edit above it, so it never identifies.
+    pub text: String,
+    // Whether it quiets more than one named rule, which is refused, never recorded.
+    pub blanket: bool,
+}
+
 pub struct Definition {
     pub name: String,
     pub line: usize,
@@ -77,6 +87,11 @@ pub trait Pack {
     fn integrity(&self, repo: &Repo) -> Vec<Finding> {
         let _ = repo;
         Vec::new()
+    }
+
+    // Every suppression the pack's language can write, seen while scanning.
+    fn suppressions(&self) -> &[Suppression] {
+        &[]
     }
 
     // Files whose symbols live by being named from outside the repository.

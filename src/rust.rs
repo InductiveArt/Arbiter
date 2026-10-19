@@ -2,22 +2,24 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::pack::{Def, Definition, Edge, Pack};
+use crate::pack::{Def, Definition, Edge, Pack, Suppression};
 use crate::trees;
 use crate::units::Repo;
 
 const DEFINITIONS: &str = include_str!("../packs/rust/definitions.scm");
 const USES: &str = include_str!("../packs/rust/uses.scm");
 const MENTIONS: &str = include_str!("../packs/rust/mentions.scm");
+const SUPPRESSIONS: &str = include_str!("../packs/rust/suppressions.scm");
 
 #[derive(Default)]
 pub struct Rust {
     uses: Vec<(PathBuf, String, String, usize)>,
+    suppressions: Vec<Suppression>,
 }
 
 impl Rust {
     pub fn new() -> Self {
-        Self { uses: Vec::new() }
+        Self::default()
     }
 }
 
@@ -70,6 +72,29 @@ impl Pack for Rust {
         for (module, name, line) in uses(&tree, source) {
             self.uses.push((file.to_path_buf(), module, name, line));
         }
+        for captures in trees::matches(&language(), SUPPRESSIONS, &tree, source) {
+            for capture in captures {
+                let first = capture.text.lines().next().unwrap_or("").trim().to_string();
+                let quiets = first.contains("allow(") || first.contains("expect(");
+                let recorded = match capture.name.as_str() {
+                    "outer" if quiets => Some((first, false)),
+                    "inner" if quiets => Some((first, true)),
+                    "unsafe" => Some(("unsafe".to_string(), false)),
+                    "modifiers" if capture.text.contains("unsafe") => {
+                        Some(("unsafe fn".to_string(), false))
+                    }
+                    _ => None,
+                };
+                if let Some((text, blanket)) = recorded {
+                    self.suppressions.push(Suppression {
+                        file: file.to_path_buf(),
+                        line: capture.line,
+                        text,
+                        blanket,
+                    });
+                }
+            }
+        }
         if !surface {
             return Vec::new();
         }
@@ -84,6 +109,10 @@ impl Pack for Rust {
                 line,
             })
             .collect()
+    }
+
+    fn suppressions(&self) -> &[Suppression] {
+        &self.suppressions
     }
 
     fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {

@@ -89,3 +89,14 @@ fn a_whole_module_import_reaches_the_name_through_its_chain() {
         .iter()
         .any(|edge| edge.def == value && edge.file.to_string_lossy() == "app/src/app/plain.py"));
 }
+
+#[test]
+fn the_ledger_counts_a_named_suppression_and_refuses_a_blanket() {
+    let found = graph(DEMO).expect("the fixture folder exists");
+    let counted = arbiter::ledger::counted(&found);
+    assert_eq!(counted.len(), 1);
+    assert!(counted[0].text.contains("noqa: PLR2004"));
+    let blankets = arbiter::ledger::blankets(&found);
+    assert_eq!(blankets.len(), 1);
+    assert!(blankets[0].text.contains("type: ignore"));
+}

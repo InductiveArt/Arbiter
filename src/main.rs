@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use arbiter::graph::{graph, integrity, judge};
-use arbiter::pack::{Def, Edge, Finding};
+use arbiter::pack::{Def, Edge, Finding, Suppression};
 use arbiter::units::Repo;
-use arbiter::{pack, units, verify};
+use arbiter::{ledger, pack, units, verify};
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = env::args().skip(1).collect();
@@ -71,9 +71,87 @@ fn main() -> ExitCode {
             &found.edges,
             &found.repo,
         ));
+        all.extend(ledger::blanket_findings(&found));
         all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
         emit(&all, &arguments[2.min(arguments.len())..]);
         return ExitCode::SUCCESS;
+    }
+    if arguments.first().map(String::as_str) == Some("ledger") {
+        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let Some(found) = graph(&asked) else {
+            eprintln!("ledger: no folder at {asked}");
+            return ExitCode::from(2);
+        };
+        let counted = ledger::counted(&found);
+        let plural = if counted.len() == 1 { "" } else { "s" };
+        println!("ledger: {} suppression{plural}", counted.len());
+        for suppression in &counted {
+            println!("  {}", shown(suppression));
+        }
+        match ledger::reference(&found.root) {
+            None => println!("ledger: no reference recorded; arbiter accept records today's"),
+            Some(reference) => {
+                let extra = ledger::added(&counted, &reference);
+                if extra.is_empty() {
+                    println!("ledger: {} recorded, none added", reference.len());
+                } else {
+                    println!(
+                        "ledger: {} recorded, {} added:",
+                        reference.len(),
+                        extra.len()
+                    );
+                    for suppression in &extra {
+                        println!("  {}", shown(suppression));
+                    }
+                }
+            }
+        }
+        let blankets = ledger::blankets(&found);
+        if blankets.is_empty() {
+            return ExitCode::SUCCESS;
+        }
+        let plural = if blankets.len() == 1 { "" } else { "s" };
+        println!(
+            "ledger: {} blanket suppression{plural}, quieting more than one named rule:",
+            blankets.len()
+        );
+        for suppression in &blankets {
+            println!("  {}", shown(suppression));
+        }
+        return ExitCode::FAILURE;
+    }
+    if arguments.first().map(String::as_str) == Some("accept") {
+        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let Some(found) = graph(&asked) else {
+            eprintln!("accept: no folder at {asked}");
+            return ExitCode::from(2);
+        };
+        let blankets = ledger::blankets(&found);
+        if !blankets.is_empty() {
+            eprintln!(
+                "accept: {} blanket suppressions are findings, never records",
+                blankets.len()
+            );
+            for suppression in &blankets {
+                eprintln!("  {}", shown(suppression));
+            }
+            return ExitCode::FAILURE;
+        }
+        let counted = ledger::counted(&found);
+        match ledger::record(&found.root, &counted) {
+            Ok(path) => {
+                println!(
+                    "accept: {} suppressions recorded in {}",
+                    counted.len(),
+                    path.to_string_lossy()
+                );
+                return ExitCode::SUCCESS;
+            }
+            Err(error) => {
+                eprintln!("accept: the reference could not be written: {error}");
+                return ExitCode::from(2);
+            }
+        }
     }
     if arguments.first().map(String::as_str) == Some("integrity") {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
@@ -105,6 +183,15 @@ fn main() -> ExitCode {
     let findings = judge(&found.defs, &found.edges, &found.repo);
     report(&found.repo, &found.defs, &found.edges, &findings);
     ExitCode::SUCCESS
+}
+
+fn shown(suppression: &Suppression) -> String {
+    format!(
+        "{}:{} {}",
+        suppression.file.to_string_lossy(),
+        suppression.line,
+        suppression.text
+    )
 }
 
 // The file alone where no single line holds the finding.

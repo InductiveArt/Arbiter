@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::pack::{Def, Definition, Edge, Finding, Pack};
+use crate::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
 use crate::trees;
 use crate::units::Repo;
 
@@ -12,6 +12,7 @@ const DEFINITIONS: &str = include_str!("../packs/python/definitions.scm");
 const USES: &str = include_str!("../packs/python/uses.scm");
 const MENTIONS: &str = include_str!("../packs/python/mentions.scm");
 const BAR: &str = include_str!("../packs/python/bar.toml");
+const SUPPRESSIONS: &str = include_str!("../packs/python/suppressions.scm");
 
 const CHECKERS: [&str; 2] = ["basedpyright", "pyright"];
 const MODES: [&str; 3] = ["strict", "recommended", "all"];
@@ -22,6 +23,7 @@ pub struct Python {
     init_imports: Vec<(PathBuf, String, usize)>,
     plains: Vec<(PathBuf, String)>,
     chains: Vec<(PathBuf, String, usize)>,
+    suppressions: Vec<Suppression>,
 }
 
 impl Python {
@@ -108,6 +110,18 @@ impl Pack for Python {
         for (chain, line) in captured(&tree, source, "chain") {
             self.chains.push((file.to_path_buf(), chain, line));
         }
+        for captures in trees::matches(&language(), SUPPRESSIONS, &tree, source) {
+            for capture in captures {
+                if let Some(blanket) = suppression_of(&capture.text) {
+                    self.suppressions.push(Suppression {
+                        file: file.to_path_buf(),
+                        line: capture.line,
+                        text: capture.text.trim().to_string(),
+                        blanket,
+                    });
+                }
+            }
+        }
         if !surface {
             return Vec::new();
         }
@@ -122,6 +136,10 @@ impl Pack for Python {
                 line,
             })
             .collect()
+    }
+
+    fn suppressions(&self) -> &[Suppression] {
+        &self.suppressions
     }
 
     fn integrity(&self, _repo: &Repo) -> Vec<Finding> {
@@ -216,6 +234,20 @@ fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
         .flatten()
         .map(|capture| (capture.text, capture.line))
         .collect()
+}
+
+// Whether a comment suppresses, and whether it quiets more than one named rule.
+fn suppression_of(text: &str) -> Option<bool> {
+    if text.contains("noqa") {
+        return Some(!text.contains("noqa:"));
+    }
+    if text.contains("pyright: ignore") {
+        return Some(!text.contains("pyright: ignore["));
+    }
+    if text.contains("type: ignore") {
+        return Some(true);
+    }
+    None
 }
 
 fn captured(tree: &Tree, source: &str, wanted: &str) -> Vec<(String, usize)> {

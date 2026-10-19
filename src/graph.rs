@@ -8,6 +8,7 @@ use crate::units;
 use crate::units::Repo;
 
 pub struct Graph {
+    pub root: PathBuf,
     pub repo: Repo,
     pub defs: Vec<Def>,
     pub edges: Vec<Edge>,
@@ -57,6 +58,7 @@ pub fn graph(asked: &str) -> Option<Graph> {
         edges.extend(pack.resolve(index, &defs, &repo));
     }
     Some(Graph {
+        root,
         repo,
         defs,
         edges,
