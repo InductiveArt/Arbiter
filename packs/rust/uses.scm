@@ -4,3 +4,6 @@
 (use_declaration argument: (scoped_use_list path: (_) @module list: (use_list (identifier) @name)))
 (scoped_identifier path: (_) @module name: (identifier) @name)
 (scoped_type_identifier path: (_) @module name: (type_identifier) @name)
+
+; A name taken under another: readable only by whoever knows the alias.
+((use_as_clause) @alias)

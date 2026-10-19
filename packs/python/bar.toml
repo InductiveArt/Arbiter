@@ -13,3 +13,7 @@
 "tool.ruff.lint.extend-per-file-ignores" = "a finding is fixed, never ignored"
 "tool.pytest.ini_options.addopts" = "options that change which tests run stay out of the manifest"
 "tool.pytest.ini_options.norecursedirs" = "every test is collected"
+
+# Names that stay aliased: the ecosystem reads each as the library itself.
+[aliases]
+allowed = ["np", "pd", "plt"]

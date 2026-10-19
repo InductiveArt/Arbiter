@@ -2,7 +2,8 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::pack::{Def, Definition, Edge, Pack, Suppression};
+use crate::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::prose;
 use crate::trees;
 use crate::units::Repo;
 
@@ -10,11 +11,14 @@ const DEFINITIONS: &str = include_str!("../packs/rust/definitions.scm");
 const USES: &str = include_str!("../packs/rust/uses.scm");
 const MENTIONS: &str = include_str!("../packs/rust/mentions.scm");
 const SUPPRESSIONS: &str = include_str!("../packs/rust/suppressions.scm");
+const PROSE: &str = include_str!("../packs/rust/prose.scm");
 
 #[derive(Default)]
 pub struct Rust {
     uses: Vec<(PathBuf, String, String, usize)>,
     suppressions: Vec<Suppression>,
+    aliases: Vec<(PathBuf, String, usize)>,
+    overreaches: Vec<(PathBuf, String, usize)>,
 }
 
 impl Rust {
@@ -98,7 +102,31 @@ impl Pack for Rust {
         if !surface {
             return Vec::new();
         }
+        for captures in trees::matches(&language(), USES, &tree, source) {
+            for capture in captures {
+                if capture.name != "alias" {
+                    continue;
+                }
+                let alias = capture
+                    .text
+                    .rsplit(" as ")
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                // Importing a trait as _ brings its methods without any name to hide.
+                if alias != "_" {
+                    self.aliases.push((file.to_path_buf(), alias, capture.line));
+                }
+            }
+        }
         let mentions = mentions(&tree, source);
+        let idents: std::collections::HashSet<String> =
+            mentions.iter().map(|(name, _)| name.clone()).collect();
+        let (comments, quoted) = prose_parts(&tree, source);
+        for (token, line) in prose::overreaches(&comments, &idents, &quoted) {
+            self.overreaches.push((file.to_path_buf(), token, line));
+        }
         definitions(&tree, source)
             .into_iter()
             .map(|(name, line)| Definition {
@@ -113,6 +141,34 @@ impl Pack for Rust {
 
     fn suppressions(&self) -> &[Suppression] {
         &self.suppressions
+    }
+
+    fn outputs(&self) -> &'static [&'static str] {
+        &["target"]
+    }
+
+    fn integrity(&self, _repo: &Repo) -> Vec<Finding> {
+        let mut findings: Vec<Finding> = self
+            .aliases
+            .iter()
+            .map(|(file, alias, line)| Finding {
+                check: "integrity",
+                file: file.clone(),
+                line: *line,
+                name: "no-hidden-names".to_string(),
+                reason: format!("imported as {alias}; a symbol keeps its own name"),
+            })
+            .collect();
+        findings.extend(self.overreaches.iter().map(|(file, token, line)| Finding {
+            check: "integrity",
+            file: file.clone(),
+            line: *line,
+            name: "no-comment-overreach".to_string(),
+            reason: format!(
+                "a comment names {token}, which nothing in the file defines, uses or quotes"
+            ),
+        }));
+        findings
     }
 
     fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
@@ -197,6 +253,24 @@ fn is_module_file(segment: &str, file: &Path) -> bool {
 
 fn language() -> Language {
     tree_sitter_rust::LANGUAGE.into()
+}
+
+fn prose_parts(tree: &Tree, source: &str) -> (Vec<(String, usize)>, String) {
+    let mut comments = Vec::new();
+    let mut quoted = String::new();
+    for captures in trees::matches(&language(), PROSE, tree, source) {
+        for capture in captures {
+            match capture.name.as_str() {
+                "comment" => comments.push((capture.text, capture.line)),
+                "quoted" => {
+                    quoted.push_str(&capture.text);
+                    quoted.push('\n');
+                }
+                _ => {}
+            }
+        }
+    }
+    (comments, quoted)
 }
 
 fn definitions(tree: &Tree, source: &str) -> Vec<(String, usize)> {

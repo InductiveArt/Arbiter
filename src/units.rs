@@ -46,7 +46,6 @@ impl Repo {
     }
 }
 
-const SKIPPED: [&str; 2] = ["node_modules", "target"];
 const BUILD_NAMES: [&str; 3] = ["BUILD.bazel", "BUILD.bazel.held", "BUILD"];
 const MANIFEST_NAMES: [&str; 4] = ["pyproject.toml", "Cargo.toml", "package.json", "go.mod"];
 
@@ -113,7 +112,9 @@ fn walk(
         if kind.is_dir() {
             if name.starts_with('.')
                 || name.starts_with("bazel-")
-                || SKIPPED.contains(&name.as_str())
+                || packs
+                    .iter()
+                    .any(|pack| pack.outputs().contains(&name.as_str()))
             {
                 continue;
             }

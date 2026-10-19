@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use tree_sitter::{Language, Tree};
 
 use crate::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::prose;
 use crate::trees;
 use crate::units::Repo;
 
@@ -13,6 +14,7 @@ const USES: &str = include_str!("../packs/python/uses.scm");
 const MENTIONS: &str = include_str!("../packs/python/mentions.scm");
 const BAR: &str = include_str!("../packs/python/bar.toml");
 const SUPPRESSIONS: &str = include_str!("../packs/python/suppressions.scm");
+const PROSE: &str = include_str!("../packs/python/prose.scm");
 
 const CHECKERS: [&str; 2] = ["basedpyright", "pyright"];
 const MODES: [&str; 3] = ["strict", "recommended", "all"];
@@ -24,6 +26,8 @@ pub struct Python {
     plains: Vec<(PathBuf, String)>,
     chains: Vec<(PathBuf, String, usize)>,
     suppressions: Vec<Suppression>,
+    aliases: Vec<(PathBuf, String, usize)>,
+    overreaches: Vec<(PathBuf, String, usize)>,
 }
 
 impl Python {
@@ -125,7 +129,18 @@ impl Pack for Python {
         if !surface {
             return Vec::new();
         }
+        for (text, line) in captured(&tree, source, "alias") {
+            let alias = text.rsplit(" as ").next().unwrap_or("").trim().to_string();
+            if !allowed_aliases().contains(&alias) {
+                self.aliases.push((file.to_path_buf(), alias, line));
+            }
+        }
         let mentions = mentions(&tree, source);
+        let idents: HashSet<String> = mentions.iter().map(|(name, _)| name.clone()).collect();
+        let (comments, quoted) = prose_parts(&tree, source);
+        for (token, line) in prose::overreaches(&comments, &idents, &quoted) {
+            self.overreaches.push((file.to_path_buf(), token, line));
+        }
         definitions(&tree, source)
             .into_iter()
             .map(|(name, line)| Definition {
@@ -142,8 +157,13 @@ impl Pack for Python {
         &self.suppressions
     }
 
+    fn outputs(&self) -> &'static [&'static str] {
+        &["__pycache__"]
+    }
+
     fn integrity(&self, _repo: &Repo) -> Vec<Finding> {
-        self.init_imports
+        let mut findings: Vec<Finding> = self
+            .init_imports
             .iter()
             .map(|(file, name, line)| Finding {
                 check: "integrity",
@@ -154,7 +174,24 @@ impl Pack for Python {
                     "__init__.py imports {name}; a symbol is imported from the module defining it"
                 ),
             })
-            .collect()
+            .collect();
+        findings.extend(self.aliases.iter().map(|(file, alias, line)| Finding {
+            check: "integrity",
+            file: file.clone(),
+            line: *line,
+            name: "no-hidden-names".to_string(),
+            reason: format!("imported as {alias}; a symbol keeps its own name"),
+        }));
+        findings.extend(self.overreaches.iter().map(|(file, token, line)| Finding {
+            check: "integrity",
+            file: file.clone(),
+            line: *line,
+            name: "no-comment-overreach".to_string(),
+            reason: format!(
+                "a comment names {token}, which nothing in the file defines, uses or quotes"
+            ),
+        }));
+        findings
     }
 
     fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
@@ -234,6 +271,40 @@ fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
         .flatten()
         .map(|capture| (capture.text, capture.line))
         .collect()
+}
+
+fn allowed_aliases() -> Vec<String> {
+    let Ok(bar) = BAR.parse::<toml::Value>() else {
+        return Vec::new();
+    };
+    bar.get("aliases")
+        .and_then(|aliases| aliases.get("allowed"))
+        .and_then(toml::Value::as_array)
+        .map(|allowed| {
+            allowed
+                .iter()
+                .filter_map(|name| name.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn prose_parts(tree: &Tree, source: &str) -> (Vec<(String, usize)>, String) {
+    let mut comments = Vec::new();
+    let mut quoted = String::new();
+    for captures in trees::matches(&language(), PROSE, tree, source) {
+        for capture in captures {
+            match capture.name.as_str() {
+                "comment" => comments.push((capture.text, capture.line)),
+                "quoted" => {
+                    quoted.push_str(&capture.text);
+                    quoted.push('\n');
+                }
+                _ => {}
+            }
+        }
+    }
+    (comments, quoted)
 }
 
 // Whether a comment suppresses, and whether it quiets more than one named rule.

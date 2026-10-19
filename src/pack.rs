@@ -94,6 +94,11 @@ pub trait Pack {
         &[]
     }
 
+    // Folders holding only the ecosystem's build output, which are never read.
+    fn outputs(&self) -> &'static [&'static str] {
+        &[]
+    }
+
     // Files whose symbols live by being named from outside the repository.
     fn roots(&self, root: &Path, repo: &Repo) -> Vec<PathBuf>;
 

@@ -4,6 +4,7 @@ use std::path::{Component, Path, PathBuf};
 use tree_sitter::{Language, Tree};
 
 use crate::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::prose;
 use crate::trees;
 use crate::units::Repo;
 
@@ -13,6 +14,7 @@ const MENTIONS: &str = include_str!("../packs/typescript/mentions.scm");
 const BAR: &str = include_str!("../packs/typescript/bar.toml");
 const REEXPORTS: &str = include_str!("../packs/typescript/reexports.scm");
 const SUPPRESSIONS: &str = include_str!("../packs/typescript/suppressions.scm");
+const PROSE: &str = include_str!("../packs/typescript/prose.scm");
 
 const RESOLVE: [&str; 8] = [
     "npx",
@@ -30,6 +32,8 @@ pub struct TypeScript {
     imports: Vec<(PathBuf, String, String, usize)>,
     reexports: Vec<(PathBuf, String, usize)>,
     suppressions: Vec<Suppression>,
+    aliases: Vec<(PathBuf, String, usize)>,
+    overreaches: Vec<(PathBuf, String, usize)>,
 }
 
 impl TypeScript {
@@ -116,7 +120,27 @@ impl Pack for TypeScript {
                     .push((file.to_path_buf(), capture.text, capture.line));
             }
         }
+        for captures in trees::matches(&language(), USES, &tree, source) {
+            for capture in captures {
+                if capture.name == "aliased" {
+                    let alias = capture
+                        .text
+                        .rsplit(" as ")
+                        .next()
+                        .unwrap_or("")
+                        .trim()
+                        .to_string();
+                    self.aliases.push((file.to_path_buf(), alias, capture.line));
+                }
+            }
+        }
         let mentions = mentions(&tree, source);
+        let idents: std::collections::HashSet<String> =
+            mentions.iter().map(|(name, _)| name.clone()).collect();
+        let (comments, quoted) = prose_parts(&tree, source);
+        for (token, line) in prose::overreaches(&comments, &idents, &quoted) {
+            self.overreaches.push((file.to_path_buf(), token, line));
+        }
         definitions(&tree, source)
             .into_iter()
             .map(|(name, line)| Definition {
@@ -134,7 +158,8 @@ impl Pack for TypeScript {
     }
 
     fn integrity(&self, _repo: &Repo) -> Vec<Finding> {
-        self.reexports
+        let mut findings: Vec<Finding> = self
+            .reexports
             .iter()
             .map(|(file, from, line)| Finding {
                 check: "integrity",
@@ -143,7 +168,28 @@ impl Pack for TypeScript {
                 name: "no-reexport".to_string(),
                 reason: format!("re-exports from \"{from}\"; a module offers only its own names"),
             })
-            .collect()
+            .collect();
+        findings.extend(self.aliases.iter().map(|(file, alias, line)| Finding {
+            check: "integrity",
+            file: file.clone(),
+            line: *line,
+            name: "no-hidden-names".to_string(),
+            reason: format!("imported as {alias}; a symbol keeps its own name"),
+        }));
+        findings.extend(self.overreaches.iter().map(|(file, token, line)| Finding {
+            check: "integrity",
+            file: file.clone(),
+            line: *line,
+            name: "no-comment-overreach".to_string(),
+            reason: format!(
+                "a comment names {token}, which nothing in the file defines, uses or quotes"
+            ),
+        }));
+        findings
+    }
+
+    fn outputs(&self) -> &'static [&'static str] {
+        &["node_modules", "dist"]
     }
 
     fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
@@ -234,6 +280,24 @@ fn option_findings(options: &serde_json::Value) -> Vec<String> {
         ));
     }
     findings
+}
+
+fn prose_parts(tree: &Tree, source: &str) -> (Vec<(String, usize)>, String) {
+    let mut comments = Vec::new();
+    let mut quoted = String::new();
+    for captures in trees::matches(&language(), PROSE, tree, source) {
+        for capture in captures {
+            match capture.name.as_str() {
+                "comment" => comments.push((capture.text, capture.line)),
+                "quoted" => {
+                    quoted.push_str(&capture.text);
+                    quoted.push('\n');
+                }
+                _ => {}
+            }
+        }
+    }
+    (comments, quoted)
 }
 
 // Whether a comment suppresses, and whether it quiets more than one named rule.

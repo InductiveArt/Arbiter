@@ -37,9 +37,12 @@ fn integrity_names_the_cycle_and_each_reexport() {
     assert_eq!(
         shown,
         [
+            "app/src/app/alias.py imported as v; a symbol keeps its own name",
             "libs/cyc_a units import each other: libs/cyc_a, libs/cyc_b",
             "libs/facade/src/facade/__init__.py __init__.py imports shine; \
              a symbol is imported from the module defining it",
+            "libs/facade/src/facade/inner.py a comment names dashboard_frontend, \
+             which nothing in the file defines, uses or quotes",
             "web/src/barrel.ts re-exports from \"./index\"; a module offers only its own names",
         ]
     );
