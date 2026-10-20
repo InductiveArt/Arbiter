@@ -1,5 +1,6 @@
 pub mod cpp;
 pub mod declared;
+pub mod gate;
 pub mod graph;
 pub mod ledger;
 pub mod pack;
@@ -10,4 +11,3 @@ pub mod rust;
 pub mod trees;
 pub mod typescript;
 pub mod units;
-pub mod verify;

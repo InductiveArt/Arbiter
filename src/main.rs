@@ -1,52 +1,76 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::ExitCode;
 
 use arbiter::graph::{graph, integrity, judge};
 use arbiter::pack::{Def, Edge, Finding, Suppression};
 use arbiter::units::Repo;
-use arbiter::{ledger, pack, units, verify};
+use arbiter::{gate, ledger};
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = env::args().skip(1).collect();
-    if let Some(command @ ("verify" | "fix")) = arguments.first().map(String::as_str) {
+    if let Some(command @ ("gate" | "fix")) = arguments.first().map(String::as_str) {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
-        let Ok(root) = PathBuf::from(&asked).canonicalize() else {
+        let Some(run) = gate::run(&asked, command == "fix") else {
             eprintln!("{command}: no folder at {asked}");
             return ExitCode::from(2);
         };
-        let packs = pack::all();
-        let repo = units::scan(&root, &packs);
-        let (outcomes, notes) = if command == "fix" {
-            verify::fix(&root, &repo, &packs)
-        } else {
-            verify::verify(&root, &repo, &packs)
-        };
-        for outcome in &outcomes {
-            let answer = if outcome.passed { "ok    " } else { "failed" };
-            println!(
-                "  {}/{} {:10} {answer} {:.1}s",
-                outcome.unit, outcome.pack, outcome.check, outcome.seconds
-            );
-            if !outcome.passed && !outcome.tail.is_empty() {
-                for line in outcome.tail.lines() {
-                    println!("    {line}");
-                }
+        println!("{command}: {} units, {} files", run.units, run.files);
+        for (check, (passed, failed, seconds)) in gate::tallied(&run.outcomes) {
+            if failed == 0 {
+                println!("  {check:10} ok     {passed} units   {seconds:.1}s");
+            } else {
+                println!(
+                    "  {check:10} failed {failed} of {}   {seconds:.1}s",
+                    passed + failed
+                );
             }
         }
-        for note in &notes {
+        let mut counts: std::collections::BTreeMap<&str, usize> = Default::default();
+        for finding in &run.findings {
+            *counts.entry(finding.check).or_insert(0) += 1;
+        }
+        for (check, count) in &counts {
+            println!("  {check:10} {count} findings");
+        }
+        match run.added {
+            None => println!(
+                "  ledger     {} suppressions, no reference recorded",
+                run.counted
+            ),
+            Some(added) => println!(
+                "  ledger     {} suppressions, {added} added since accept",
+                run.counted
+            ),
+        }
+        for note in &run.notes {
             println!("{command}: {note}");
         }
-        if outcomes.is_empty() {
-            println!("{command}: no unit declares any tools, so nothing was judged");
+        if run.outcomes.is_empty() && run.files == 0 {
+            println!("{command}: nothing to judge here");
             return ExitCode::from(2);
         }
-        let failed = outcomes.iter().filter(|outcome| !outcome.passed).count();
-        if failed == 0 {
-            println!("{command}: {} checks passed", outcomes.len());
+        let place = gate::written(&run);
+        let failed = run
+            .outcomes
+            .iter()
+            .filter(|outcome| !outcome.passed)
+            .count();
+        if failed == 0 && run.findings.is_empty() {
+            println!(
+                "{command}: clean — {} checks, no findings",
+                run.outcomes.len()
+            );
             return ExitCode::SUCCESS;
         }
-        println!("{command}: {failed} of {} checks failed", outcomes.len());
+        let shown = place
+            .and_then(|path| path.strip_prefix(&run.root).ok().map(Path::to_path_buf))
+            .map(|path| path.to_string_lossy().to_string())
+            .unwrap_or_else(|| "the report could not be written".to_string());
+        println!(
+            "{command}: {failed} checks failed, {} findings — {shown}",
+            run.findings.len()
+        );
         return ExitCode::FAILURE;
     }
     if arguments.first().map(String::as_str) == Some("blast") {
