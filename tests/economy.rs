@@ -52,6 +52,12 @@ fn integrity_names_the_cycle_and_each_reexport() {
              a symbol is imported from the module defining it",
             "libs/facade/src/facade/inner.py a comment names dashboard_frontend, \
              which nothing in the file defines, uses or quotes",
+            "ui/src/index.ts re-exports every name from \"./extra\"; \
+             a surface names each symbol it offers",
+            "ui/src/parts/index.ts re-exports from \"./button\"; \
+             a module offers only its own names",
+            "ui/src/widget.ts enters its own unit at ui/src/index.ts; \
+             a unit's own code imports from the defining file",
             "web/src/barrel.ts re-exports from \"./index\"; a module offers only its own names",
             "web/src/deep.ts reaches ui/src/parts/button.ts inside ui; \
              a unit is entered through the routes its manifest declares",
@@ -109,15 +115,20 @@ fn a_whole_module_import_reaches_the_name_through_its_chain() {
 #[test]
 fn a_name_crosses_units_through_the_route_and_its_barrels() {
     let found = graph(DEMO).expect("the fixture folder exists");
-    let button = found
-        .defs
-        .iter()
-        .position(|def| def.name == "Button")
-        .expect("the fixture defines Button");
-    assert!(found
-        .edges
-        .iter()
-        .any(|edge| edge.def == button && edge.file.to_string_lossy() == "web/src/panel.ts"));
+    for name in ["Button", "Chip"] {
+        let def = found
+            .defs
+            .iter()
+            .position(|def| def.name == name)
+            .expect("the fixture defines the name");
+        assert!(
+            found
+                .edges
+                .iter()
+                .any(|edge| edge.def == def && edge.file.to_string_lossy() == "web/src/panel.ts"),
+            "missing edge for {name}"
+        );
+    }
 }
 
 #[test]

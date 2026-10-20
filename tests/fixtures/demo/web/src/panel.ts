@@ -1,3 +1,3 @@
-import { Button } from "@demo/ui";
+import { Button, Chip, Widget } from "@demo/ui";
 
-console.log(Button);
+console.log(Button, Chip, Widget);

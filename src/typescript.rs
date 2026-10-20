@@ -31,7 +31,8 @@ const RESOLVE: [&str; 8] = [
 #[derive(Default)]
 pub struct TypeScript {
     imports: Vec<(PathBuf, String, String, usize)>,
-    reexports: Vec<(PathBuf, String, usize)>,
+    // The source, line and whether the re-export is a star forwarding every name.
+    reexports: Vec<(PathBuf, String, usize, bool)>,
     suppressions: Vec<Suppression>,
     aliases: Vec<(PathBuf, String, usize)>,
     overreaches: Vec<(PathBuf, String, usize)>,
@@ -120,8 +121,9 @@ impl Pack for TypeScript {
         }
         for captures in trees::matches(&language(), REEXPORTS, &tree, source) {
             for capture in captures {
+                let star = capture.name == "star";
                 self.reexports
-                    .push((file.to_path_buf(), capture.text, capture.line));
+                    .push((file.to_path_buf(), capture.text, capture.line, star));
             }
         }
         for captures in trees::matches(&language(), USES, &tree, source) {
@@ -164,20 +166,24 @@ impl Pack for TypeScript {
     fn integrity(&self, root: &Path, repo: &Repo) -> Vec<Finding> {
         let present: std::collections::HashSet<&PathBuf> = repo.files.iter().collect();
         let routes = manifest_routes(root, repo, &present);
-        // A route target is the unit's declared surface, so a re-export there is the
-        // declaration itself; anywhere else it hides a name.
-        let mut findings: Vec<Finding> = self
-            .reexports
-            .iter()
-            .filter(|(file, _, _)| !routes.surfaces.contains(file))
-            .map(|(file, from, line)| Finding {
-                check: "integrity",
-                file: file.clone(),
-                line: *line,
-                name: "no-reexport".to_string(),
-                reason: format!("re-exports from \"{from}\"; a module offers only its own names"),
-            })
-            .collect();
+        // A route target is the unit's declared surface, so a named re-export there is
+        // the declaration itself; anywhere else it hides a name, and a star hides
+        // every name even on the surface.
+        let mut findings: Vec<Finding> = Vec::new();
+        for (file, from, line, star) in &self.reexports {
+            let surface = routes.surfaces.contains(file);
+            if surface && !star {
+                continue;
+            }
+            let reason = if surface {
+                format!(
+                    "re-exports every name from \"{from}\"; a surface names each symbol it offers"
+                )
+            } else {
+                format!("re-exports from \"{from}\"; a module offers only its own names")
+            };
+            findings.push(Finding::integrity(file, *line, "no-reexport", reason));
+        }
         findings.extend(self.aliases.iter().map(|(file, alias, line)| Finding {
             check: "integrity",
             file: file.clone(),
@@ -248,8 +254,20 @@ impl Pack for TypeScript {
             } else if from.starts_with('.') {
                 let base = file.parent().unwrap_or(Path::new(""));
                 target = existing(&normalized(&base.join(from)), &present);
+            } else if let Some(entry) = routes.names.get(from.as_str()) {
+                // A unit naming itself takes its own surface the long way round.
+                if repo.unit_of(entry) == unit {
+                    findings.push(Finding::integrity(
+                        file,
+                        *line,
+                        "self-entry",
+                        format!(
+                            "enters its own unit at {}; a unit's own code imports from the defining file",
+                            entry.display()
+                        ),
+                    ));
+                }
             } else if !routes.declared.contains(from.as_str())
-                && !routes.names.contains_key(from.as_str())
                 && !routes.patterns.iter().any(|pattern| routed(from, pattern))
             {
                 if let Some(package) = routes
@@ -269,8 +287,22 @@ impl Pack for TypeScript {
                 continue;
             };
             let owner = repo.unit_of(&target);
+            if owner == unit {
+                if routes.surfaces.contains(&target) && target != *file {
+                    findings.push(Finding::integrity(
+                        file,
+                        *line,
+                        "self-entry",
+                        format!(
+                            "enters its own unit at {}; a unit's own code imports from the defining file",
+                            target.display()
+                        ),
+                    ));
+                }
+                continue;
+            }
             // A file no unit claims has no manifest, so no routes exist to demand.
-            if owner == unit || repo.units[owner].path.as_os_str().is_empty() {
+            if repo.units[owner].path.as_os_str().is_empty() {
                 continue;
             }
             findings.push(Finding::integrity(
@@ -300,7 +332,7 @@ impl Pack for TypeScript {
         // Each re-export, resolved to the file it reaches, so a name can pass through.
         let mut barrels: std::collections::HashMap<PathBuf, Vec<PathBuf>> =
             std::collections::HashMap::new();
-        for (file, from, _) in &self.reexports {
+        for (file, from, _, _) in &self.reexports {
             let base = file.parent().unwrap_or(Path::new(""));
             if let Some(target) = existing(&normalized(&base.join(from)), &present) {
                 barrels.entry(file.clone()).or_default().push(target);
@@ -462,7 +494,8 @@ struct Routes {
     // Every route name a manifest writes, kept even when no repository file answers
     // it, since a route pointing at built output is declared all the same.
     declared: std::collections::HashSet<String>,
-    // Every file a route or alias names: the declared surface of its unit.
+    // Every file an exports route names: the declared surface of its unit. An
+    // imports alias is inside routing and blesses nothing.
     surfaces: std::collections::HashSet<PathBuf>,
 }
 
@@ -529,18 +562,11 @@ fn manifest_routes(
         }
         if let Some(imports) = parsed.get("imports").and_then(serde_json::Value::as_object) {
             let unit = repo.unit_of(manifest);
+            let map = routes.aliases.entry(unit).or_default();
             for (alias, target) in imports {
-                let Some(path) = target.as_str() else {
-                    continue;
-                };
-                if let Some(entry) = existing(&normalized(&folder.join(path)), present) {
-                    routes.surfaces.insert(entry);
+                if let Some(path) = target.as_str() {
+                    map.insert(alias.clone(), path.to_string());
                 }
-                routes
-                    .aliases
-                    .entry(unit)
-                    .or_default()
-                    .insert(alias.clone(), path.to_string());
             }
         }
     }
