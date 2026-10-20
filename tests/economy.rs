@@ -22,6 +22,9 @@ fn the_fixture_yields_its_known_findings() {
         [
             "libs/dead_py/src/dead/calc.py:1 orphan no user anywhere",
             "libs/testy/src/testy/calc.py:1 helper no user but tests",
+            "native/geo.h:5 Shape no user anywhere",
+            "native/geo.h:10 diameter no user anywhere",
+            "native/geo.h:14 perimeter no user anywhere",
             "proto/billing/invoice.proto:4 Ghost no user anywhere",
             "proto/billing/invoice.proto:5 Billing no user anywhere",
             "proto/billing/invoice.proto:6 GetInvoice no user anywhere",
