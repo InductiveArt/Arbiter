@@ -552,6 +552,15 @@ fn checker_findings(parsed: &toml::Value) -> Vec<String> {
                 findings.push(format!(
                     "tool.{checker}.{name} is lowered; a rule reports an error or stays unset"
                 ));
+            } else if name == "exclude" {
+                for entry in value.as_array().cloned().unwrap_or_default() {
+                    let glob = entry.as_str().unwrap_or("");
+                    if !glob.contains("_pb2") {
+                        findings.push(format!(
+                            "tool.{checker}.exclude hides {glob}; only generated code leaves the checker's sight"
+                        ));
+                    }
+                }
             }
         }
     }
@@ -567,6 +576,15 @@ mod tests {
     use std::path::Path;
 
     use super::{is_module_file, manifest_findings};
+
+    #[test]
+    fn an_exclude_may_name_generated_code_and_nothing_else() {
+        let manifest =
+            "[tool.basedpyright]\nexclude = [\"**/*_pb2.py\", \"**/*_pb2.pyi\", \"src/core\"]\n";
+        let findings = manifest_findings(manifest);
+        assert_eq!(findings.len(), 1);
+        assert!(findings[0].starts_with("tool.basedpyright.exclude hides src/core;"));
+    }
 
     #[test]
     fn a_setting_lowering_the_bar_is_named_with_its_reason() {
