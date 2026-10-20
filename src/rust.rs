@@ -12,6 +12,7 @@ const USES: &str = include_str!("../packs/rust/uses.scm");
 const MENTIONS: &str = include_str!("../packs/rust/mentions.scm");
 const SUPPRESSIONS: &str = include_str!("../packs/rust/suppressions.scm");
 const PROSE: &str = include_str!("../packs/rust/prose.scm");
+const REEXPORTS: &str = include_str!("../packs/rust/reexports.scm");
 
 #[derive(Default)]
 pub struct Rust {
@@ -20,6 +21,7 @@ pub struct Rust {
     entries: Vec<(PathBuf, String, usize)>,
     suppressions: Vec<Suppression>,
     aliases: Vec<(PathBuf, String, usize)>,
+    reexports: Vec<(PathBuf, String, usize)>,
     overreaches: Vec<(PathBuf, String, usize)>,
 }
 
@@ -110,6 +112,12 @@ impl Pack for Rust {
         if !surface {
             return Vec::new();
         }
+        for captures in trees::matches(&language(), REEXPORTS, &tree, source) {
+            for capture in captures {
+                self.reexports
+                    .push((file.to_path_buf(), capture.text, capture.line));
+            }
+        }
         for captures in trees::matches(&language(), USES, &tree, source) {
             for capture in captures {
                 if capture.name != "alias" {
@@ -161,16 +169,23 @@ impl Pack for Rust {
 
     fn integrity(&self, root: &Path, repo: &Repo) -> Vec<Finding> {
         let mut findings: Vec<Finding> = self
-            .aliases
+            .reexports
             .iter()
-            .map(|(file, alias, line)| Finding {
+            .map(|(file, argument, line)| Finding {
                 check: "integrity",
                 file: file.clone(),
                 line: *line,
-                name: "no-hidden-names".to_string(),
-                reason: format!("imported as {alias}; a symbol keeps its own name"),
+                name: "no-reexport".to_string(),
+                reason: format!("re-exports {argument}; a module offers only its own names"),
             })
             .collect();
+        findings.extend(self.aliases.iter().map(|(file, alias, line)| Finding {
+            check: "integrity",
+            file: file.clone(),
+            line: *line,
+            name: "no-hidden-names".to_string(),
+            reason: format!("imported as {alias}; a symbol keeps its own name"),
+        }));
         findings.extend(self.overreaches.iter().map(|(file, token, line)| Finding {
             check: "integrity",
             file: file.clone(),
