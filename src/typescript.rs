@@ -245,6 +245,11 @@ impl Pack for TypeScript {
                 continue;
             }
             let unit = repo.unit_of(file);
+            // A unit on a test path is a fixture: data for some test, not code to judge.
+            let home = repo.units[unit].path.clone();
+            if repo.is_test(unit, &home) {
+                continue;
+            }
             let mut target = None;
             if from.starts_with('#') {
                 if let Some(path) = routes.aliases.get(&unit).and_then(|map| map.get(from)) {

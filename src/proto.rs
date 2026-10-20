@@ -155,6 +155,10 @@ impl Pack for Proto {
                 continue;
             }
             let unit = manifest.parent().unwrap_or(Path::new(""));
+            // A unit on a test path is a fixture: data for some test, not contracts to record.
+            if repo.is_test(repo.unit_of(manifest), unit) {
+                continue;
+            }
             let folder = root.join(unit);
             let image = image_path(root, &folder);
             if let Some(parent) = image.parent() {
