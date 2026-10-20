@@ -176,12 +176,12 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     let asked = match arguments.first().map(String::as_str) {
-        Some("economy") => arguments.get(1).cloned().unwrap_or_else(|| ".".to_string()),
+        Some("winnow") => arguments.get(1).cloned().unwrap_or_else(|| ".".to_string()),
         Some(folder) => folder.to_string(),
         None => ".".to_string(),
     };
     let Some(found) = graph(&asked) else {
-        eprintln!("economy: no folder at {asked}");
+        eprintln!("winnow: no folder at {asked}");
         return ExitCode::from(2);
     };
     let findings = judge(&found.defs, &found.edges, &found.repo);
@@ -209,19 +209,19 @@ fn place(finding: &Finding) -> String {
 
 fn report(repo: &Repo, defs: &[Def], edges: &[Edge], findings: &[Finding]) {
     println!(
-        "economy: {} units, {} files, {} public symbols, {} resolved uses",
+        "winnow: {} units, {} files, {} public symbols, {} resolved uses",
         repo.units.len(),
         repo.files.len(),
         defs.len(),
         edges.len()
     );
     if findings.is_empty() {
-        println!("economy: every public symbol has a user outside its unit");
+        println!("winnow: every public symbol has a user outside its unit");
         return;
     }
     let plural = if findings.len() == 1 { "" } else { "s" };
     println!(
-        "economy: {} public symbol{plural} inviting deletion:",
+        "winnow: {} public symbol{plural} inviting deletion:",
         findings.len()
     );
     for finding in findings {

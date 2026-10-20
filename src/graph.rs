@@ -241,7 +241,7 @@ pub fn judge(defs: &[Def], edges: &[Edge], repo: &Repo) -> Vec<Finding> {
             continue;
         }
         findings.push(Finding {
-            check: "economy",
+            check: "winnow",
             file: def.file.clone(),
             line: def.line,
             name: def.name.clone(),
