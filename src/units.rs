@@ -48,7 +48,14 @@ impl Repo {
 }
 
 const BUILD_NAMES: [&str; 3] = ["BUILD.bazel", "BUILD.bazel.held", "BUILD"];
-const MANIFEST_NAMES: [&str; 4] = ["pyproject.toml", "Cargo.toml", "package.json", "go.mod"];
+const MANIFEST_NAMES: [&str; 6] = [
+    "pyproject.toml",
+    "Cargo.toml",
+    "package.json",
+    "go.mod",
+    "buf.yaml",
+    "buf.work.yaml",
+];
 
 pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Repo {
     let mut builds = Vec::new();

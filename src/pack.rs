@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::cpp::Cpp;
+use crate::proto::Proto;
 use crate::python::Python;
 use crate::rust::Rust;
 use crate::typescript::TypeScript;
@@ -116,6 +117,13 @@ pub trait Pack {
         &[]
     }
 
+    // Whether a file of this name is generated: scanned for its uses, never judged,
+    // since its contract's surface is the file it was generated from.
+    fn generated(&self, name: &str) -> bool {
+        let _ = name;
+        false
+    }
+
     // Files whose symbols live by being named from outside the repository.
     fn roots(&self, root: &Path, repo: &Repo) -> Vec<PathBuf>;
 
@@ -128,6 +136,7 @@ pub trait Pack {
 pub fn all() -> Vec<Box<dyn Pack>> {
     vec![
         Box::new(Cpp::new()),
+        Box::new(Proto::new()),
         Box::new(Python::new()),
         Box::new(Rust::new()),
         Box::new(TypeScript::new()),

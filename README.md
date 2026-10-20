@@ -4,8 +4,8 @@ A quality gate for repositories worked on by agents at scale. Its pillars are
 correctness, integrity and economy; economy is the new one: public surface
 nothing uses is a finding, and the gate invites its deletion.
 
-Four commands stand over one resolved graph, across Python, TypeScript, C++
-and Rust:
+Four commands stand over one resolved graph, across Python, TypeScript, C++,
+Rust and protobuf:
 
 - `arbiter economy <folder>` reports every public symbol with no user
   outside its own unit.
@@ -75,6 +75,12 @@ each defining `value` stay three symbols.
 - A root is where reachability starts, so its symbols are never findings: a
   binary target's entry file, the module a Python manifest's entry points or
   scripts name, and the src/main.rs beside a Cargo manifest.
+- A contract is a unit: buf.yaml marks a proto module, whose messages, enums,
+  services and procedures are the surface. Generated code is scanned and
+  never judged, and a name taken from a generated module reaches the matching
+  definition in the proto file, so a message or a procedure no language
+  touches invites deletion at the contract's own line. The adapter runs buf,
+  pinned, for format and lint.
 - A test keeps nothing alive, wherever it lives: a symbol only tests reach
   is reported. A `*_test` target's srcs are tests; where no target claims a
   file, its name and folder say.

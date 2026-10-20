@@ -40,8 +40,10 @@ pub fn graph(asked: &str) -> Option<Graph> {
             continue;
         };
         let unit = repo.unit_of(file);
-        // Tests and a root are leaves of the graph, offering nothing for others to use.
-        let surface = !repo.is_test(unit, file) && !repo.units[unit].root_files.contains(file);
+        // Tests, roots and generated files are leaves: nothing of theirs is judged.
+        let surface = !repo.is_test(unit, file)
+            && !repo.units[unit].root_files.contains(file)
+            && !packs[index].generated(&name);
         for definition in packs[index].scan(file, &source, surface) {
             defs.push(Def {
                 name: definition.name,

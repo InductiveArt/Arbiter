@@ -2,4 +2,4 @@
 visibility = ["nothing/*"]
 
 [units."app"]
-deps = ["libs/used_py", "libs/facade"]
+deps = ["libs/used_py", "libs/facade", "proto"]

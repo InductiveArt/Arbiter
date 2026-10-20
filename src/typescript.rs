@@ -223,6 +223,10 @@ impl Pack for TypeScript {
         &["node_modules", "dist"]
     }
 
+    fn generated(&self, name: &str) -> bool {
+        name.ends_with("_pb.ts") || name.ends_with(".pb.ts")
+    }
+
     fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
         let mut edges = Vec::new();
         for (file, from, name, line) in &self.imports {
@@ -233,6 +237,24 @@ impl Pack for TypeScript {
             let base = file.parent().unwrap_or(Path::new(""));
             let joined = normalized(&base.join(from));
             let shown = joined.to_string_lossy();
+            // A generated module answers for the contract it was generated from, so a
+            // name taken from one reaches the matching definition in the proto file.
+            if let Some(contract) = from.rsplit('/').next().and_then(|last| {
+                last.strip_suffix("_pb")
+                    .or_else(|| last.strip_suffix(".pb"))
+            }) {
+                let ending = format!("/{contract}.proto");
+                for (index, def) in defs.iter().enumerate() {
+                    if def.name == *name && def.file.to_string_lossy().ends_with(&ending) {
+                        edges.push(Edge {
+                            def: index,
+                            file: file.clone(),
+                            line: *line,
+                            unit: repo.unit_of(file),
+                        });
+                    }
+                }
+            }
             let candidates = [
                 format!("{shown}.ts"),
                 format!("{shown}/index.ts"),

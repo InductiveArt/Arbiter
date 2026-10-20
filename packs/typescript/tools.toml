@@ -7,3 +7,7 @@ run = ["npx", "--yes", "@biomejs/biome@2.5.15", "check", "--config-path", "{pack
 [[check]]
 name = "types"
 run = ["npx", "--yes", "--package", "typescript@7.0.2", "tsc", "--noEmit", "-p", "."]
+
+[[check]]
+name = "test"
+run = ["npx", "--yes", "vitest@4.0.17", "run"]

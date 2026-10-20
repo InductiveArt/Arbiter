@@ -163,6 +163,10 @@ impl Pack for Python {
         &["__pycache__"]
     }
 
+    fn generated(&self, name: &str) -> bool {
+        name.ends_with("_pb2.py") || name.ends_with("_pb2_grpc.py") || name.ends_with("_pb2.pyi")
+    }
+
     fn lockfile(&self) -> Option<&'static str> {
         Some("uv.lock")
     }
@@ -240,6 +244,21 @@ impl Pack for Python {
     fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
         let mut edges = Vec::new();
         for (file, module, name, line) in &self.imports {
+            // A generated module answers for the contract it was generated from, so a
+            // name taken from one reaches the matching definition in the proto file.
+            if let Some(contract) = module.strip_suffix("_pb2") {
+                let ending = format!("{}.proto", contract.replace('.', "/"));
+                for (index, def) in defs.iter().enumerate() {
+                    if def.name == *name && def.file.to_string_lossy().ends_with(&ending) {
+                        edges.push(Edge {
+                            def: index,
+                            file: file.clone(),
+                            line: *line,
+                            unit: repo.unit_of(file),
+                        });
+                    }
+                }
+            }
             for (index, def) in defs.iter().enumerate() {
                 if def.pack != mine || def.name != *name {
                     continue;

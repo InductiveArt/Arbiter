@@ -22,6 +22,9 @@ fn the_fixture_yields_its_known_findings() {
         [
             "libs/dead_py/src/dead/calc.py:1 orphan no user anywhere",
             "libs/testy/src/testy/calc.py:1 helper no user but tests",
+            "proto/billing/invoice.proto:4 Ghost no user anywhere",
+            "proto/billing/invoice.proto:5 Billing no user anywhere",
+            "proto/billing/invoice.proto:6 GetInvoice no user anywhere",
             "web/src/index.ts:1 ghost no user anywhere",
         ]
     );
@@ -108,4 +111,23 @@ fn the_ledger_counts_a_named_suppression_and_refuses_a_blanket() {
     let blankets = arbiter::ledger::blankets(&found);
     assert_eq!(blankets.len(), 1);
     assert!(blankets[0].text.contains("type: ignore"));
+}
+
+#[test]
+fn a_contract_is_reached_through_generated_code_in_both_languages() {
+    let found = graph(DEMO).expect("the fixture folder exists");
+    let invoice = found
+        .defs
+        .iter()
+        .position(|def| def.name == "Invoice" && def.file.to_string_lossy().ends_with(".proto"))
+        .expect("the fixture declares Invoice");
+    for user in ["app/src/app/rpc.py", "web/src/rpc.ts"] {
+        assert!(
+            found
+                .edges
+                .iter()
+                .any(|edge| edge.def == invoice && edge.file.to_string_lossy() == user),
+            "missing user {user}"
+        );
+    }
 }

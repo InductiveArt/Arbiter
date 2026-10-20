@@ -1,0 +1,7 @@
+syntax = "proto3";
+package billing;
+message Invoice { string id = 1; }
+message Ghost { string id = 1; }
+service Billing {
+  rpc GetInvoice(Invoice) returns (Invoice);
+}

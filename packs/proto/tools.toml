@@ -1,0 +1,9 @@
+# The adapter: what holds a proto unit to the bar, in the order run.
+# Each tool is pinned, so every unit is held to one bar, not to a machine's.
+[[check]]
+name = "format"
+run = ["npx", "--yes", "@bufbuild/buf@1.74.0", "format", "--diff", "--exit-code"]
+
+[[check]]
+name = "lint"
+run = ["npx", "--yes", "@bufbuild/buf@1.74.0", "lint"]
