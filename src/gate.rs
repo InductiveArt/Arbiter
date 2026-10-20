@@ -255,6 +255,9 @@ fn materialized(pack: &dyn Pack) -> Option<std::path::PathBuf> {
     let folder = std::env::temp_dir()
         .join("arbiter-packs")
         .join(pack.label());
+    // A config a former version of the pack carried would shadow today's, so the
+    // folder holds exactly the current set.
+    let _ = std::fs::remove_dir_all(&folder);
     std::fs::create_dir_all(&folder).ok()?;
     for (name, content) in configs {
         std::fs::write(folder.join(name), content).ok()?;
