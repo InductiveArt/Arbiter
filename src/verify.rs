@@ -103,6 +103,18 @@ fn judged(
                 outcomes.push(run(&shown, pack.label(), &folder, &check));
             }
         }
+        for pack in packs {
+            for drift in pack.drift(root, &folder, fixing, &mut notes) {
+                outcomes.push(Outcome {
+                    unit: shown.clone(),
+                    pack: pack.label(),
+                    check: drift.check,
+                    passed: drift.problems.is_empty(),
+                    seconds: drift.seconds,
+                    tail: drift.problems.join("\n"),
+                });
+            }
+        }
     }
     (outcomes, notes)
 }

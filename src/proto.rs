@@ -1,10 +1,16 @@
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use tree_sitter::{Language, Tree};
 
-use crate::pack::{Def, Definition, Edge, Pack, Suppression};
+use crate::pack::{Def, Definition, Drift, Edge, Pack, Suppression};
 use crate::trees;
 use crate::units::Repo;
+
+const BUF: [&str; 3] = ["npx", "--yes", "@bufbuild/buf@1.74.0"];
+
+// What protobuf code generators name their output, in every language a pack reads.
+const GENERATED: [&str; 5] = ["_pb2.py", "_pb2.pyi", "_pb2_grpc.py", "_pb.ts", ".pb.ts"];
 
 const DEFINITIONS: &str = include_str!("../packs/proto/definitions.scm");
 const USES: &str = include_str!("../packs/proto/uses.scm");
@@ -99,6 +105,202 @@ impl Pack for Proto {
     fn suppressions(&self) -> &[Suppression] {
         &[]
     }
+
+    fn drift(
+        &self,
+        root: &Path,
+        folder: &Path,
+        fixing: bool,
+        notes: &mut Vec<String>,
+    ) -> Vec<Drift> {
+        let mut found = Vec::new();
+        if folder.join("buf.gen.yaml").is_file() {
+            let started = Instant::now();
+            let problems = regenerated(folder, fixing);
+            found.push(Drift {
+                check: "drift".to_string(),
+                problems,
+                seconds: started.elapsed().as_secs_f64(),
+            });
+        }
+        if folder.join("buf.yaml").is_file() {
+            let image = image_path(root, folder);
+            if image.is_file() {
+                let started = Instant::now();
+                let problems =
+                    match run_buf(folder, &["breaking", "--against", &image.to_string_lossy()]) {
+                        Ok(_) => Vec::new(),
+                        Err(output) => output.lines().map(str::to_string).collect(),
+                    };
+                found.push(Drift {
+                    check: "breaking".to_string(),
+                    problems,
+                    seconds: started.elapsed().as_secs_f64(),
+                });
+            } else {
+                let shown = folder.strip_prefix(root).unwrap_or(folder);
+                notes.push(format!(
+                    "{} has no contracts reference; arbiter accept records today's",
+                    shown.to_string_lossy()
+                ));
+            }
+        }
+        found
+    }
+
+    fn record(&self, root: &Path, repo: &Repo) -> Vec<String> {
+        let mut lines = Vec::new();
+        for manifest in &repo.manifests {
+            if manifest.file_name().is_none_or(|name| name != "buf.yaml") {
+                continue;
+            }
+            let unit = manifest.parent().unwrap_or(Path::new(""));
+            let folder = root.join(unit);
+            let image = image_path(root, &folder);
+            if let Some(parent) = image.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let kept = image.strip_prefix(root).unwrap_or(&image).to_path_buf();
+            match run_buf(&folder, &["build", "-o", &image.to_string_lossy()]) {
+                Ok(_) => lines.push(format!(
+                    "contracts of {} recorded in {}",
+                    unit.to_string_lossy(),
+                    kept.to_string_lossy()
+                )),
+                Err(output) => lines.push(format!(
+                    "contracts of {} could not be recorded: {output}",
+                    unit.to_string_lossy()
+                )),
+            }
+        }
+        lines
+    }
+}
+
+// Where the accepted contracts of the unit live, named by the unit's own path.
+fn image_path(root: &Path, folder: &Path) -> PathBuf {
+    let unit = folder.strip_prefix(root).unwrap_or(folder);
+    let flat = if unit.as_os_str().is_empty() {
+        "root".to_string()
+    } else {
+        unit.to_string_lossy().replace(['/', '\\'], "-")
+    };
+    root.join(".arbiter")
+        .join("contracts")
+        .join(format!("{flat}.binpb"))
+}
+
+// Success keeps nothing; failure keeps the tool's whole answer.
+fn run_buf(folder: &Path, args: &[&str]) -> Result<(), String> {
+    let finished = std::process::Command::new(BUF[0])
+        .args(&BUF[1..])
+        .args(args)
+        .current_dir(folder)
+        .output();
+    let Ok(output) = finished else {
+        return Err(format!("{} did not start", BUF[0]));
+    };
+    if output.status.success() {
+        return Ok(());
+    }
+    Err(format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
+    .trim()
+    .to_string())
+}
+
+// Regenerates to a staging folder and names every committed file that disagrees.
+// A fixing run first regenerates in place and deletes the orphans.
+fn regenerated(folder: &Path, fixing: bool) -> Vec<String> {
+    if fixing {
+        let _ = run_buf(folder, &["generate"]);
+    }
+    let staged = std::env::temp_dir()
+        .join("arbiter-gen")
+        .join(folder.to_string_lossy().replace(['/', '\\', ':'], "-"));
+    let _ = std::fs::remove_dir_all(&staged);
+    if std::fs::create_dir_all(&staged).is_err() {
+        return vec!["the staging folder could not be created".to_string()];
+    }
+    if let Err(output) = run_buf(folder, &["generate", "--output", &staged.to_string_lossy()]) {
+        return vec![format!("buf generate failed: {output}")];
+    }
+    if fixing {
+        for orphan in orphans(&staged, folder) {
+            let _ = std::fs::remove_file(folder.join(orphan));
+        }
+    }
+    compared(&staged, folder)
+}
+
+fn compared(generated: &Path, committed: &Path) -> Vec<String> {
+    let mut problems = Vec::new();
+    for file in files_under(generated, generated) {
+        let theirs = std::fs::read(generated.join(&file)).unwrap_or_default();
+        match std::fs::read(committed.join(&file)) {
+            Err(_) => problems.push(format!(
+                "{} is missing; the contracts generate it",
+                file.to_string_lossy()
+            )),
+            Ok(ours) if ours != theirs => problems.push(format!(
+                "{} drifted from what the contracts generate",
+                file.to_string_lossy()
+            )),
+            Ok(_) => {}
+        }
+    }
+    for orphan in orphans(generated, committed) {
+        problems.push(format!(
+            "{} is orphaned; no contract generates it",
+            orphan.to_string_lossy()
+        ));
+    }
+    problems.sort();
+    problems
+}
+
+// Committed files named like generated code that no contract generates any more.
+fn orphans(generated: &Path, committed: &Path) -> Vec<PathBuf> {
+    let fresh: std::collections::HashSet<PathBuf> =
+        files_under(generated, generated).into_iter().collect();
+    files_under(committed, committed)
+        .into_iter()
+        .filter(|file| {
+            let name = file
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default();
+            GENERATED.iter().any(|suffix| name.ends_with(suffix)) && !fresh.contains(file)
+        })
+        .collect()
+}
+
+fn files_under(base: &Path, folder: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return found;
+    };
+    for entry in entries.flatten() {
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
+        let name = entry.file_name().to_string_lossy().to_string();
+        let path = entry.path();
+        if kind.is_dir() {
+            if name.starts_with('.')
+                || ["node_modules", "dist", "target", "__pycache__"].contains(&name.as_str())
+            {
+                continue;
+            }
+            found.extend(files_under(base, &path));
+        } else if kind.is_file() {
+            found.push(path.strip_prefix(base).unwrap_or(&path).to_path_buf());
+        }
+    }
+    found
 }
 
 fn language() -> Language {
@@ -111,4 +313,43 @@ fn definitions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
 
 fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
     trees::texts(&language(), MENTIONS, tree, source, "mention")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::Path;
+
+    use super::compared;
+
+    fn planted(base: &Path, file: &str, content: &str) {
+        let path = base.join(file);
+        fs::create_dir_all(path.parent().expect("a planted file has a folder"))
+            .expect("the folder is writable");
+        fs::write(path, content).expect("the file is writable");
+    }
+
+    #[test]
+    fn a_missing_a_drifted_and_an_orphaned_file_are_each_named() {
+        let base = std::env::temp_dir().join("arbiter-test-compared");
+        let _ = fs::remove_dir_all(&base);
+        let generated = base.join("generated");
+        let committed = base.join("committed");
+        planted(&generated, "src/gen/same_pb.ts", "same");
+        planted(&generated, "src/gen/stale_pb.ts", "new");
+        planted(&generated, "src/gen/fresh_pb.ts", "fresh");
+        planted(&committed, "src/gen/same_pb.ts", "same");
+        planted(&committed, "src/gen/stale_pb.ts", "old");
+        planted(&committed, "src/gen/ghost_pb.ts", "ghost");
+        planted(&committed, "src/own.ts", "handwritten");
+        let problems = compared(&generated, &committed);
+        assert_eq!(
+            problems,
+            [
+                "src/gen/fresh_pb.ts is missing; the contracts generate it",
+                "src/gen/ghost_pb.ts is orphaned; no contract generates it",
+                "src/gen/stale_pb.ts drifted from what the contracts generate",
+            ]
+        );
+    }
 }

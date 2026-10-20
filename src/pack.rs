@@ -61,6 +61,13 @@ pub struct Definition {
     pub self_used: bool,
 }
 
+// One tool-run judgment of a unit's generated code against its contracts.
+pub struct Drift {
+    pub check: String,
+    pub problems: Vec<String>,
+    pub seconds: f64,
+}
+
 // A language. It says what defines a symbol and what uses one; the core knows no language.
 pub trait Pack {
     fn label(&self) -> &'static str;
@@ -122,6 +129,27 @@ pub trait Pack {
     fn generated(&self, name: &str) -> bool {
         let _ = name;
         false
+    }
+
+    // Judges the unit's generated code against its contracts with the unit's own
+    // tools; a fixing run repairs in place first. A unit the pack has nothing to
+    // judge returns nothing.
+    fn drift(
+        &self,
+        root: &Path,
+        folder: &Path,
+        fixing: bool,
+        notes: &mut Vec<String>,
+    ) -> Vec<Drift> {
+        let _ = (root, folder, fixing, notes);
+        Vec::new()
+    }
+
+    // Writes the pack's accepted reference, as `arbiter accept` asks; each line
+    // reports one record written or refused.
+    fn record(&self, root: &Path, repo: &Repo) -> Vec<String> {
+        let _ = (root, repo);
+        Vec::new()
     }
 
     // Files whose symbols live by being named from outside the repository.

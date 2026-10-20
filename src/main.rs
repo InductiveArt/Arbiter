@@ -144,6 +144,11 @@ fn main() -> ExitCode {
                     counted.len(),
                     path.to_string_lossy()
                 );
+                for pack in &found.packs {
+                    for line in pack.record(&found.root, &found.repo) {
+                        println!("accept: {line}");
+                    }
+                }
                 return ExitCode::SUCCESS;
             }
             Err(error) => {
