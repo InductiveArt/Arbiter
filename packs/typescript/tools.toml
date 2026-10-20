@@ -3,6 +3,7 @@
 [[check]]
 name = "lint"
 run = ["npx", "--yes", "@biomejs/biome@2.5.15", "check", "--config-path", "{pack}", "."]
+fix = ["npx", "--yes", "@biomejs/biome@2.5.15", "check", "--write", "--config-path", "{pack}", "."]
 
 [[check]]
 name = "types"

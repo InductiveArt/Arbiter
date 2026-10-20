@@ -19,6 +19,21 @@ const TAIL: usize = 15;
 // Runs every declared adapter over every unit holding its manifest. A unit of a
 // language whose pack declares no tools is named in the notes rather than passed over.
 pub fn verify(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> (Vec<Outcome>, Vec<String>) {
+    judged(root, repo, packs, false)
+}
+
+// Runs each check's declared fix first, then judges as verify does. A fix that fails
+// is the outcome; one that succeeds leaves only the check's own verdict to show.
+pub fn fix(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> (Vec<Outcome>, Vec<String>) {
+    judged(root, repo, packs, true)
+}
+
+fn judged(
+    root: &Path,
+    repo: &Repo,
+    packs: &[Box<dyn Pack>],
+    fixing: bool,
+) -> (Vec<Outcome>, Vec<String>) {
     let mut outcomes = Vec::new();
     let mut notes = Vec::new();
     for (index, unit) in repo.units.iter().enumerate() {
@@ -69,7 +84,22 @@ pub fn verify(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> (Vec<Outcome
                 let check = Check {
                     name: check.name,
                     run: filled(&check.run, home.as_deref()),
+                    fix: check.fix.map(|fix| filled(&fix, home.as_deref())),
                 };
+                if fixing {
+                    if let Some(fix) = &check.fix {
+                        let repair = Check {
+                            name: check.name.clone(),
+                            run: fix.clone(),
+                            fix: None,
+                        };
+                        let outcome = run(&shown, pack.label(), &folder, &repair);
+                        if !outcome.passed {
+                            outcomes.push(outcome);
+                            continue;
+                        }
+                    }
+                }
                 outcomes.push(run(&shown, pack.label(), &folder, &check));
             }
         }
@@ -80,6 +110,7 @@ pub fn verify(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> (Vec<Outcome
 struct Check {
     name: String,
     run: Vec<String>,
+    fix: Option<Vec<String>>,
 }
 
 // The pack's configuration files, written outside the judged repository so a run
@@ -120,15 +151,20 @@ fn checks(adapter: &str) -> Vec<Check> {
         .iter()
         .filter_map(|entry| {
             let name = entry.get("name")?.as_str()?.to_string();
-            let run = entry
-                .get("run")?
-                .as_array()?
-                .iter()
-                .filter_map(|word| word.as_str().map(str::to_string))
-                .collect::<Vec<String>>();
-            (!run.is_empty()).then_some(Check { name, run })
+            let run = words(entry.get("run")?)?;
+            let fix = entry.get("fix").and_then(words);
+            (!run.is_empty()).then_some(Check { name, run, fix })
         })
         .collect()
+}
+
+fn words(list: &toml::Value) -> Option<Vec<String>> {
+    Some(
+        list.as_array()?
+            .iter()
+            .filter_map(|word| word.as_str().map(str::to_string))
+            .collect(),
+    )
 }
 
 fn run(unit: &str, pack: &'static str, folder: &Path, check: &Check) -> Outcome {

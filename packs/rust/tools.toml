@@ -2,10 +2,12 @@
 [[check]]
 name = "fmt"
 run = ["cargo", "fmt", "--check"]
+fix = ["cargo", "fmt"]
 
 [[check]]
 name = "clippy"
 run = ["cargo", "clippy", "--all-targets", "--quiet", "--", "-D", "warnings"]
+fix = ["cargo", "clippy", "--fix", "--allow-dirty", "--allow-staged", "--all-targets", "--quiet"]
 
 [[check]]
 name = "test"

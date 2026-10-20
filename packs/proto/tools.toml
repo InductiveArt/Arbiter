@@ -3,6 +3,7 @@
 [[check]]
 name = "format"
 run = ["npx", "--yes", "@bufbuild/buf@1.74.0", "format", "--diff", "--exit-code"]
+fix = ["npx", "--yes", "@bufbuild/buf@1.74.0", "format", "--write"]
 
 [[check]]
 name = "lint"

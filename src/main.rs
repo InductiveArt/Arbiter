@@ -9,15 +9,19 @@ use arbiter::{ledger, pack, units, verify};
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = env::args().skip(1).collect();
-    if arguments.first().map(String::as_str) == Some("verify") {
+    if let Some(command @ ("verify" | "fix")) = arguments.first().map(String::as_str) {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
         let Ok(root) = PathBuf::from(&asked).canonicalize() else {
-            eprintln!("verify: no folder at {asked}");
+            eprintln!("{command}: no folder at {asked}");
             return ExitCode::from(2);
         };
         let packs = pack::all();
         let repo = units::scan(&root, &packs);
-        let (outcomes, notes) = verify::verify(&root, &repo, &packs);
+        let (outcomes, notes) = if command == "fix" {
+            verify::fix(&root, &repo, &packs)
+        } else {
+            verify::verify(&root, &repo, &packs)
+        };
         for outcome in &outcomes {
             let answer = if outcome.passed { "ok    " } else { "failed" };
             println!(
@@ -31,18 +35,18 @@ fn main() -> ExitCode {
             }
         }
         for note in &notes {
-            println!("verify: {note}");
+            println!("{command}: {note}");
         }
         if outcomes.is_empty() {
-            println!("verify: no unit declares any tools, so nothing was judged");
+            println!("{command}: no unit declares any tools, so nothing was judged");
             return ExitCode::from(2);
         }
         let failed = outcomes.iter().filter(|outcome| !outcome.passed).count();
         if failed == 0 {
-            println!("verify: {} checks passed", outcomes.len());
+            println!("{command}: {} checks passed", outcomes.len());
             return ExitCode::SUCCESS;
         }
-        println!("verify: {failed} of {} checks failed", outcomes.len());
+        println!("{command}: {failed} of {} checks failed", outcomes.len());
         return ExitCode::FAILURE;
     }
     if arguments.first().map(String::as_str) == Some("blast") {
