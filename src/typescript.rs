@@ -61,7 +61,10 @@ impl Pack for TypeScript {
     }
 
     fn configs(&self) -> &'static [(&'static str, &'static str)] {
-        &[("biome.json", include_str!("../packs/typescript/biome.json"))]
+        &[(
+            "biome.jsonc",
+            include_str!("../packs/typescript/biome.jsonc"),
+        )]
     }
 
     fn wiring(&self, folder: &Path) -> Option<Vec<String>> {

@@ -44,14 +44,16 @@ Rust and protobuf:
   container, named while its members are judged. Nothing to run at all is a
   failure, not a pass.
 
-  Three adapters exist, each tool pinned so every unit is held to one bar:
+  Four adapters exist, each tool pinned so every unit is held to one bar:
   Rust runs rustfmt, clippy denying every warning, and cargo test; Python
-  runs ruff format and check, basedpyright, and pytest, through uv; and
-  TypeScript runs biome and tsc. A pack carries the configuration its tools
-  read, ruff's TOML and biome's JSON, written outside the judged repository
-  at a place `{pack}` in a declared command resolves to, so the bar is the
-  pack's, never a tool's default, and a run changes nothing in the
-  repository.
+  runs ruff format and check, basedpyright, and pytest, through uv;
+  TypeScript runs biome, tsc and vitest; and proto runs buf format and lint.
+  A pack carries the configuration its tools read, ruff's TOML and biome's
+  JSONC, written outside the judged repository at a place `{pack}` in a
+  declared command resolves to, so the bar is the pack's, never a tool's
+  default, and a run changes nothing in the repository. A TypeScript test
+  lives in a `__tests__` folder or carries a `.test.ts` name, and is held to
+  the same rules as the code it tests.
 
   Before a unit's tools run, `wiring` holds its declared environment to the
   pack's bar: settings may add, never lower. TypeScript's resolved tsconfig

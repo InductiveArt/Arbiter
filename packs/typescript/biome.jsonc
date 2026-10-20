@@ -1,0 +1,74 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "files": {
+    "includes": [
+      "**/src/**/*.ts",
+      "**/src/**/*.tsx",
+      "!**/dist",
+      "!**/node_modules",
+      // Generated code answers for its contract; the proto file is what is judged.
+      "!**/*_pb.ts",
+      "!**/*.pb.ts",
+      "!**/gen/**"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf"
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "suspicious": {
+        "noExplicitAny": "error"
+      },
+      "complexity": {
+        // The tsconfig bar sets noPropertyAccessFromIndexSignature, which forces
+        // bracket access on index signatures; this rule would fight it.
+        "useLiteralKeys": "off",
+        "noBannedTypes": "error",
+        "noStaticOnlyClass": "error",
+        "noThisInStatic": "error",
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": {
+            "maxAllowedComplexity": 15
+          }
+        }
+      },
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["#*/*"],
+                "message": "A subpath import with a slash (#X/Y) reaches into another module's interior. Declare a bare alias in package.json `imports` and use that instead."
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
+}

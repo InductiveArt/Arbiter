@@ -32,8 +32,11 @@ impl Repo {
             .unwrap_or_default();
         stem.starts_with("test_")
             || stem.ends_with("_test")
+            || stem.ends_with(".test")
             || stem == "conftest"
-            || file.components().any(|part| part.as_os_str() == "tests")
+            || file
+                .components()
+                .any(|part| part.as_os_str() == "tests" || part.as_os_str() == "__tests__")
     }
 
     pub fn unit_of(&self, file: &Path) -> usize {
@@ -283,6 +286,9 @@ mod tests {
         assert!(repo.is_test(0, Path::new("src/test_calc.py")));
         assert!(repo.is_test(0, Path::new("src/calc_test.cc")));
         assert!(repo.is_test(0, Path::new("conftest.py")));
+        assert!(repo.is_test(0, Path::new("src/__tests__/calc.ts")));
+        assert!(repo.is_test(0, Path::new("src/calc.test.ts")));
         assert!(!repo.is_test(0, Path::new("src/calc.py")));
+        assert!(!repo.is_test(0, Path::new("src/latest.ts")));
     }
 }
