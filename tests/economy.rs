@@ -53,6 +53,10 @@ fn integrity_names_the_cycle_and_each_reexport() {
             "libs/facade/src/facade/inner.py a comment names dashboard_frontend, \
              which nothing in the file defines, uses or quotes",
             "web/src/barrel.ts re-exports from \"./index\"; a module offers only its own names",
+            "web/src/deep.ts reaches ui/src/parts/button.ts inside ui; \
+             a unit is entered through the routes its manifest declares",
+            "web/src/sneak.ts goes into @demo/ui past its routes; \
+             a unit is entered through the routes its manifest declares",
         ]
     );
 }
@@ -100,6 +104,20 @@ fn a_whole_module_import_reaches_the_name_through_its_chain() {
         .edges
         .iter()
         .any(|edge| edge.def == value && edge.file.to_string_lossy() == "app/src/app/plain.py"));
+}
+
+#[test]
+fn a_name_crosses_units_through_the_route_and_its_barrels() {
+    let found = graph(DEMO).expect("the fixture folder exists");
+    let button = found
+        .defs
+        .iter()
+        .position(|def| def.name == "Button")
+        .expect("the fixture defines Button");
+    assert!(found
+        .edges
+        .iter()
+        .any(|edge| edge.def == button && edge.file.to_string_lossy() == "web/src/panel.ts"));
 }
 
 #[test]

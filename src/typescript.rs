@@ -162,9 +162,14 @@ impl Pack for TypeScript {
     }
 
     fn integrity(&self, root: &Path, repo: &Repo) -> Vec<Finding> {
+        let present: std::collections::HashSet<&PathBuf> = repo.files.iter().collect();
+        let routes = manifest_routes(root, repo, &present);
+        // A route target is the unit's declared surface, so a re-export there is the
+        // declaration itself; anywhere else it hides a name.
         let mut findings: Vec<Finding> = self
             .reexports
             .iter()
+            .filter(|(file, _, _)| !routes.surfaces.contains(file))
             .map(|(file, from, line)| Finding {
                 check: "integrity",
                 file: file.clone(),
@@ -218,6 +223,66 @@ impl Pack for TypeScript {
                     reason: format!("{package} is imported, and no manifest declares it"),
                 });
             }
+        }
+        // An import crossing into another unit anywhere but a declared route bypasses
+        // the boundary the manifest draws.
+        let mut crossed = std::collections::BTreeSet::new();
+        for (file, from, _, line) in &self.imports {
+            if file
+                .file_name()
+                .is_some_and(|name| self.generated(&name.to_string_lossy()))
+            {
+                continue;
+            }
+            // One import statement carries many names and is judged once.
+            if !crossed.insert((file.clone(), *line, from.clone())) {
+                continue;
+            }
+            let unit = repo.unit_of(file);
+            let mut target = None;
+            if from.starts_with('#') {
+                if let Some(path) = routes.aliases.get(&unit).and_then(|map| map.get(from)) {
+                    let folder = repo.units[unit].path.clone();
+                    target = existing(&normalized(&folder.join(path)), &present);
+                }
+            } else if from.starts_with('.') {
+                let base = file.parent().unwrap_or(Path::new(""));
+                target = existing(&normalized(&base.join(from)), &present);
+            } else if !routes.declared.contains(from.as_str())
+                && !routes.names.contains_key(from.as_str())
+                && !routes.patterns.iter().any(|pattern| routed(from, pattern))
+            {
+                if let Some(package) = routes
+                    .packages
+                    .iter()
+                    .find(|package| from.starts_with(&format!("{package}/")))
+                {
+                    findings.push(Finding::integrity(
+                        file,
+                        *line,
+                        "interior-import",
+                        format!("goes into {package} past its routes; a unit is entered through the routes its manifest declares"),
+                    ));
+                }
+            }
+            let Some(target) = target else {
+                continue;
+            };
+            let owner = repo.unit_of(&target);
+            // A file no unit claims has no manifest, so no routes exist to demand.
+            if owner == unit || repo.units[owner].path.as_os_str().is_empty() {
+                continue;
+            }
+            findings.push(Finding::integrity(
+                file,
+                *line,
+                "interior-import",
+                format!(
+                    "reaches {} inside {}; a unit is entered through the routes its manifest declares",
+                    target.display(),
+                    repo.units[owner].path.display()
+                ),
+            ));
         }
         findings
     }
@@ -390,7 +455,15 @@ fn meets(actual: &serde_json::Value, needed: &toml::Value) -> bool {
 
 struct Routes {
     names: std::collections::HashMap<String, PathBuf>,
+    // Wildcard routes kept as written, the star standing for one span of a specifier.
+    patterns: Vec<String>,
     aliases: std::collections::HashMap<usize, std::collections::HashMap<String, String>>,
+    packages: std::collections::HashSet<String>,
+    // Every route name a manifest writes, kept even when no repository file answers
+    // it, since a route pointing at built output is declared all the same.
+    declared: std::collections::HashSet<String>,
+    // Every file a route or alias names: the declared surface of its unit.
+    surfaces: std::collections::HashSet<PathBuf>,
 }
 
 // Where each workspace package enters and where each unit's subpath aliases lead,
@@ -402,7 +475,11 @@ fn manifest_routes(
 ) -> Routes {
     let mut routes = Routes {
         names: std::collections::HashMap::new(),
+        patterns: Vec::new(),
         aliases: std::collections::HashMap::new(),
+        packages: std::collections::HashSet::new(),
+        declared: std::collections::HashSet::new(),
+        surfaces: std::collections::HashSet::new(),
     };
     for manifest in &repo.manifests {
         if manifest
@@ -419,24 +496,51 @@ fn manifest_routes(
         };
         let folder = manifest.parent().unwrap_or(Path::new("")).to_path_buf();
         if let Some(name) = parsed.get("name").and_then(serde_json::Value::as_str) {
+            routes.packages.insert(name.to_string());
             for (route, path) in exported(name, &parsed) {
-                if let Some(entry) = existing(&normalized(&folder.join(&path)), present) {
+                if route.contains('*') {
+                    routes.patterns.push(route);
+                    continue;
+                }
+                routes.declared.insert(route.clone());
+                // A route whose conditions all point at built output falls back to the
+                // src file the output is built from, the way the bare name falls back
+                // to src/index.
+                let fallback = match route
+                    .strip_prefix(name)
+                    .and_then(|rest| rest.strip_prefix('/'))
+                {
+                    Some(sub) => format!("src/{sub}"),
+                    None => "src/index".to_string(),
+                };
+                let entry = existing(&normalized(&folder.join(&path)), present)
+                    .or_else(|| existing(&normalized(&folder.join(fallback)), present));
+                if let Some(entry) = entry {
+                    routes.surfaces.insert(entry.clone());
                     routes.names.insert(route, entry);
                 }
             }
             if !routes.names.contains_key(name) {
                 if let Some(entry) = existing(&normalized(&folder.join("src/index")), present) {
+                    routes.surfaces.insert(entry.clone());
                     routes.names.insert(name.to_string(), entry);
                 }
             }
         }
         if let Some(imports) = parsed.get("imports").and_then(serde_json::Value::as_object) {
             let unit = repo.unit_of(manifest);
-            let map = routes.aliases.entry(unit).or_default();
             for (alias, target) in imports {
-                if let Some(path) = target.as_str() {
-                    map.insert(alias.clone(), path.to_string());
+                let Some(path) = target.as_str() else {
+                    continue;
+                };
+                if let Some(entry) = existing(&normalized(&folder.join(path)), present) {
+                    routes.surfaces.insert(entry);
                 }
+                routes
+                    .aliases
+                    .entry(unit)
+                    .or_default()
+                    .insert(alias.clone(), path.to_string());
             }
         }
     }
@@ -485,6 +589,16 @@ fn condition_source(value: &serde_json::Value) -> Option<String> {
         }
     }
     None
+}
+
+// Whether a specifier walks a wildcard route, the star standing for one span.
+fn routed(from: &str, pattern: &str) -> bool {
+    match pattern.split_once('*') {
+        Some((head, tail)) => {
+            from.len() >= head.len() + tail.len() && from.starts_with(head) && from.ends_with(tail)
+        }
+        None => from == pattern,
+    }
 }
 
 fn existing(path: &Path, present: &std::collections::HashSet<&PathBuf>) -> Option<PathBuf> {
@@ -548,7 +662,7 @@ fn normalized(path: &Path) -> PathBuf {
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use super::{normalized, option_findings};
+    use super::{normalized, option_findings, routed};
 
     #[test]
     fn the_bar_names_each_unset_option_and_leaves_a_met_one() {
@@ -567,6 +681,14 @@ mod tests {
             .iter()
             .any(|finding| finding
                 == "compilerOptions.allowUnreachableCode is true; the bar says false"));
+    }
+
+    #[test]
+    fn a_wildcard_route_admits_only_what_it_spans() {
+        assert!(routed("@ui/icons/arrow", "@ui/icons/*"));
+        assert!(!routed("@ui/parts/arrow", "@ui/icons/*"));
+        assert!(!routed("@ui/icons", "@ui/icons/*"));
+        assert!(routed("@ui/test", "@ui/test"));
     }
 
     #[test]

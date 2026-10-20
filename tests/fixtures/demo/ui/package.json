@@ -1,0 +1,6 @@
+{
+  "name": "@demo/ui",
+  "version": "0.0.0",
+  "exports": { ".": { "source": "./src/index.ts" } },
+  "imports": { "#parts": "./src/parts/index.ts" }
+}
