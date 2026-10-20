@@ -103,22 +103,11 @@ fn one_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Finding
             let Ok(text) = fs::read_to_string(root.join(path)) else {
                 continue;
             };
-            let Ok(parsed) = text.parse::<toml::Value>() else {
-                continue;
-            };
-            let Some(packages) = parsed.get("package").and_then(toml::Value::as_array) else {
-                continue;
-            };
-            for entry in packages {
-                let name = entry.get("name").and_then(toml::Value::as_str);
-                let version = entry.get("version").and_then(toml::Value::as_str);
-                let (Some(name), Some(version)) = (name, version) else {
-                    continue;
-                };
+            for (name, version) in pack.locked(&text) {
                 versions
-                    .entry(name.to_string())
+                    .entry(name)
                     .or_default()
-                    .entry(version.to_string())
+                    .entry(version)
                     .or_insert_with(|| path.clone());
             }
         }

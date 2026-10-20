@@ -323,6 +323,39 @@ impl Pack for TypeScript {
         &["node_modules", "dist"]
     }
 
+    fn lockfile(&self) -> Option<&'static str> {
+        Some("pnpm-lock.yaml")
+    }
+
+    // pnpm writes YAML: under `packages:`, each key is name@version, quoted when
+    // scoped, any peer qualifiers in parentheses; older locks prefix a slash.
+    fn locked(&self, text: &str) -> Vec<(String, String)> {
+        let mut found = Vec::new();
+        let mut inside = false;
+        for line in text.lines() {
+            if !line.starts_with(' ') && !line.trim().is_empty() {
+                inside = line.trim_end() == "packages:";
+                continue;
+            }
+            if !inside || !line.starts_with("  ") || line.starts_with("   ") {
+                continue;
+            }
+            let Some(key) = line.trim().strip_suffix(':') else {
+                continue;
+            };
+            let key = key.trim_matches(['\'', '"']).trim_start_matches('/');
+            let key = key.split('(').next().unwrap_or(key);
+            let Some(at) = key.rfind('@') else {
+                continue;
+            };
+            if at == 0 {
+                continue;
+            }
+            found.push((key[..at].to_string(), key[at + 1..].to_string()));
+        }
+        found
+    }
+
     fn generated(&self, name: &str) -> bool {
         name.ends_with("_pb.ts") || name.ends_with(".pb.ts")
     }
@@ -688,7 +721,8 @@ fn normalized(path: &Path) -> PathBuf {
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use super::{normalized, option_findings, routed};
+    use super::{normalized, option_findings, routed, TypeScript};
+    use crate::pack::Pack;
 
     #[test]
     fn the_bar_names_each_unset_option_and_leaves_a_met_one() {
@@ -707,6 +741,23 @@ mod tests {
             .iter()
             .any(|finding| finding
                 == "compilerOptions.allowUnreachableCode is true; the bar says false"));
+    }
+
+    #[test]
+    fn a_pnpm_lock_yields_each_package_with_peers_stripped() {
+        let lock = "lockfileVersion: '9.0'\n\nimporters:\n  .:\n    dependencies:\n      \
+                    lodash:\n        specifier: ^4.0.0\n        version: 4.17.21\n\n\
+                    packages:\n\n  '@scope/kit@2.0.1':\n    resolution: {integrity: sha512-a}\n\n  \
+                    lodash@4.17.21:\n    resolution: {integrity: sha512-b}\n\n  \
+                    react-dom@18.2.0(react@18.2.0):\n    resolution: {integrity: sha512-c}\n";
+        assert_eq!(
+            TypeScript::new().locked(lock),
+            [
+                ("@scope/kit".to_string(), "2.0.1".to_string()),
+                ("lodash".to_string(), "4.17.21".to_string()),
+                ("react-dom".to_string(), "18.2.0".to_string()),
+            ]
+        );
     }
 
     #[test]

@@ -114,6 +114,12 @@ pub trait Pack {
         None
     }
 
+    // The (name, version) pairs the pack's lockfile records; TOML [[package]]
+    // entries are the common shape, so they are the default reading.
+    fn locked(&self, text: &str) -> Vec<(String, String)> {
+        toml_locked(text)
+    }
+
     // Every suppression the pack's language can write, seen while scanning.
     fn suppressions(&self) -> &[Suppression] {
         &[]
@@ -159,6 +165,23 @@ pub trait Pack {
     fn scan(&mut self, file: &Path, source: &str, surface: bool) -> Vec<Definition>;
 
     fn resolve(&self, mine: usize, defs: &[Def], root: &Path, repo: &Repo) -> Vec<Edge>;
+}
+
+pub fn toml_locked(text: &str) -> Vec<(String, String)> {
+    let Ok(parsed) = text.parse::<toml::Value>() else {
+        return Vec::new();
+    };
+    let Some(packages) = parsed.get("package").and_then(toml::Value::as_array) else {
+        return Vec::new();
+    };
+    packages
+        .iter()
+        .filter_map(|entry| {
+            let name = entry.get("name")?.as_str()?;
+            let version = entry.get("version")?.as_str()?;
+            Some((name.to_string(), version.to_string()))
+        })
+        .collect()
 }
 
 pub fn all() -> Vec<Box<dyn Pack>> {

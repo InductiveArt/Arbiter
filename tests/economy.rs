@@ -55,6 +55,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
              a symbol is imported from the module defining it",
             "libs/facade/src/facade/inner.py a comment names dashboard_frontend, \
              which nothing in the file defines, uses or quotes",
+            "ui/pnpm-lock.yaml lodash is locked at 4.17.20 in ui/pnpm-lock.yaml \
+             and 4.17.21 in web/pnpm-lock.yaml",
             "ui/src/index.ts re-exports every name from \"./extra\"; \
              a surface names each symbol it offers",
             "ui/src/parts/index.ts re-exports from \"./button\"; \
