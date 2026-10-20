@@ -218,7 +218,7 @@ impl Pack for Rust {
         findings
     }
 
-    fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
+    fn resolve(&self, mine: usize, defs: &[Def], _root: &Path, repo: &Repo) -> Vec<Edge> {
         let mut edges = Vec::new();
         for (file, module, name, line) in &self.uses {
             let Some(segment) = module.rsplit("::").next() else {

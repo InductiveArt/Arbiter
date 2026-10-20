@@ -198,7 +198,7 @@ impl Pack for TypeScript {
             if repo.is_test(unit, &home) {
                 continue;
             }
-            if from.starts_with('.') || from.starts_with("node:") {
+            if from.starts_with('.') || from.starts_with('#') || from.starts_with("node:") {
                 continue;
             }
             let package = if from.starts_with('@') {
@@ -230,16 +230,20 @@ impl Pack for TypeScript {
         name.ends_with("_pb.ts") || name.ends_with(".pb.ts")
     }
 
-    fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
+    fn resolve(&self, mine: usize, defs: &[Def], root: &Path, repo: &Repo) -> Vec<Edge> {
+        let present: std::collections::HashSet<&PathBuf> = repo.files.iter().collect();
+        // Each re-export, resolved to the file it reaches, so a name can pass through.
+        let mut barrels: std::collections::HashMap<PathBuf, Vec<PathBuf>> =
+            std::collections::HashMap::new();
+        for (file, from, _) in &self.reexports {
+            let base = file.parent().unwrap_or(Path::new(""));
+            if let Some(target) = existing(&normalized(&base.join(from)), &present) {
+                barrels.entry(file.clone()).or_default().push(target);
+            }
+        }
+        let routes = manifest_routes(root, repo, &present);
         let mut edges = Vec::new();
         for (file, from, name, line) in &self.imports {
-            // A bare specifier names a package, which is not this repository's code.
-            if !from.starts_with('.') {
-                continue;
-            }
-            let base = file.parent().unwrap_or(Path::new(""));
-            let joined = normalized(&base.join(from));
-            let shown = joined.to_string_lossy();
             // A generated module answers for the contract it was generated from, so a
             // name taken from one reaches the matching definition in the proto file.
             if let Some(contract) = from.rsplit('/').next().and_then(|last| {
@@ -258,19 +262,23 @@ impl Pack for TypeScript {
                     }
                 }
             }
-            let candidates = [
-                format!("{shown}.ts"),
-                format!("{shown}/index.ts"),
-                shown.to_string(),
-            ];
-            for (index, def) in defs.iter().enumerate() {
-                if def.pack != mine || def.name != *name {
-                    continue;
+            let mut entries: Vec<PathBuf> = Vec::new();
+            if from.starts_with('#') {
+                // A subpath alias reaches where the unit's own manifest says.
+                let unit = repo.unit_of(file);
+                if let Some(path) = routes.aliases.get(&unit).and_then(|map| map.get(from)) {
+                    let folder = repo.units[unit].path.clone();
+                    entries.extend(existing(&normalized(&folder.join(path)), &present));
                 }
-                if candidates
-                    .iter()
-                    .any(|candidate| def.file.to_string_lossy() == *candidate)
-                {
+            } else if from.starts_with('.') {
+                let base = file.parent().unwrap_or(Path::new(""));
+                entries.extend(existing(&normalized(&base.join(from)), &present));
+            } else if let Some(entry) = routes.names.get(from) {
+                // A workspace package, entered where its manifest's exports say.
+                entries.push(entry.clone());
+            }
+            for entry in entries {
+                for index in named_through(&entry, name, defs, &barrels, mine) {
                     edges.push(Edge {
                         def: index,
                         file: file.clone(),
@@ -378,6 +386,147 @@ fn meets(actual: &serde_json::Value, needed: &toml::Value) -> bool {
         (serde_json::Value::String(found), toml::Value::String(asked)) => found == asked,
         _ => false,
     }
+}
+
+struct Routes {
+    names: std::collections::HashMap<String, PathBuf>,
+    aliases: std::collections::HashMap<usize, std::collections::HashMap<String, String>>,
+}
+
+// Where each workspace package enters and where each unit's subpath aliases lead,
+// read from the package.json manifests.
+fn manifest_routes(
+    root: &Path,
+    repo: &Repo,
+    present: &std::collections::HashSet<&PathBuf>,
+) -> Routes {
+    let mut routes = Routes {
+        names: std::collections::HashMap::new(),
+        aliases: std::collections::HashMap::new(),
+    };
+    for manifest in &repo.manifests {
+        if manifest
+            .file_name()
+            .is_none_or(|name| name != "package.json")
+        {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(root.join(manifest)) else {
+            continue;
+        };
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) else {
+            continue;
+        };
+        let folder = manifest.parent().unwrap_or(Path::new("")).to_path_buf();
+        if let Some(name) = parsed.get("name").and_then(serde_json::Value::as_str) {
+            for (route, path) in exported(name, &parsed) {
+                if let Some(entry) = existing(&normalized(&folder.join(&path)), present) {
+                    routes.names.insert(route, entry);
+                }
+            }
+            if !routes.names.contains_key(name) {
+                if let Some(entry) = existing(&normalized(&folder.join("src/index")), present) {
+                    routes.names.insert(name.to_string(), entry);
+                }
+            }
+        }
+        if let Some(imports) = parsed.get("imports").and_then(serde_json::Value::as_object) {
+            let unit = repo.unit_of(manifest);
+            let map = routes.aliases.entry(unit).or_default();
+            for (alias, target) in imports {
+                if let Some(path) = target.as_str() {
+                    map.insert(alias.clone(), path.to_string());
+                }
+            }
+        }
+    }
+    routes
+}
+
+// Every route the manifest exports with the file it enters, the source condition
+// first, since that is the file in the repository.
+fn exported(name: &str, parsed: &serde_json::Value) -> Vec<(String, String)> {
+    let mut found = Vec::new();
+    if let Some(exports) = parsed.get("exports") {
+        if let Some(map) = exports.as_object() {
+            if map.keys().any(|key| key.starts_with('.')) {
+                for (key, value) in map {
+                    let Some(path) = condition_source(value) else {
+                        continue;
+                    };
+                    let route = if key == "." {
+                        name.to_string()
+                    } else {
+                        format!("{name}/{}", key.trim_start_matches("./"))
+                    };
+                    found.push((route, path));
+                }
+                return found;
+            }
+        }
+        if let Some(path) = condition_source(exports) {
+            found.push((name.to_string(), path));
+            return found;
+        }
+    }
+    if let Some(main) = parsed.get("main").and_then(serde_json::Value::as_str) {
+        found.push((name.to_string(), main.to_string()));
+    }
+    found
+}
+
+fn condition_source(value: &serde_json::Value) -> Option<String> {
+    if let Some(path) = value.as_str() {
+        return Some(path.to_string());
+    }
+    for condition in ["source", "import", "default"] {
+        if let Some(path) = value.get(condition).and_then(serde_json::Value::as_str) {
+            return Some(path.to_string());
+        }
+    }
+    None
+}
+
+fn existing(path: &Path, present: &std::collections::HashSet<&PathBuf>) -> Option<PathBuf> {
+    let shown = path.to_string_lossy();
+    for candidate in [
+        shown.to_string(),
+        format!("{shown}.ts"),
+        format!("{shown}/index.ts"),
+    ] {
+        let candidate = PathBuf::from(candidate);
+        if present.contains(&candidate) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+// The definitions a name reaches from an entry, passing through every barrel.
+fn named_through(
+    entry: &Path,
+    name: &str,
+    defs: &[Def],
+    barrels: &std::collections::HashMap<PathBuf, Vec<PathBuf>>,
+    mine: usize,
+) -> Vec<usize> {
+    let mut queue = vec![entry.to_path_buf()];
+    let mut seen = std::collections::HashSet::new();
+    let mut found = Vec::new();
+    while let Some(file) = queue.pop() {
+        if !seen.insert(file.clone()) {
+            continue;
+        }
+        for (index, def) in defs.iter().enumerate() {
+            if def.pack == mine && def.name == name && def.file == file {
+                found.push(index);
+            }
+        }
+        if let Some(next) = barrels.get(&file) {
+            queue.extend(next.iter().cloned());
+        }
+    }
+    found
 }
 
 fn normalized(path: &Path) -> PathBuf {

@@ -57,7 +57,7 @@ pub fn graph(asked: &str) -> Option<Graph> {
     }
     let mut edges = Vec::new();
     for (index, pack) in packs.iter().enumerate() {
-        edges.extend(pack.resolve(index, &defs, &repo));
+        edges.extend(pack.resolve(index, &defs, &root, &repo));
     }
     Some(Graph {
         root,

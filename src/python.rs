@@ -241,7 +241,7 @@ impl Pack for Python {
         findings
     }
 
-    fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
+    fn resolve(&self, mine: usize, defs: &[Def], _root: &Path, repo: &Repo) -> Vec<Edge> {
         let mut edges = Vec::new();
         for (file, module, name, line) in &self.imports {
             // A generated module answers for the contract it was generated from, so a

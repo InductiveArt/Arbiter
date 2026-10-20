@@ -130,7 +130,7 @@ pub trait Pack {
     // Reads one file, keeping its uses; definitions come back only from a surface file.
     fn scan(&mut self, file: &Path, source: &str, surface: bool) -> Vec<Definition>;
 
-    fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge>;
+    fn resolve(&self, mine: usize, defs: &[Def], root: &Path, repo: &Repo) -> Vec<Edge>;
 }
 
 pub fn all() -> Vec<Box<dyn Pack>> {

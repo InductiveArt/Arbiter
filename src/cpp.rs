@@ -62,7 +62,7 @@ impl Pack for Cpp {
             .collect()
     }
 
-    fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
+    fn resolve(&self, mine: usize, defs: &[Def], _root: &Path, repo: &Repo) -> Vec<Edge> {
         let mut edges = Vec::new();
         for source in &self.sources {
             for (index, def) in defs.iter().enumerate() {

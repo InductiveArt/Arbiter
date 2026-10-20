@@ -71,7 +71,7 @@ impl Pack for Proto {
     }
 
     // A type reference reaches a definition in its own file, or in a file it imports.
-    fn resolve(&self, mine: usize, defs: &[Def], repo: &Repo) -> Vec<Edge> {
+    fn resolve(&self, mine: usize, defs: &[Def], _root: &Path, repo: &Repo) -> Vec<Edge> {
         let mut edges = Vec::new();
         for (file, reference, line) in &self.typerefs {
             let name = reference.rsplit('.').next().unwrap_or(reference);
