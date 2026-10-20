@@ -1,3 +1,6 @@
+# Generated protobuf code answers for its contract; the .proto is the judged surface.
+exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py"]
+
 line-length = 100
 output-format = "concise"
 
