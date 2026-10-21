@@ -1,4 +1,5 @@
 use std::env;
+use std::fs;
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -108,6 +109,18 @@ fn main() -> ExitCode {
         };
         blast(name, &found.defs, &found.edges);
         return ExitCode::SUCCESS;
+    }
+    if arguments.first().map(String::as_str) == Some("deps") {
+        let Some(name) = arguments.get(1) else {
+            eprintln!("deps: name the unit to describe");
+            return ExitCode::from(2);
+        };
+        let asked = arguments.get(2).cloned().unwrap_or_else(|| ".".to_string());
+        let Some(found) = graph(&asked) else {
+            eprintln!("deps: no folder at {asked}");
+            return ExitCode::from(2);
+        };
+        return deps(name, &found);
     }
     if arguments.first().map(String::as_str) == Some("findings") {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
@@ -301,6 +314,98 @@ fn emit(findings: &[Finding], files: &[String]) {
             })
         );
     }
+}
+
+// One unit's whole dependency picture, every language in the one format: the
+// written edges beside the observed ones, and the third parties its locks name.
+fn deps(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
+    let shown_unit = |unit: usize| {
+        let path = &found.repo.units[unit].path;
+        if path.as_os_str().is_empty() {
+            ".".to_string()
+        } else {
+            path.to_string_lossy().to_string()
+        }
+    };
+    let Some(unit) = (0..found.repo.units.len()).find(|&unit| shown_unit(unit) == *name) else {
+        eprintln!("deps: no unit named {name}");
+        return ExitCode::from(2);
+    };
+    let mut uses = std::collections::BTreeSet::new();
+    let mut users = std::collections::BTreeSet::new();
+    for edge in &found.edges {
+        let owner = found.defs[edge.def].unit;
+        if owner == edge.unit {
+            continue;
+        }
+        if edge.unit == unit {
+            uses.insert(shown_unit(owner));
+        }
+        if owner == unit {
+            users.insert(shown_unit(edge.unit));
+        }
+    }
+    println!("deps: {name}");
+    let listed = |set: &std::collections::BTreeSet<String>| {
+        if set.is_empty() {
+            "nothing".to_string()
+        } else {
+            set.iter().cloned().collect::<Vec<_>>().join(", ")
+        }
+    };
+    println!("  uses: {}", listed(&uses));
+    println!("  used by: {}", listed(&users));
+    let declared = fs::read_to_string(found.root.join(".arbiter/units.toml"))
+        .ok()
+        .and_then(|text| text.parse::<toml::Value>().ok());
+    let entry = declared
+        .as_ref()
+        .and_then(|parsed| parsed.get("units"))
+        .and_then(|units| units.get(name));
+    let names = |value: Option<&toml::Value>| -> Option<Vec<String>> {
+        Some(
+            value?
+                .as_array()?
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(str::to_string)
+                .collect(),
+        )
+    };
+    match names(entry.and_then(|entry| entry.get("deps"))) {
+        Some(deps) => println!("  declares: {}", deps.join(", ")),
+        None => println!("  declares: nothing"),
+    }
+    match names(entry.and_then(|entry| entry.get("visibility"))) {
+        Some(grants) => println!("  grants: {}", grants.join(", ")),
+        None => println!("  grants: everyone; no visibility is declared"),
+    }
+    for pack in &found.packs {
+        let Some(lock) = pack.lockfile() else {
+            continue;
+        };
+        for path in &found.repo.lockfiles {
+            if path.file_name().is_none_or(|name| name != lock) {
+                continue;
+            }
+            if found.repo.unit_of(path) != unit {
+                continue;
+            }
+            let Ok(text) = fs::read_to_string(found.root.join(path)) else {
+                continue;
+            };
+            let locked = pack.locked(&text);
+            println!(
+                "  third parties ({}): {} locked",
+                pack.label(),
+                locked.len()
+            );
+            for (name, version) in locked {
+                println!("    {name} {version}");
+            }
+        }
+    }
+    ExitCode::SUCCESS
 }
 
 fn blast(name: &str, defs: &[Def], edges: &[Edge]) {
