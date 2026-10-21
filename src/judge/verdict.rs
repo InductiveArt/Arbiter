@@ -21,6 +21,9 @@ pub struct Run {
     pub counted: usize,
     // Suppressions added since the reference; None when none was recorded yet.
     pub added: Option<usize>,
+    pub third: usize,
+    // Third parties added since the reference; None when none was recorded yet.
+    pub third_added: Option<usize>,
 }
 
 // Judges everything: the units' tools, then the graph. A fixing run repairs first,
@@ -45,6 +48,14 @@ pub fn run(asked: &str, fixing: bool) -> Option<Run> {
     let added =
         ledger::reference(&found.root).map(|reference| ledger::added(&counted, &reference).len());
     let counted = counted.len();
+    let packages = ledger::packages(&found);
+    let third_added = ledger::recorded_packages(&found.root).map(|recorded| {
+        packages
+            .iter()
+            .filter(|name| !recorded.contains(name))
+            .count()
+    });
+    let third = packages.len();
     Some(Run {
         root: found.root,
         units: found.repo.units.len(),
@@ -54,6 +65,8 @@ pub fn run(asked: &str, fixing: bool) -> Option<Run> {
         findings: all,
         counted,
         added,
+        third,
+        third_added,
     })
 }
 

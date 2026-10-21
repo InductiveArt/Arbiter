@@ -56,6 +56,16 @@ fn main() -> ExitCode {
                 run.counted
             ),
         }
+        match run.third_added {
+            None => println!(
+                "  deps       {} third parties, no reference recorded",
+                run.third
+            ),
+            Some(added) => println!(
+                "  deps       {} third parties, {added} added since accept",
+                run.third
+            ),
+        }
         for note in &run.notes {
             println!("{command}: {note}");
         }
@@ -174,11 +184,13 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
         let counted = ledger::counted(&found);
-        match ledger::record(&found.root, &counted) {
+        let packages = ledger::packages(&found);
+        match ledger::record(&found.root, &counted, &packages) {
             Ok(path) => {
                 println!(
-                    "accept: {} suppressions recorded in {}",
+                    "accept: {} suppressions and {} third parties recorded in {}",
                     counted.len(),
+                    packages.len(),
                     path.to_string_lossy()
                 );
                 for pack in &found.packs {

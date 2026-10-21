@@ -52,6 +52,46 @@ pub fn blanket_findings(found: &Graph) -> Vec<Finding> {
         .collect()
 }
 
+// Every third party the lockfiles resolve, by name alone: a new name is a new
+// dependency decision, where a version move is only an upgrade.
+pub fn packages(found: &Graph) -> Vec<String> {
+    let mut names = std::collections::BTreeSet::new();
+    for pack in &found.packs {
+        let Some(lock) = pack.lockfile() else {
+            continue;
+        };
+        for path in &found.repo.lockfiles {
+            if path.file_name().is_none_or(|name| name != lock) {
+                continue;
+            }
+            let unit = found.repo.unit_of(path);
+            let home = found.repo.units[unit].path.clone();
+            if found.repo.is_test(unit, &home) {
+                continue;
+            }
+            let Ok(text) = fs::read_to_string(found.root.join(path)) else {
+                continue;
+            };
+            for (name, _) in pack.locked(&text) {
+                names.insert(format!("{}:{name}", pack.label()));
+            }
+        }
+    }
+    names.into_iter().collect()
+}
+
+pub fn recorded_packages(root: &Path) -> Option<Vec<String>> {
+    let text = fs::read_to_string(root.join(REFERENCE)).ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let entries = parsed.get("packages")?.as_array()?;
+    Some(
+        entries
+            .iter()
+            .filter_map(|entry| entry.as_str().map(str::to_string))
+            .collect(),
+    )
+}
+
 pub fn reference(root: &Path) -> Option<Vec<(String, String)>> {
     let text = fs::read_to_string(root.join(REFERENCE)).ok()?;
     let parsed: serde_json::Value = serde_json::from_str(&text).ok()?;
@@ -68,7 +108,7 @@ pub fn reference(root: &Path) -> Option<Vec<(String, String)>> {
     )
 }
 
-pub fn record(root: &Path, current: &[&Suppression]) -> io::Result<PathBuf> {
+pub fn record(root: &Path, current: &[&Suppression], packages: &[String]) -> io::Result<PathBuf> {
     let entries: Vec<serde_json::Value> = current
         .iter()
         .map(|suppression| {
@@ -78,8 +118,11 @@ pub fn record(root: &Path, current: &[&Suppression]) -> io::Result<PathBuf> {
             })
         })
         .collect();
-    let written = serde_json::to_string_pretty(&serde_json::json!({ "suppressions": entries }))
-        .map_err(io::Error::other)?;
+    let written = serde_json::to_string_pretty(&serde_json::json!({
+        "suppressions": entries,
+        "packages": packages,
+    }))
+    .map_err(io::Error::other)?;
     let path = root.join(REFERENCE);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
