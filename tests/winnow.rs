@@ -1,11 +1,12 @@
-use arbiter::graph::{graph, integrity, judge};
+use arbiter::core::graph::graph;
+use arbiter::judge::findings::{integrity, winnow};
 
 const DEMO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/demo");
 
 #[test]
 fn the_fixture_yields_its_known_findings() {
     let found = graph(DEMO).expect("the fixture folder exists");
-    let shown: Vec<String> = judge(&found.defs, &found.edges, &found.repo)
+    let shown: Vec<String> = winnow(&found.defs, &found.edges, &found.repo)
         .iter()
         .map(|finding| {
             format!(
@@ -141,10 +142,10 @@ fn a_name_crosses_units_through_the_route_and_its_barrels() {
 #[test]
 fn the_ledger_counts_a_named_suppression_and_refuses_a_blanket() {
     let found = graph(DEMO).expect("the fixture folder exists");
-    let counted = arbiter::ledger::counted(&found);
+    let counted = arbiter::judge::ledger::counted(&found);
     assert_eq!(counted.len(), 1);
     assert!(counted[0].text.contains("noqa: PLR2004"));
-    let blankets = arbiter::ledger::blankets(&found);
+    let blankets = arbiter::judge::ledger::blankets(&found);
     assert_eq!(blankets.len(), 1);
     assert!(blankets[0].text.contains("type: ignore"));
 }

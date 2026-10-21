@@ -1,11 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::cpp::Cpp;
-use crate::proto::Proto;
-use crate::python::Python;
-use crate::rust::Rust;
-use crate::typescript::TypeScript;
-use crate::units::Repo;
+use crate::core::units::Repo;
 
 pub struct Def {
     pub name: String,
@@ -182,14 +177,4 @@ pub fn toml_locked(text: &str) -> Vec<(String, String)> {
             Some((name.to_string(), version.to_string()))
         })
         .collect()
-}
-
-pub fn all() -> Vec<Box<dyn Pack>> {
-    vec![
-        Box::new(Cpp::new()),
-        Box::new(Proto::new()),
-        Box::new(Python::new()),
-        Box::new(Rust::new()),
-        Box::new(TypeScript::new()),
-    ]
 }

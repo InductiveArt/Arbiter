@@ -3,8 +3,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::graph::Graph;
-use crate::pack::{Finding, Suppression};
+use crate::core::graph::Graph;
+use crate::core::pack::{Finding, Suppression};
 
 const REFERENCE: &str = ".arbiter/reference.json";
 
@@ -119,7 +119,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::added;
-    use crate::pack::Suppression;
+    use crate::core::pack::Suppression;
 
     fn one(line: usize) -> Suppression {
         Suppression {

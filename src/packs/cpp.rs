@@ -2,12 +2,12 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::pack::{Def, Definition, Edge, Pack};
-use crate::trees;
-use crate::units::Repo;
+use crate::core::pack::{Def, Definition, Edge, Pack};
+use crate::core::trees;
+use crate::core::units::Repo;
 
-const DEFINITIONS: &str = include_str!("../packs/cpp/definitions.scm");
-const USES: &str = include_str!("../packs/cpp/uses.scm");
+const DEFINITIONS: &str = include_str!("../../packs/cpp/definitions.scm");
+const USES: &str = include_str!("../../packs/cpp/uses.scm");
 
 struct Source {
     file: PathBuf,

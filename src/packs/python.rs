@@ -4,19 +4,19 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
-use crate::prose;
-use crate::trees;
-use crate::units::Repo;
+use crate::core::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::core::prose;
+use crate::core::trees;
+use crate::core::units::Repo;
 
-const DEFINITIONS: &str = include_str!("../packs/python/definitions.scm");
-const USES: &str = include_str!("../packs/python/uses.scm");
-const MENTIONS: &str = include_str!("../packs/python/mentions.scm");
-const BAR: &str = include_str!("../packs/python/bar.toml");
-const SUPPRESSIONS: &str = include_str!("../packs/python/suppressions.scm");
-const PROSE: &str = include_str!("../packs/python/prose.scm");
-const STDLIB: &str = include_str!("../packs/python/stdlib.txt");
-const DISTRIBUTIONS: &str = include_str!("../packs/python/distributions.toml");
+const DEFINITIONS: &str = include_str!("../../packs/python/definitions.scm");
+const USES: &str = include_str!("../../packs/python/uses.scm");
+const MENTIONS: &str = include_str!("../../packs/python/mentions.scm");
+const BAR: &str = include_str!("../../packs/python/bar.toml");
+const SUPPRESSIONS: &str = include_str!("../../packs/python/suppressions.scm");
+const PROSE: &str = include_str!("../../packs/python/prose.scm");
+const STDLIB: &str = include_str!("../../packs/python/stdlib.txt");
+const DISTRIBUTIONS: &str = include_str!("../../packs/python/distributions.toml");
 
 const CHECKERS: [&str; 2] = ["basedpyright", "pyright"];
 const MODES: [&str; 3] = ["strict", "recommended", "all"];
@@ -52,11 +52,11 @@ impl Pack for Python {
     }
 
     fn adapter(&self) -> Option<&'static str> {
-        Some(include_str!("../packs/python/tools.toml"))
+        Some(include_str!("../../packs/python/tools.toml"))
     }
 
     fn configs(&self) -> &'static [(&'static str, &'static str)] {
-        &[("ruff.toml", include_str!("../packs/python/ruff.toml"))]
+        &[("ruff.toml", include_str!("../../packs/python/ruff.toml"))]
     }
 
     fn container(&self, manifest: &str) -> bool {

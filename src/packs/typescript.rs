@@ -3,19 +3,19 @@ use std::path::{Component, Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
-use crate::prose;
-use crate::trees;
-use crate::units::Repo;
+use crate::core::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::core::prose;
+use crate::core::trees;
+use crate::core::units::Repo;
 
-const DEFINITIONS: &str = include_str!("../packs/typescript/definitions.scm");
-const USES: &str = include_str!("../packs/typescript/uses.scm");
-const MENTIONS: &str = include_str!("../packs/typescript/mentions.scm");
-const BAR: &str = include_str!("../packs/typescript/bar.toml");
-const REEXPORTS: &str = include_str!("../packs/typescript/reexports.scm");
-const SUPPRESSIONS: &str = include_str!("../packs/typescript/suppressions.scm");
-const PROSE: &str = include_str!("../packs/typescript/prose.scm");
-const BUILTINS: &str = include_str!("../packs/typescript/builtins.txt");
+const DEFINITIONS: &str = include_str!("../../packs/typescript/definitions.scm");
+const USES: &str = include_str!("../../packs/typescript/uses.scm");
+const MENTIONS: &str = include_str!("../../packs/typescript/mentions.scm");
+const BAR: &str = include_str!("../../packs/typescript/bar.toml");
+const REEXPORTS: &str = include_str!("../../packs/typescript/reexports.scm");
+const SUPPRESSIONS: &str = include_str!("../../packs/typescript/suppressions.scm");
+const PROSE: &str = include_str!("../../packs/typescript/prose.scm");
+const BUILTINS: &str = include_str!("../../packs/typescript/builtins.txt");
 
 const RESOLVE: [&str; 8] = [
     "npx",
@@ -58,13 +58,13 @@ impl Pack for TypeScript {
     }
 
     fn adapter(&self) -> Option<&'static str> {
-        Some(include_str!("../packs/typescript/tools.toml"))
+        Some(include_str!("../../packs/typescript/tools.toml"))
     }
 
     fn configs(&self) -> &'static [(&'static str, &'static str)] {
         &[(
             "biome.jsonc",
-            include_str!("../packs/typescript/biome.jsonc"),
+            include_str!("../../packs/typescript/biome.jsonc"),
         )]
     }
 
@@ -767,7 +767,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use super::{dependency_findings, normalized, option_findings, routed, TypeScript};
-    use crate::pack::Pack;
+    use crate::core::pack::Pack;
 
     #[test]
     fn a_dependency_outside_the_registry_or_workspace_is_named() {

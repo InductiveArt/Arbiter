@@ -1,13 +1,3 @@
-pub mod cpp;
-pub mod declared;
-pub mod gate;
-pub mod graph;
-pub mod ledger;
-pub mod pack;
-pub mod prose;
-pub mod proto;
-pub mod python;
-pub mod rust;
-pub mod trees;
-pub mod typescript;
-pub mod units;
+pub mod core;
+pub mod judge;
+pub mod packs;

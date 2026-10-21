@@ -3,18 +3,18 @@ use std::time::Instant;
 
 use tree_sitter::{Language, Tree};
 
-use crate::pack::{Def, Definition, Drift, Edge, Pack, Suppression};
-use crate::trees;
-use crate::units::Repo;
+use crate::core::pack::{Def, Definition, Drift, Edge, Pack, Suppression};
+use crate::core::trees;
+use crate::core::units::Repo;
 
 const BUF: [&str; 3] = ["npx", "--yes", "@bufbuild/buf@1.74.0"];
 
 // What protobuf code generators name their output, in every language a pack reads.
 const GENERATED: [&str; 5] = ["_pb2.py", "_pb2.pyi", "_pb2_grpc.py", "_pb.ts", ".pb.ts"];
 
-const DEFINITIONS: &str = include_str!("../packs/proto/definitions.scm");
-const USES: &str = include_str!("../packs/proto/uses.scm");
-const MENTIONS: &str = include_str!("../packs/proto/mentions.scm");
+const DEFINITIONS: &str = include_str!("../../packs/proto/definitions.scm");
+const USES: &str = include_str!("../../packs/proto/uses.scm");
+const MENTIONS: &str = include_str!("../../packs/proto/mentions.scm");
 
 #[derive(Default)]
 pub struct Proto {
@@ -42,7 +42,7 @@ impl Pack for Proto {
     }
 
     fn adapter(&self) -> Option<&'static str> {
-        Some(include_str!("../packs/proto/tools.toml"))
+        Some(include_str!("../../packs/proto/tools.toml"))
     }
 
     fn roots(&self, _root: &Path, _repo: &Repo) -> Vec<PathBuf> {

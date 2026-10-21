@@ -2,17 +2,17 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
-use crate::prose;
-use crate::trees;
-use crate::units::Repo;
+use crate::core::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::core::prose;
+use crate::core::trees;
+use crate::core::units::Repo;
 
-const DEFINITIONS: &str = include_str!("../packs/rust/definitions.scm");
-const USES: &str = include_str!("../packs/rust/uses.scm");
-const MENTIONS: &str = include_str!("../packs/rust/mentions.scm");
-const SUPPRESSIONS: &str = include_str!("../packs/rust/suppressions.scm");
-const PROSE: &str = include_str!("../packs/rust/prose.scm");
-const REEXPORTS: &str = include_str!("../packs/rust/reexports.scm");
+const DEFINITIONS: &str = include_str!("../../packs/rust/definitions.scm");
+const USES: &str = include_str!("../../packs/rust/uses.scm");
+const MENTIONS: &str = include_str!("../../packs/rust/mentions.scm");
+const SUPPRESSIONS: &str = include_str!("../../packs/rust/suppressions.scm");
+const PROSE: &str = include_str!("../../packs/rust/prose.scm");
+const REEXPORTS: &str = include_str!("../../packs/rust/reexports.scm");
 
 #[derive(Default)]
 pub struct Rust {
@@ -47,7 +47,7 @@ impl Pack for Rust {
     }
 
     fn adapter(&self) -> Option<&'static str> {
-        Some(include_str!("../packs/rust/tools.toml"))
+        Some(include_str!("../../packs/rust/tools.toml"))
     }
 
     fn wiring(&self, folder: &Path) -> Option<Vec<String>> {

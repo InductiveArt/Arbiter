@@ -2,21 +2,23 @@ use std::env;
 use std::path::Path;
 use std::process::ExitCode;
 
-use arbiter::graph::{graph, integrity, judge};
-use arbiter::pack::{Def, Edge, Finding, Suppression};
-use arbiter::units::Repo;
-use arbiter::{gate, ledger};
+use arbiter::core::graph::graph;
+use arbiter::core::pack::{Def, Edge, Finding, Suppression};
+use arbiter::core::units::Repo;
+use arbiter::judge::findings::{integrity, winnow};
+use arbiter::judge::ledger;
+use arbiter::judge::verdict;
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = env::args().skip(1).collect();
     if let Some(command @ ("gate" | "fix")) = arguments.first().map(String::as_str) {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
-        let Some(run) = gate::run(&asked, command == "fix") else {
+        let Some(run) = verdict::run(&asked, command == "fix") else {
             eprintln!("{command}: no folder at {asked}");
             return ExitCode::from(2);
         };
         println!("{command}: {} units, {} files", run.units, run.files);
-        for (check, (passed, failed, seconds)) in gate::tallied(&run.outcomes) {
+        for (check, (passed, failed, seconds)) in verdict::tallied(&run.outcomes) {
             if failed == 0 {
                 println!("  {check:10} ok     {passed} units   {seconds:.1}s");
             } else {
@@ -50,7 +52,7 @@ fn main() -> ExitCode {
             println!("{command}: nothing to judge here");
             return ExitCode::from(2);
         }
-        let place = gate::written(&run);
+        let place = verdict::written(&run);
         let failed = run
             .outcomes
             .iter()
@@ -92,7 +94,7 @@ fn main() -> ExitCode {
             eprintln!("findings: no folder at {asked}");
             return ExitCode::from(2);
         };
-        let mut all = judge(&found.defs, &found.edges, &found.repo);
+        let mut all = winnow(&found.defs, &found.edges, &found.repo);
         all.extend(integrity(&found));
         all.extend(ledger::blanket_findings(&found));
         all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
@@ -208,7 +210,7 @@ fn main() -> ExitCode {
         eprintln!("winnow: no folder at {asked}");
         return ExitCode::from(2);
     };
-    let findings = judge(&found.defs, &found.edges, &found.repo);
+    let findings = winnow(&found.defs, &found.edges, &found.repo);
     report(&found.repo, &found.defs, &found.edges, &findings);
     ExitCode::SUCCESS
 }

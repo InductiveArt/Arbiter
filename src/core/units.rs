@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Node};
 
-use crate::pack::Pack;
-use crate::trees;
+use crate::core::pack::Pack;
+use crate::core::trees;
 
 pub struct Unit {
     pub path: PathBuf,
