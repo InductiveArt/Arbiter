@@ -195,6 +195,40 @@ impl Pack for Rust {
         &["cargo"]
     }
 
+    fn licenses(&self, root: &Path, _repo: &Repo) -> Vec<(PathBuf, String, String)> {
+        let vendor = root.join("third_party").join("rust");
+        let Ok(entries) = std::fs::read_dir(&vendor) else {
+            return Vec::new();
+        };
+        let mut found = Vec::new();
+        for entry in entries.flatten() {
+            let Ok(text) = std::fs::read_to_string(entry.path().join("Cargo.toml")) else {
+                continue;
+            };
+            let Ok(parsed) = text.parse::<toml::Value>() else {
+                continue;
+            };
+            let Some(package) = parsed.get("package") else {
+                continue;
+            };
+            let Some(name) = package.get("name").and_then(toml::Value::as_str) else {
+                continue;
+            };
+            let license = package
+                .get("license")
+                .and_then(toml::Value::as_str)
+                .unwrap_or("unstated")
+                .to_string();
+            let place = PathBuf::from("third_party")
+                .join("rust")
+                .join(entry.file_name())
+                .join("Cargo.toml");
+            found.push((place, name.to_string(), license));
+        }
+        found.sort();
+        found
+    }
+
     fn lockfile(&self) -> Option<&'static str> {
         Some("Cargo.lock")
     }

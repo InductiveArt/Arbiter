@@ -110,6 +110,13 @@ pub trait Pack {
         &[]
     }
 
+    // Each third party's license, read from what the ecosystem materialized, as
+    // (place, package, license); a pack with nothing readable answers nothing.
+    fn licenses(&self, root: &Path, repo: &Repo) -> Vec<(PathBuf, String, String)> {
+        let _ = (root, repo);
+        Vec::new()
+    }
+
     // The lockfile recording what the ecosystem resolved, for holding versions to one.
     fn lockfile(&self) -> Option<&'static str> {
         None

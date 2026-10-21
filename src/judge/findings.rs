@@ -7,6 +7,7 @@ use crate::core::pack::{Def, Edge, Finding, Pack};
 use crate::core::units::Repo;
 
 const DECLARATIONS: &str = ".arbiter/units.toml";
+const LICENSES: &str = ".arbiter/licenses.toml";
 
 // A public symbol no file but its own uses is named, inviting deletion.
 pub fn winnow(defs: &[Def], edges: &[Edge], repo: &Repo) -> Vec<Finding> {
@@ -49,7 +50,52 @@ pub fn integrity(found: &Graph) -> Vec<Finding> {
     }
     findings.extend(one_version(&found.root, &found.repo, &found.packs));
     findings.extend(boundaries(found));
+    findings.extend(licenses(found));
     findings.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
+    findings
+}
+
+// A written allowlist turns the licenses the ecosystems materialized into
+// judgments; without the file, no license policy exists to hold anything to.
+fn licenses(found: &Graph) -> Vec<Finding> {
+    let Ok(text) = fs::read_to_string(found.root.join(LICENSES)) else {
+        return Vec::new();
+    };
+    let Ok(parsed) = text.parse::<toml::Value>() else {
+        return vec![Finding {
+            check: "licenses",
+            file: PathBuf::from(LICENSES),
+            line: 0,
+            name: "allowlist".to_string(),
+            reason: format!("{LICENSES} does not parse"),
+        }];
+    };
+    let allowed: Vec<&str> = parsed
+        .get("allow")
+        .and_then(toml::Value::as_array)
+        .map(|list| list.iter().filter_map(toml::Value::as_str).collect())
+        .unwrap_or_default();
+    let mut findings = Vec::new();
+    let mut seen = BTreeSet::new();
+    for pack in &found.packs {
+        for (place, package, license) in pack.licenses(&found.root, &found.repo) {
+            if allowed.contains(&license.as_str()) {
+                continue;
+            }
+            if !seen.insert((package.clone(), license.clone())) {
+                continue;
+            }
+            findings.push(Finding {
+                check: "licenses",
+                file: place,
+                line: 0,
+                name: package.clone(),
+                reason: format!(
+                    "{package} is licensed {license}, which the allowlist does not name"
+                ),
+            });
+        }
+    }
     findings
 }
 
