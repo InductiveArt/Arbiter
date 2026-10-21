@@ -104,6 +104,12 @@ pub trait Pack {
         Vec::new()
     }
 
+    // The machine's own executables the pack's checks stand on; a missing one is
+    // a broken machine, never a finding.
+    fn axioms(&self) -> &'static [&'static str] {
+        &[]
+    }
+
     // The lockfile recording what the ecosystem resolved, for holding versions to one.
     fn lockfile(&self) -> Option<&'static str> {
         None

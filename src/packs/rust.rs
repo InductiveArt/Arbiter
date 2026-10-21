@@ -191,6 +191,10 @@ impl Pack for Rust {
         &["target"]
     }
 
+    fn axioms(&self) -> &'static [&'static str] {
+        &["cargo"]
+    }
+
     fn lockfile(&self) -> Option<&'static str> {
         Some("Cargo.lock")
     }

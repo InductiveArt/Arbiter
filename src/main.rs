@@ -7,12 +7,23 @@ use arbiter::core::pack::{Def, Edge, Finding, Suppression};
 use arbiter::core::units::Repo;
 use arbiter::judge::findings::{integrity, winnow};
 use arbiter::judge::ledger;
+use arbiter::judge::outcomes;
 use arbiter::judge::verdict;
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = env::args().skip(1).collect();
     if let Some(command @ ("gate" | "fix")) = arguments.first().map(String::as_str) {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let gaps = outcomes::preflight(Path::new(&asked));
+        if !gaps.is_empty() {
+            for gap in &gaps {
+                eprintln!("{command}: {gap}");
+            }
+            eprintln!(
+                "{command}: a machine gap is no finding; run the bootstrap, then judge again"
+            );
+            return ExitCode::from(2);
+        }
         let Some(run) = verdict::run(&asked, command == "fix") else {
             eprintln!("{command}: no folder at {asked}");
             return ExitCode::from(2);

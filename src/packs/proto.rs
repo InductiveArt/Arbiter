@@ -37,6 +37,10 @@ impl Pack for Proto {
         name.ends_with(".proto")
     }
 
+    fn axioms(&self) -> &'static [&'static str] {
+        &["npx"]
+    }
+
     fn manifest(&self) -> Option<&'static str> {
         Some("buf.yaml")
     }

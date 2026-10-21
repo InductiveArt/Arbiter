@@ -167,6 +167,10 @@ impl Pack for Python {
         name.ends_with("_pb2.py") || name.ends_with("_pb2_grpc.py") || name.ends_with("_pb2.pyi")
     }
 
+    fn axioms(&self) -> &'static [&'static str] {
+        &["uv"]
+    }
+
     fn lockfile(&self) -> Option<&'static str> {
         Some("uv.lock")
     }

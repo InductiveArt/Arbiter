@@ -334,6 +334,10 @@ impl Pack for TypeScript {
         &["node_modules", "dist"]
     }
 
+    fn axioms(&self) -> &'static [&'static str] {
+        &["node", "npx"]
+    }
+
     fn lockfile(&self) -> Option<&'static str> {
         Some("pnpm-lock.yaml")
     }
