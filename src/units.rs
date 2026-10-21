@@ -130,8 +130,10 @@ fn walk(
         let name = entry.file_name().to_string_lossy().to_string();
         let path = entry.path();
         if kind.is_dir() {
+            // A third_party folder holds vendored bytes: read by builds, never judged.
             if name.starts_with('.')
                 || name.starts_with("bazel-")
+                || name == "third_party"
                 || packs
                     .iter()
                     .any(|pack| pack.outputs().contains(&name.as_str()))
