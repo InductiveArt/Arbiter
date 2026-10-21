@@ -58,6 +58,23 @@ pub fn boundaries(found: &Graph) -> Vec<Finding> {
                     ));
                 }
             }
+            // A starred grant spans units that may not exist yet; only a named one can be stale.
+            for pattern in &patterns {
+                if pattern.contains('*') {
+                    continue;
+                }
+                let used = between
+                    .iter()
+                    .any(|(user, owned)| owned == name && user == pattern);
+                if !used {
+                    findings.push(Finding::integrity(
+                        Path::new(DECLARATIONS),
+                        0,
+                        "visibility",
+                        format!("{name} grants {pattern}, which never uses it"),
+                    ));
+                }
+            }
         }
         if let Some(deps) = declaration.get("deps").and_then(toml::Value::as_array) {
             let declared: Vec<&str> = deps.iter().filter_map(toml::Value::as_str).collect();

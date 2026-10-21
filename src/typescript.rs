@@ -90,7 +90,13 @@ impl Pack for TypeScript {
             .get("compilerOptions")
             .cloned()
             .unwrap_or(serde_json::Value::Null);
-        Some(option_findings(&options))
+        let mut findings = option_findings(&options);
+        if let Ok(manifest) = std::fs::read_to_string(folder.join("package.json")) {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&manifest) {
+                findings.extend(dependency_findings(&parsed));
+            }
+        }
+        Some(findings)
     }
 
     fn roots(&self, _root: &Path, _repo: &Repo) -> Vec<PathBuf> {
@@ -450,6 +456,40 @@ fn imports(tree: &Tree, source: &str) -> Vec<(String, String, usize)> {
         .collect()
 }
 
+const DEPENDENCY_SECTIONS: [&str; 4] = [
+    "dependencies",
+    "devDependencies",
+    "peerDependencies",
+    "optionalDependencies",
+];
+const OUTSIDE_CHANNELS: [&str; 7] = [
+    "git+", "git:", "github:", "http:", "https:", "file:", "link:",
+];
+
+// The registry and the workspace are the only channels: a git, URL or file
+// source slips past the lockfile's hashes and past the one-version rule.
+fn dependency_findings(parsed: &serde_json::Value) -> Vec<String> {
+    let mut findings = Vec::new();
+    for section in DEPENDENCY_SECTIONS {
+        let Some(table) = parsed.get(section).and_then(serde_json::Value::as_object) else {
+            continue;
+        };
+        for (name, version) in table {
+            let spec = version.as_str().unwrap_or("");
+            if OUTSIDE_CHANNELS
+                .iter()
+                .any(|channel| spec.starts_with(channel))
+            {
+                findings.push(format!(
+                    "{section}.{name} is \"{spec}\"; \
+                     a dependency comes from the locked registry or the workspace"
+                ));
+            }
+        }
+    }
+    findings
+}
+
 fn option_findings(options: &serde_json::Value) -> Vec<String> {
     let bar = BAR.parse::<toml::Value>().expect("a pack's bar parses");
     let Some(required) = bar.get("compilerOptions").and_then(toml::Value::as_table) else {
@@ -726,8 +766,32 @@ fn normalized(path: &Path) -> PathBuf {
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use super::{normalized, option_findings, routed, TypeScript};
+    use super::{dependency_findings, normalized, option_findings, routed, TypeScript};
     use crate::pack::Pack;
+
+    #[test]
+    fn a_dependency_outside_the_registry_or_workspace_is_named() {
+        let manifest = serde_json::json!({
+            "dependencies": {
+                "lodash": "^4.17.21",
+                "ui": "workspace:*",
+                "forked": "github:x/forked",
+                "grabbed": "https://example.com/pkg.tgz"
+            },
+            "devDependencies": { "linked": "link:../elsewhere" }
+        });
+        let findings = dependency_findings(&manifest);
+        assert!(findings
+            .iter()
+            .any(|finding| finding.starts_with("dependencies.forked is \"github:x/forked\";")));
+        assert!(findings
+            .iter()
+            .any(|finding| finding.contains("dependencies.grabbed")));
+        assert!(findings
+            .iter()
+            .any(|finding| finding.contains("devDependencies.linked")));
+        assert_eq!(findings.len(), 3);
+    }
 
     #[test]
     fn the_bar_names_each_unset_option_and_leaves_a_met_one() {

@@ -43,6 +43,7 @@ fn integrity_names_the_cycle_and_each_reexport() {
     assert_eq!(
         shown,
         [
+            ".arbiter/units.toml app grants ghost, which never uses it",
             ".arbiter/units.toml app declares libs/facade and never uses it",
             "app/src/app/alias.py imported as v; a symbol keeps its own name",
             "app/src/app/web.py requests is imported, and no manifest declares it",

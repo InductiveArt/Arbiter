@@ -505,6 +505,59 @@ fn manifest_findings(manifest: &str) -> Vec<String> {
     };
     let mut findings = refused_findings(&parsed);
     findings.extend(checker_findings(&parsed));
+    findings.extend(dependency_findings(&parsed));
+    findings
+}
+
+// The registry and the repository are the only channels: a git or URL source
+// slips past the lockfile's hashes and past the one-version rule.
+fn dependency_findings(parsed: &toml::Value) -> Vec<String> {
+    let mut findings = Vec::new();
+    let mut lists: Vec<(String, Vec<toml::Value>)> = Vec::new();
+    if let Some(list) = lookup(parsed, "project.dependencies").and_then(toml::Value::as_array) {
+        lists.push(("project.dependencies".to_string(), list.clone()));
+    }
+    for path in ["project.optional-dependencies", "dependency-groups"] {
+        let Some(groups) = lookup(parsed, path).and_then(toml::Value::as_table) else {
+            continue;
+        };
+        for (group, list) in groups {
+            let entries = list.as_array().cloned().unwrap_or_default();
+            lists.push((format!("{path}.{group}"), entries));
+        }
+    }
+    for (place, entries) in lists {
+        for entry in entries {
+            let requirement = entry.as_str().unwrap_or("");
+            if requirement.contains("://") || requirement.contains("git+") {
+                let name = requirement.split_whitespace().next().unwrap_or(requirement);
+                findings.push(format!(
+                    "{place} pulls {name} past the registry; \
+                     a dependency comes from the locked registry or this repository"
+                ));
+            }
+        }
+    }
+    let Some(sources) = lookup(parsed, "tool.uv.sources").and_then(toml::Value::as_table) else {
+        return findings;
+    };
+    for (name, source) in sources {
+        if source.get("git").is_some() || source.get("url").is_some() {
+            findings.push(format!(
+                "tool.uv.sources.{name} points past the registry; \
+                 a dependency comes from the locked registry or this repository"
+            ));
+        } else if source
+            .get("path")
+            .and_then(toml::Value::as_str)
+            .is_some_and(|path| Path::new(path).is_absolute())
+        {
+            findings.push(format!(
+                "tool.uv.sources.{name} is an absolute path; \
+                 a path source stays inside the repository"
+            ));
+        }
+    }
     findings
 }
 
@@ -584,6 +637,32 @@ mod tests {
         let findings = manifest_findings(manifest);
         assert_eq!(findings.len(), 1);
         assert!(findings[0].starts_with("tool.basedpyright.exclude hides src/core;"));
+    }
+
+    #[test]
+    fn a_dependency_pulled_past_the_registry_is_named() {
+        let manifest = "[project]\nname = \"a\"\nversion = \"0\"\n\
+                        dependencies = [\"requests>=2\", \"left @ git+https://github.com/x/left\"]\n\
+                        [dependency-groups]\ndev = [\"tool @ https://example.com/tool.whl\"]\n\
+                        [tool.uv.sources]\nforked = { git = \"https://github.com/x/forked\" }\n\
+                        patched = { path = \"/abs/patched\" }\nlocal = { path = \"../local\" }\n";
+        let findings = manifest_findings(manifest);
+        assert!(findings.iter().any(|finding| {
+            finding.starts_with("project.dependencies pulls left past the registry;")
+        }));
+        assert!(findings.iter().any(|finding| {
+            finding.starts_with("dependency-groups.dev pulls tool past the registry;")
+        }));
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding
+                    .starts_with("tool.uv.sources.forked points past the registry;"))
+        );
+        assert!(findings
+            .iter()
+            .any(|finding| finding.starts_with("tool.uv.sources.patched is an absolute path;")));
+        assert_eq!(findings.len(), 4);
     }
 
     #[test]

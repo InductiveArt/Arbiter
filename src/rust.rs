@@ -317,6 +317,35 @@ fn manifest_findings(manifest: &str) -> Vec<String> {
             }
         }
     }
+    // The registry and the repository are the only channels: a git source slips
+    // past the lockfile's hashes and past the one-version rule.
+    for base in [
+        "dependencies",
+        "dev-dependencies",
+        "build-dependencies",
+        "workspace.dependencies",
+    ] {
+        let Some(table) = table_at(&parsed, base) else {
+            continue;
+        };
+        for (name, spec) in table {
+            if spec.get("git").is_some() {
+                findings.push(format!(
+                    "{base}.{name} comes from git; \
+                     a dependency comes from the locked registry or this repository"
+                ));
+            } else if spec
+                .get("path")
+                .and_then(toml::Value::as_str)
+                .is_some_and(|path| Path::new(path).is_absolute())
+            {
+                findings.push(format!(
+                    "{base}.{name} is an absolute path; \
+                     a path dependency stays inside the repository"
+                ));
+            }
+        }
+    }
     findings
 }
 
@@ -384,6 +413,21 @@ mod tests {
     use std::path::Path;
 
     use super::{is_module_file, manifest_findings};
+
+    #[test]
+    fn a_git_or_absolute_path_dependency_is_named() {
+        let manifest = "[dependencies]\nserde = \"1\"\n\
+                        forked = { git = \"https://github.com/x/forked\" }\n\
+                        patched = { path = \"/abs/patched\" }\nlocal = { path = \"../local\" }\n";
+        let findings = manifest_findings(manifest);
+        assert!(findings
+            .iter()
+            .any(|finding| finding.starts_with("dependencies.forked comes from git;")));
+        assert!(findings
+            .iter()
+            .any(|finding| finding.starts_with("dependencies.patched is an absolute path;")));
+        assert_eq!(findings.len(), 2);
+    }
 
     #[test]
     fn a_lint_turned_to_allow_is_named_in_either_form() {
