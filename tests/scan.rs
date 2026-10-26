@@ -46,3 +46,13 @@ fn a_git_ignored_folder_is_not_the_repository() {
 
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_workspace_manifest_with_no_entry_is_a_container() {
+    use arbiter::core::pack::Pack;
+    let pack = arbiter::packs::typescript::TypeScript::new();
+    assert!(pack.container(r#"{"name":"root","workspaces":["libs/a"]}"#));
+    assert!(!pack
+        .container(r#"{"name":"root","workspaces":["libs/a"],"exports":{".":"./src/index.ts"}}"#));
+    assert!(!pack.container(r#"{"name":"lib","main":"./src/index.ts"}"#));
+}

@@ -61,6 +61,17 @@ impl Pack for TypeScript {
         Some(include_str!("../../packs/typescript/tools.toml"))
     }
 
+    // Declaring members and no entry of its own: a root with code declares one.
+    fn container(&self, manifest: &str) -> bool {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(manifest) else {
+            return false;
+        };
+        parsed.get("workspaces").is_some()
+            && parsed.get("main").is_none()
+            && parsed.get("exports").is_none()
+            && parsed.get("bin").is_none()
+    }
+
     fn configs(&self) -> &'static [(&'static str, &'static str)] {
         &[(
             "biome.jsonc",
