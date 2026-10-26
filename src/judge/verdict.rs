@@ -103,7 +103,7 @@ pub fn written(run: &Run) -> Option<PathBuf> {
             continue;
         }
         report.push_str(&format!("\n## {} — {}\n\n", outcome.check, outcome.unit));
-        for line in outcome.tail.lines() {
+        for line in outcome.output.lines() {
             report.push_str(line);
             report.push('\n');
         }
@@ -147,7 +147,7 @@ pub fn written(run: &Run) -> Option<PathBuf> {
             "seconds": outcome.seconds,
         });
         if !outcome.passed {
-            entry["tail"] = serde_json::Value::String(outcome.tail.clone());
+            entry["output"] = serde_json::Value::String(outcome.output.clone());
         }
         lines.push_str(&entry.to_string());
         lines.push('\n');
@@ -168,7 +168,7 @@ mod tests {
             check: check.to_string(),
             passed,
             seconds,
-            tail: String::new(),
+            output: String::new(),
         }
     }
 

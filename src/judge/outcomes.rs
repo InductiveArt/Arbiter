@@ -58,10 +58,8 @@ pub struct Outcome {
     pub check: String,
     pub passed: bool,
     pub seconds: f64,
-    pub tail: String,
+    pub output: String,
 }
-
-const TAIL: usize = 15;
 
 pub(crate) fn judged(
     root: &Path,
@@ -104,7 +102,7 @@ pub(crate) fn judged(
                     check: "wiring".to_string(),
                     passed: findings.is_empty(),
                     seconds: started.elapsed().as_secs_f64(),
-                    tail: findings.join("\n"),
+                    output: findings.join("\n"),
                 });
             }
             let Some(adapter) = pack.adapter() else {
@@ -146,7 +144,7 @@ pub(crate) fn judged(
                     check: drift.check,
                     passed: drift.problems.is_empty(),
                     seconds: drift.seconds,
-                    tail: drift.problems.join("\n"),
+                    output: drift.problems.join("\n"),
                 });
             }
         }
@@ -224,8 +222,17 @@ fn executed(unit: &str, pack: &'static str, folder: &Path, check: &Check) -> Out
         .current_dir(folder)
         .output();
     let seconds = started.elapsed().as_secs_f64();
-    let (passed, tail) = match finished {
-        Ok(output) => (output.status.success(), last_lines(&output)),
+    // The whole output, never a tail: a cut report hides every finding
+    // standing behind the last one.
+    let (passed, output) = match finished {
+        Ok(output) => (
+            output.status.success(),
+            format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ),
         Err(error) => (false, format!("{} did not start: {error}", check.run[0])),
     };
     Outcome {
@@ -234,19 +241,8 @@ fn executed(unit: &str, pack: &'static str, folder: &Path, check: &Check) -> Out
         check: check.name.clone(),
         passed,
         seconds,
-        tail: if passed { String::new() } else { tail },
+        output: if passed { String::new() } else { output },
     }
-}
-
-fn last_lines(output: &std::process::Output) -> String {
-    let whole = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let lines: Vec<&str> = whole.lines().collect();
-    let kept = &lines[lines.len().saturating_sub(TAIL)..];
-    kept.join("\n")
 }
 
 #[cfg(test)]
