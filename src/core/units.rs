@@ -19,6 +19,9 @@ pub struct Repo {
     pub files: Vec<PathBuf>,
     pub manifests: Vec<PathBuf>,
     pub lockfiles: Vec<PathBuf>,
+    // Folders holding a PUBLISHED marker: that unit's surface serves users
+    // the repository cannot see.
+    pub published: HashSet<PathBuf>,
 }
 
 impl Repo {
@@ -38,6 +41,10 @@ impl Repo {
             || file
                 .components()
                 .any(|part| part.as_os_str() == "tests" || part.as_os_str() == "__tests__")
+    }
+
+    pub fn is_published(&self, unit: usize) -> bool {
+        self.published.contains(&self.units[unit].path)
     }
 
     pub fn unit_of(&self, file: &Path) -> usize {
@@ -67,6 +74,7 @@ pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Repo {
         files: Vec::new(),
         manifests: Vec::new(),
         lockfiles: Vec::new(),
+        published: HashSet::new(),
     };
     let skips = ignored(root);
     walk(root, root, packs, &skips, &mut builds, &mut found);
@@ -103,6 +111,7 @@ pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Repo {
         files: found.files,
         manifests: found.manifests,
         lockfiles: found.lockfiles,
+        published: found.published,
     }
 }
 
@@ -110,6 +119,7 @@ struct Found {
     files: Vec<PathBuf>,
     manifests: Vec<PathBuf>,
     lockfiles: Vec<PathBuf>,
+    published: HashSet<PathBuf>,
 }
 
 // What git ignores is not the repository: a judged file is one git would carry.
@@ -178,7 +188,10 @@ fn walk(
             }
             walk(root, &path, packs, skips, builds, found);
         } else if kind.is_file() {
-            if BUILD_NAMES.contains(&name.as_str()) {
+            if name == "PUBLISHED" {
+                let parent = relative.parent().unwrap_or(Path::new("")).to_path_buf();
+                found.published.insert(parent);
+            } else if BUILD_NAMES.contains(&name.as_str()) {
                 builds.push(relative);
             } else if MANIFEST_NAMES.contains(&name.as_str()) {
                 found.manifests.push(relative);
@@ -305,6 +318,7 @@ mod tests {
             files: Vec::new(),
             manifests: Vec::new(),
             lockfiles: Vec::new(),
+            published: HashSet::new(),
         }
     }
 

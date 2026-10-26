@@ -56,3 +56,23 @@ fn a_workspace_manifest_with_no_entry_is_a_container() {
         .container(r#"{"name":"root","workspaces":["libs/a"],"exports":{".":"./src/index.ts"}}"#));
     assert!(!pack.container(r#"{"name":"lib","main":"./src/index.ts"}"#));
 }
+
+#[test]
+fn a_published_unit_keeps_its_unused_surface() {
+    let root = std::env::temp_dir().join(format!("arbiter-published-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("the folder is writable");
+    fs::write(root.join("ghost.py"), "ghost = 1\n").expect("the folder is writable");
+    let path = root.to_string_lossy();
+
+    let judged = graph(&path).expect("the folder exists");
+    let flagged = arbiter::judge::findings::winnow(&judged.defs, &judged.edges, &judged.repo);
+    assert_eq!(flagged.len(), 1, "an unused symbol is a finding");
+
+    fs::write(root.join("PUBLISHED"), "").expect("the folder is writable");
+    let declared = graph(&path).expect("the folder exists");
+    let kept = arbiter::judge::findings::winnow(&declared.defs, &declared.edges, &declared.repo);
+    assert!(kept.is_empty(), "a published surface rests unjudged");
+
+    let _ = fs::remove_dir_all(&root);
+}

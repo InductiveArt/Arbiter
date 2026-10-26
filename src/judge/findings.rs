@@ -16,6 +16,10 @@ pub fn winnow(defs: &[Def], edges: &[Edge], repo: &Repo) -> Vec<Finding> {
         if def.self_used {
             continue;
         }
+        // A PUBLISHED unit's surface serves users the repository cannot see.
+        if repo.is_published(def.unit) {
+            continue;
+        }
         let users: Vec<&Edge> = edges
             .iter()
             .filter(|edge| edge.def == index && edge.file != def.file)
