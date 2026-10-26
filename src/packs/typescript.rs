@@ -800,7 +800,9 @@ fn existing(path: &Path, present: &std::collections::HashSet<&PathBuf>) -> Optio
     for candidate in [
         shown.to_string(),
         format!("{shown}.ts"),
+        format!("{shown}.tsx"),
         format!("{shown}/index.ts"),
+        format!("{shown}/index.tsx"),
     ] {
         let candidate = PathBuf::from(candidate);
         if present.contains(&candidate) {
