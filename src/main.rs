@@ -4,7 +4,7 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use arbiter::core::graph::graph;
-use arbiter::core::pack::{Def, Edge, Finding, Suppression};
+use arbiter::core::pack::{self, Def, Edge, Finding, Suppression};
 use arbiter::core::units::Repo;
 use arbiter::judge::findings::{integrity, winnow};
 use arbiter::judge::ledger;
@@ -178,6 +178,10 @@ fn main() -> ExitCode {
             println!("  {}", shown(suppression));
         }
         return ExitCode::FAILURE;
+    }
+    if arguments.first().map(String::as_str) == Some("rules") {
+        matrix();
+        return ExitCode::SUCCESS;
     }
     if arguments.first().map(String::as_str) == Some("accept") {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
@@ -432,6 +436,61 @@ fn blast(name: &str, defs: &[Def], edges: &[Edge]) {
         }
         for user in users {
             println!("{user}");
+        }
+    }
+}
+
+// The matrix of rule against language. A cell answers held or never; an open
+// cell is work the matrix keeps visible, never a pass.
+fn matrix() {
+    let packs = arbiter::packs::all();
+    let width = pack::RULES
+        .iter()
+        .map(|(rule, _)| rule.len())
+        .max()
+        .unwrap_or(0);
+    print!("{:width$}", "rule");
+    for pack in &packs {
+        print!("  {:10}", pack.label());
+    }
+    println!();
+    let mut nevers: Vec<(&str, &str, Vec<&str>)> = Vec::new();
+    for (rule, _) in pack::RULES {
+        print!("{rule:width$}");
+        for pack in &packs {
+            let answer = pack
+                .rules()
+                .iter()
+                .find(|(name, _)| name == rule)
+                .map(|(_, answer)| *answer);
+            let cell = match answer {
+                Some("held") => "held",
+                Some(_) => "never",
+                None => "open",
+            };
+            if let Some(why) = answer.and_then(|answer| answer.strip_prefix("never: ")) {
+                match nevers
+                    .iter_mut()
+                    .find(|(named, told, _)| named == rule && *told == why)
+                {
+                    Some((_, _, labels)) => labels.push(pack.label()),
+                    None => nevers.push((rule, why, vec![pack.label()])),
+                }
+            }
+            print!("  {cell:10}");
+        }
+        println!();
+    }
+    println!();
+    println!(
+        "core judges every language through the one graph: no-cycles, one-version, \
+         boundaries, winnow, licenses, the ledger reference."
+    );
+    if !nevers.is_empty() {
+        println!();
+        println!("never, and why:");
+        for (rule, why, labels) in nevers {
+            println!("  {rule} ({}): {why}", labels.join(", "));
         }
     }
 }

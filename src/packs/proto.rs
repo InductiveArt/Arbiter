@@ -29,6 +29,27 @@ impl Proto {
 }
 
 impl Pack for Proto {
+    fn rules(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("resolve", "held"),
+            (
+                "dynamic-import",
+                "never: a contract names its imports in the file",
+            ),
+            ("no-reexport", "never: proto has no re-export form"),
+            ("self-entry", "never: a contract declares no routes"),
+            ("interior-import", "never: a contract declares no routes"),
+            ("no-hidden-names", "never: proto has no alias form"),
+            ("no-comment-overreach", "held"),
+            ("tools", "held"),
+            (
+                "generated",
+                "never: the contract is the source others generate from",
+            ),
+            ("drift", "held"),
+        ]
+    }
+
     fn label(&self) -> &'static str {
         "proto"
     }

@@ -36,6 +36,7 @@ pub struct TypeScript {
     suppressions: Vec<Suppression>,
     aliases: Vec<(PathBuf, String, usize)>,
     overreaches: Vec<(PathBuf, String, usize)>,
+    computed: Vec<(PathBuf, usize)>,
 }
 
 impl TypeScript {
@@ -45,6 +46,28 @@ impl TypeScript {
 }
 
 impl Pack for TypeScript {
+    fn rules(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("resolve", "held"),
+            ("dynamic-import", "held"),
+            ("no-reexport", "held"),
+            ("self-entry", "held"),
+            ("interior-import", "held"),
+            ("no-hidden-names", "held"),
+            ("no-comment-overreach", "held"),
+            ("undeclared-dependency", "held"),
+            ("suppressions", "held"),
+            ("wiring", "held"),
+            ("tools", "held"),
+            ("container", "held"),
+            ("generated", "held"),
+            (
+                "drift",
+                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+            ),
+        ]
+    }
+
     fn label(&self) -> &'static str {
         "typescript"
     }
@@ -155,6 +178,9 @@ impl Pack for TypeScript {
                         .to_string();
                     self.aliases.push((file.to_path_buf(), alias, capture.line));
                 }
+                if capture.name == "computed" {
+                    self.computed.push((file.to_path_buf(), capture.line));
+                }
             }
         }
         let mentions = mentions(&tree, source);
@@ -207,6 +233,16 @@ impl Pack for TypeScript {
             line: *line,
             name: "no-hidden-names".to_string(),
             reason: format!("imported as {alias}; a symbol keeps its own name"),
+        }));
+        findings.extend(self.computed.iter().map(|(file, line)| {
+            Finding {
+                check: "integrity",
+                file: file.clone(),
+                line: *line,
+                name: "no-hidden-names".to_string(),
+                reason: "imports a module through a computed value; a module is named by a literal"
+                    .to_string(),
+            }
         }));
         findings.extend(self.overreaches.iter().map(|(file, token, line)| Finding {
             check: "integrity",
@@ -497,6 +533,11 @@ fn imports(tree: &Tree, source: &str) -> Vec<(String, String, usize)> {
     trees::matches(&language(), USES, tree, source)
         .into_iter()
         .filter_map(|captures| {
+            // A dynamic literal import takes names only run time resolves: the
+            // star stands for every name the module offers.
+            if let Some(dynamic) = captures.iter().find(|capture| capture.name == "dynamic") {
+                return Some((dynamic.text.clone(), "*".to_string(), dynamic.line));
+            }
             let from = captures.iter().find(|capture| capture.name == "source")?;
             let name = captures.iter().find(|capture| capture.name == "name")?;
             Some((from.text.clone(), name.text.clone(), name.line))
@@ -828,7 +869,7 @@ fn named_through(
             continue;
         }
         for (index, def) in defs.iter().enumerate() {
-            if def.pack == mine && def.name == name && def.file == file {
+            if def.pack == mine && (name == "*" || def.name == name) && def.file == file {
                 found.push(index);
             }
         }

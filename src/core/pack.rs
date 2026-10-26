@@ -63,6 +63,49 @@ pub struct Drift {
     pub seconds: f64,
 }
 
+// The judgments every pack answers for, each with its one-line law. A pack
+// answers "held" or "never: <why>"; a rule left unanswered prints as open.
+pub const RULES: &[(&str, &str)] = &[
+    ("resolve", "an import reaches the file its module path names"),
+    (
+        "dynamic-import",
+        "a run-time import of a literal module keeps its whole surface; a computed one is a finding",
+    ),
+    (
+        "no-reexport",
+        "a module offers only its own names; a surface names each symbol it offers",
+    ),
+    ("self-entry", "a unit's own code imports from the defining file"),
+    (
+        "interior-import",
+        "a unit is entered through the routes its manifest declares",
+    ),
+    ("no-hidden-names", "a symbol keeps its own name"),
+    (
+        "no-comment-overreach",
+        "a comment names only what its file defines, uses or quotes",
+    ),
+    (
+        "undeclared-dependency",
+        "every third party an import names is declared by a manifest",
+    ),
+    (
+        "suppressions",
+        "every suppression is counted against the reference; a blanket form is a finding",
+    ),
+    ("wiring", "a unit's declared environment meets the pack's bar"),
+    ("tools", "lint, types and tests run pinned by the pack"),
+    (
+        "container",
+        "a members-only manifest bounds a unit without being judged",
+    ),
+    ("generated", "generated code is scanned, never judged"),
+    (
+        "drift",
+        "generated code matches its contract, and a contract break is a finding",
+    ),
+];
+
 // A language. It says what defines a symbol and what uses one; the core knows no language.
 pub trait Pack {
     fn label(&self) -> &'static str;
@@ -89,6 +132,12 @@ pub trait Pack {
     fn container(&self, manifest: &str) -> bool {
         let _ = manifest;
         false
+    }
+
+    // This pack's answer to each named rule: "held", or "never: <why>". A rule
+    // left unanswered prints as open, never as a pass.
+    fn rules(&self) -> &'static [(&'static str, &'static str)] {
+        &[]
     }
 
     // Holds the unit's declared environment to the pack's bar; None where no bar exists yet.

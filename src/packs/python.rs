@@ -39,6 +39,33 @@ impl Python {
 }
 
 impl Pack for Python {
+    fn rules(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("resolve", "held"),
+            ("no-reexport", "held"),
+            (
+                "self-entry",
+                "never: an __init__ stays empty, so a unit has no barrel of its own to enter",
+            ),
+            (
+                "interior-import",
+                "never: a module is imported by its defining path; python declares no routes",
+            ),
+            ("no-hidden-names", "held"),
+            ("no-comment-overreach", "held"),
+            ("undeclared-dependency", "held"),
+            ("suppressions", "held"),
+            ("wiring", "held"),
+            ("tools", "held"),
+            ("container", "held"),
+            ("generated", "held"),
+            (
+                "drift",
+                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+            ),
+        ]
+    }
+
     fn label(&self) -> &'static str {
         "python"
     }

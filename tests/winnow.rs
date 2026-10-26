@@ -69,6 +69,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
             "web/src/barrel.ts re-exports from \"./index\"; a module offers only its own names",
             "web/src/deep.ts reaches ui/src/parts/button.ts inside ui; \
              a unit is entered through the routes its manifest declares",
+            "web/src/lazy.ts imports a module through a computed value; \
+             a module is named by a literal",
             "web/src/sneak.ts goes into @demo/ui past its routes; \
              a unit is entered through the routes its manifest declares",
         ]

@@ -29,6 +29,21 @@ impl Cpp {
 }
 
 impl Pack for Cpp {
+    fn rules(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("resolve", "held"),
+            ("no-comment-overreach", "held"),
+            (
+                "container",
+                "never: no manifest declares a C++ unit; a BUILD file bounds it",
+            ),
+            (
+                "drift",
+                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+            ),
+        ]
+    }
+
     fn label(&self) -> &'static str {
         "cpp"
     }

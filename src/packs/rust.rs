@@ -34,6 +34,35 @@ impl Rust {
 }
 
 impl Pack for Rust {
+    fn rules(&self) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("resolve", "held"),
+            (
+                "dynamic-import",
+                "never: a crate links its dependencies; nothing imports at run time",
+            ),
+            ("no-reexport", "held"),
+            (
+                "self-entry",
+                "never: a crate reaches its own items as crate::, never through its published name",
+            ),
+            (
+                "interior-import",
+                "never: pub already walls a crate's interior",
+            ),
+            ("no-hidden-names", "held"),
+            ("no-comment-overreach", "held"),
+            ("undeclared-dependency", "held"),
+            ("suppressions", "held"),
+            ("wiring", "held"),
+            ("tools", "held"),
+            (
+                "drift",
+                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+            ),
+        ]
+    }
+
     fn label(&self) -> &'static str {
         "rust"
     }
