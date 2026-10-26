@@ -82,6 +82,10 @@ pub const RULES: &[(&str, &str)] = &[
     ),
     ("no-hidden-names", "a symbol keeps its own name"),
     (
+        "one-import-per-line",
+        "an import line names one symbol and the module it comes from",
+    ),
+    (
         "no-comment-overreach",
         "a comment names only what its file defines, uses or quotes",
     ),

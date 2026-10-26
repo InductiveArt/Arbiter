@@ -40,6 +40,10 @@ impl Pack for Proto {
             ("self-entry", "never: a contract declares no routes"),
             ("interior-import", "never: a contract declares no routes"),
             ("no-hidden-names", "never: proto has no alias form"),
+            (
+                "one-import-per-line",
+                "never: an import names one file by syntax",
+            ),
             ("no-comment-overreach", "held"),
             ("tools", "held"),
             (

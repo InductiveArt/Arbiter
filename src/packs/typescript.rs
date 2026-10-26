@@ -54,6 +54,10 @@ impl Pack for TypeScript {
             ("self-entry", "held"),
             ("interior-import", "held"),
             ("no-hidden-names", "held"),
+            (
+                "one-import-per-line",
+                "never: the ecosystem's organizer merges same-module imports; a symbol stays searchable at its uses and its definition, and blast resolves the import",
+            ),
             ("no-comment-overreach", "held"),
             ("undeclared-dependency", "held"),
             ("suppressions", "held"),

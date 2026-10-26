@@ -52,6 +52,7 @@ impl Pack for Python {
                 "never: a module is imported by its defining path; python declares no routes",
             ),
             ("no-hidden-names", "held"),
+            ("one-import-per-line", "held"),
             ("no-comment-overreach", "held"),
             ("undeclared-dependency", "held"),
             ("suppressions", "held"),

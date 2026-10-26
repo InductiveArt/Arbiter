@@ -34,6 +34,10 @@ impl Pack for Cpp {
             ("resolve", "held"),
             ("no-comment-overreach", "held"),
             (
+                "one-import-per-line",
+                "never: an include names one header by syntax",
+            ),
+            (
                 "container",
                 "never: no manifest declares a C++ unit; a BUILD file bounds it",
             ),
