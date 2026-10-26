@@ -74,11 +74,19 @@ fn licenses(found: &Graph) -> Vec<Finding> {
             reason: format!("{LICENSES} does not parse"),
         }];
     };
-    let allowed: Vec<&str> = parsed
+    // No allow key is no policy yet, the seeded file's state; an empty list
+    // written out allows nothing.
+    let Some(allowed) = parsed
         .get("allow")
         .and_then(toml::Value::as_array)
-        .map(|list| list.iter().filter_map(toml::Value::as_str).collect())
-        .unwrap_or_default();
+        .map(|list| {
+            list.iter()
+                .filter_map(toml::Value::as_str)
+                .collect::<Vec<&str>>()
+        })
+    else {
+        return Vec::new();
+    };
     let mut findings = Vec::new();
     let mut seen = BTreeSet::new();
     for pack in &found.packs {

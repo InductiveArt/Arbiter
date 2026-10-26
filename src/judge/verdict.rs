@@ -94,6 +94,7 @@ pub fn tallied(outcomes: &[Outcome]) -> BTreeMap<String, (usize, usize, f64)> {
 // Writes the run's detail where the dashboard points: a report of sections to read
 // one at a time, and the same material as JSON lines. The folder never commits.
 pub fn written(run: &Run) -> Option<PathBuf> {
+    seeded(&run.root);
     let folder = run.root.join(".arbiter").join("last");
     std::fs::create_dir_all(&folder).ok()?;
     std::fs::write(folder.join(".gitignore"), "*\n").ok()?;
@@ -154,6 +155,42 @@ pub fn written(run: &Run) -> Option<PathBuf> {
     }
     std::fs::write(folder.join("findings.jsonl"), lines).ok()?;
     Some(folder.join("report.md"))
+}
+
+const UNITS_SEED: &str = "\
+# The unit graph, declared. The gate holds the resolved imports to this file\n\
+# one unit at a time: a unit absent here is unchecked, so adopt at your pace.\n\
+#\n\
+# [units.\"libs/example\"]\n\
+# # Who may import this unit: exact paths, a folder and below as \"apps/*\", or \"*\".\n\
+# visibility = [\"apps/*\"]\n\
+# # The units this one uses, held both ways: using an undeclared unit is a\n\
+# # finding, and so is declaring one never used.\n\
+# deps = [\"libs/other\"]\n";
+
+const LICENSES_SEED: &str = "\
+# The licenses third parties may carry. Until an allow list is written here,\n\
+# no license policy exists; once written, every dependency whose license the\n\
+# list does not name is a finding. An empty list allows nothing.\n\
+#\n\
+# allow = [\n\
+#   \"MIT\",\n\
+#   \"Apache-2.0\",\n\
+# ]\n";
+
+// The decision files, seeded as comments the first time the gate runs: an
+// invitation that declares nothing, never overwritten once present.
+pub fn seeded(root: &std::path::Path) {
+    let folder = root.join(".arbiter");
+    if std::fs::create_dir_all(&folder).is_err() {
+        return;
+    }
+    for (name, seed) in [("units.toml", UNITS_SEED), ("licenses.toml", LICENSES_SEED)] {
+        let path = folder.join(name);
+        if !path.exists() {
+            let _ = std::fs::write(path, seed);
+        }
+    }
 }
 
 #[cfg(test)]

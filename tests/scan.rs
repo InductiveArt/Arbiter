@@ -124,3 +124,39 @@ fn fix_splits_an_import_to_one_per_line() {
 
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn the_first_gate_seeds_the_decision_files_and_never_overwrites() {
+    let root = std::env::temp_dir().join(format!("arbiter-seed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("the folder is writable");
+
+    arbiter::judge::verdict::seeded(&root);
+    let units = fs::read_to_string(root.join(".arbiter/units.toml")).expect("units.toml seeded");
+    assert!(units.starts_with("# The unit graph, declared."));
+    assert!(
+        units
+            .lines()
+            .all(|line| line.is_empty() || line.starts_with('#')),
+        "a seed declares nothing"
+    );
+    let licenses =
+        fs::read_to_string(root.join(".arbiter/licenses.toml")).expect("licenses.toml seeded");
+    assert!(licenses
+        .lines()
+        .all(|line| line.is_empty() || line.starts_with('#')));
+
+    fs::write(
+        root.join(".arbiter/units.toml"),
+        "[units.\"libs/x\"]\ndeps = []\n",
+    )
+    .expect("the folder is writable");
+    arbiter::judge::verdict::seeded(&root);
+    let kept = fs::read_to_string(root.join(".arbiter/units.toml")).expect("still readable");
+    assert!(
+        kept.starts_with("[units."),
+        "a written decision is never overwritten"
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}

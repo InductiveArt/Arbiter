@@ -1,0 +1,9 @@
+# The unit graph, declared. The gate holds the resolved imports to this file
+# one unit at a time: a unit absent here is unchecked, so adopt at your pace.
+#
+# [units."libs/example"]
+# # Who may import this unit: exact paths, a folder and below as "apps/*", or "*".
+# visibility = ["apps/*"]
+# # The units this one uses, held both ways: using an undeclared unit is a
+# # finding, and so is declaring one never used.
+# deps = ["libs/other"]
