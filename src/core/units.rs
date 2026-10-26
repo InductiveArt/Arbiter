@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use tree_sitter::{Language, Node};
 
@@ -67,7 +68,8 @@ pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Repo {
         manifests: Vec::new(),
         lockfiles: Vec::new(),
     };
-    walk(root, root, packs, &mut builds, &mut found);
+    let skips = ignored(root);
+    walk(root, root, packs, &skips, &mut builds, &mut found);
     // The whole repository is the unit of last resort for a file no BUILD file claims.
     let mut units = vec![Unit {
         path: PathBuf::new(),
@@ -110,10 +112,40 @@ struct Found {
     lockfiles: Vec<PathBuf>,
 }
 
+// What git ignores is not the repository: a judged file is one git would carry.
+// A committed file stays judged whatever an ignore pattern says, and a folder
+// with no git at all ignores nothing.
+fn ignored(root: &Path) -> HashSet<PathBuf> {
+    let listed = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args([
+            "ls-files",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "--directory",
+            "-z",
+        ])
+        .output();
+    let Ok(listed) = listed else {
+        return HashSet::new();
+    };
+    if !listed.status.success() {
+        return HashSet::new();
+    }
+    String::from_utf8_lossy(&listed.stdout)
+        .split('\0')
+        .filter(|path| !path.is_empty())
+        .map(|path| PathBuf::from(path.trim_end_matches('/')))
+        .collect()
+}
+
 fn walk(
     root: &Path,
     folder: &Path,
     packs: &[Box<dyn Pack>],
+    skips: &HashSet<PathBuf>,
     builds: &mut Vec<PathBuf>,
     found: &mut Found,
 ) {
@@ -129,6 +161,10 @@ fn walk(
         }
         let name = entry.file_name().to_string_lossy().to_string();
         let path = entry.path();
+        let relative = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
+        if skips.contains(&relative) {
+            continue;
+        }
         if kind.is_dir() {
             // A third_party folder holds vendored bytes: read by builds, never judged.
             if name.starts_with('.')
@@ -140,9 +176,8 @@ fn walk(
             {
                 continue;
             }
-            walk(root, &path, packs, builds, found);
+            walk(root, &path, packs, skips, builds, found);
         } else if kind.is_file() {
-            let relative = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
             if BUILD_NAMES.contains(&name.as_str()) {
                 builds.push(relative);
             } else if MANIFEST_NAMES.contains(&name.as_str()) {
