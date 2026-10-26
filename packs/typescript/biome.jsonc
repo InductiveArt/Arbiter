@@ -34,6 +34,11 @@
       "suspicious": {
         "noExplicitAny": "error"
       },
+      "correctness": {
+        // An error with a safe fix: with the organizer off, this rule alone
+        // removes what nothing uses.
+        "noUnusedImports": "error"
+      },
       "complexity": {
         // The tsconfig bar sets noPropertyAccessFromIndexSignature, which forces
         // bracket access on index signatures; this rule would fight it.
@@ -67,7 +72,9 @@
     "enabled": true,
     "actions": {
       "source": {
-        "organizeImports": "on"
+        // Off: the organizer merges same-module imports, and the law is one
+        // import per line. Arbiter's own fix splits them; biome only formats.
+        "organizeImports": "off"
       }
     }
   }

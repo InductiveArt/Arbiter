@@ -76,3 +76,51 @@ fn a_published_unit_keeps_its_unused_surface() {
 
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn fix_splits_an_import_to_one_per_line() {
+    let root = std::env::temp_dir().join(format!("arbiter-mend-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("the folder is writable");
+    fs::write(
+        root.join("m.ts"),
+        "export const a = 1;\nexport type B = number;\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("n.ts"),
+        "const d = 4;\nexport default d;\nexport const c = 3;\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("user.ts"),
+        "import { a, type B } from \"./m\";\nimport d, { c } from \"./n\";\n\nexport const sum: B = a + c + d;\n",
+    )
+    .expect("the folder is writable");
+
+    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let pack = judged
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "typescript")
+        .expect("the typescript pack exists");
+    let notes = pack.mend(&judged.root, &judged.repo);
+    assert_eq!(notes.len(), 1, "one file is rewritten");
+
+    let mended = fs::read_to_string(root.join("user.ts")).expect("the file stays readable");
+    assert_eq!(
+        mended,
+        "import { a } from \"./m\";\nimport type { B } from \"./m\";\nimport d from \"./n\";\nimport { c } from \"./n\";\n\nexport const sum: B = a + c + d;\n"
+    );
+
+    let again = graph(&root.to_string_lossy()).expect("the folder exists");
+    let quiet = again
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "typescript")
+        .expect("the typescript pack exists")
+        .mend(&again.root, &again.repo);
+    assert!(quiet.is_empty(), "a split file stays split");
+
+    let _ = fs::remove_dir_all(&root);
+}

@@ -71,6 +71,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
              a unit is entered through the routes its manifest declares",
             "web/src/lazy.ts imports a module through a computed value; \
              a module is named by a literal",
+            "web/src/panel.ts names 3 symbols in one import; \
+             an import line names one symbol and the module it comes from",
             "web/src/sneak.ts goes into @demo/ui past its routes; \
              a unit is entered through the routes its manifest declares",
         ]

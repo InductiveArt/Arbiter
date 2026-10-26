@@ -37,6 +37,7 @@ pub struct TypeScript {
     aliases: Vec<(PathBuf, String, usize)>,
     overreaches: Vec<(PathBuf, String, usize)>,
     computed: Vec<(PathBuf, usize)>,
+    crowded: Vec<(PathBuf, usize, usize)>,
 }
 
 impl TypeScript {
@@ -54,10 +55,7 @@ impl Pack for TypeScript {
             ("self-entry", "held"),
             ("interior-import", "held"),
             ("no-hidden-names", "held"),
-            (
-                "one-import-per-line",
-                "never: the ecosystem's organizer merges same-module imports; a symbol stays searchable at its uses and its definition, and blast resolves the import",
-            ),
+            ("one-import-per-line", "held"),
             ("no-comment-overreach", "held"),
             ("undeclared-dependency", "held"),
             ("suppressions", "held"),
@@ -187,6 +185,14 @@ impl Pack for TypeScript {
                 }
             }
         }
+        for shape in import_shapes(&tree, source) {
+            let names = usize::from(shape.default.is_some())
+                + usize::from(shape.namespace.is_some())
+                + shape.named.len();
+            if names > 1 {
+                self.crowded.push((file.to_path_buf(), shape.row, names));
+            }
+        }
         let mentions = mentions(&tree, source);
         let idents: std::collections::HashSet<String> =
             mentions.iter().map(|(name, _)| name.clone()).collect();
@@ -247,6 +253,15 @@ impl Pack for TypeScript {
                 reason: "imports a module through a computed value; a module is named by a literal"
                     .to_string(),
             }
+        }));
+        findings.extend(self.crowded.iter().map(|(file, line, names)| Finding {
+            check: "integrity",
+            file: file.clone(),
+            line: *line,
+            name: "one-import-per-line".to_string(),
+            reason: format!(
+                "names {names} symbols in one import; an import line names one symbol and the module it comes from"
+            ),
         }));
         findings.extend(self.overreaches.iter().map(|(file, token, line)| Finding {
             check: "integrity",
@@ -459,6 +474,39 @@ impl Pack for TypeScript {
         name.ends_with("_pb.ts") || name.ends_with(".pb.ts")
     }
 
+    fn mend(&self, root: &Path, repo: &Repo) -> Vec<String> {
+        let mut notes = Vec::new();
+        for file in &repo.files {
+            let name = file
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if !self.handles(&name) || self.generated(&name) {
+                continue;
+            }
+            // A unit on a test path is a fixture: data for some test, never repaired.
+            let unit = repo.unit_of(file);
+            let home = repo.units[unit].path.clone();
+            if repo.is_test(unit, &home) {
+                continue;
+            }
+            let path = root.join(file);
+            let Ok(source) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let Some(tree) = trees::parse(&language(), &source) else {
+                continue;
+            };
+            let shapes = import_shapes(&tree, &source);
+            if let Some(mended) = split_imports(&source, &shapes) {
+                if std::fs::write(&path, mended).is_ok() {
+                    notes.push(format!("{} split to one import per line", file.display()));
+                }
+            }
+        }
+        notes
+    }
+
     fn resolve(&self, mine: usize, defs: &[Def], root: &Path, repo: &Repo) -> Vec<Edge> {
         let present: std::collections::HashSet<&PathBuf> = repo.files.iter().collect();
         // Each re-export, resolved to the file it reaches, so a name can pass through.
@@ -519,6 +567,113 @@ impl Pack for TypeScript {
         }
         edges
     }
+}
+
+// One import statement read to its parts; the byte span allows rewriting.
+struct ImportShape {
+    start: usize,
+    end: usize,
+    row: usize,
+    type_only: bool,
+    module: String,
+    default: Option<String>,
+    namespace: Option<String>,
+    named: Vec<String>,
+}
+
+fn import_shapes(tree: &Tree, source: &str) -> Vec<ImportShape> {
+    let mut shapes = Vec::new();
+    let root = tree.root_node();
+    let mut cursor = root.walk();
+    for node in root.named_children(&mut cursor) {
+        if node.kind() != "import_statement" {
+            continue;
+        }
+        let mut shape = ImportShape {
+            start: node.start_byte(),
+            end: node.end_byte(),
+            row: node.start_position().row + 1,
+            type_only: source[node.start_byte()..node.end_byte()].starts_with("import type "),
+            module: String::new(),
+            default: None,
+            namespace: None,
+            named: Vec::new(),
+        };
+        let mut children = node.walk();
+        for child in node.named_children(&mut children) {
+            match child.kind() {
+                "import_clause" => {
+                    let mut parts = child.walk();
+                    for part in child.named_children(&mut parts) {
+                        let written = source[part.start_byte()..part.end_byte()].to_string();
+                        match part.kind() {
+                            "identifier" => shape.default = Some(written),
+                            "namespace_import" => shape.namespace = Some(written),
+                            "named_imports" => {
+                                let mut specs = part.walk();
+                                for spec in part.named_children(&mut specs) {
+                                    if spec.kind() == "import_specifier" {
+                                        shape.named.push(
+                                            source[spec.start_byte()..spec.end_byte()].to_string(),
+                                        );
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                "string" => {
+                    let mut parts = child.walk();
+                    for part in child.named_children(&mut parts) {
+                        if part.kind() == "string_fragment" {
+                            shape.module = source[part.start_byte()..part.end_byte()].to_string();
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        shapes.push(shape);
+    }
+    shapes
+}
+
+// Splits each crowded statement where it stands, never reordering: the order
+// of side effects is the file's own business.
+fn split_imports(source: &str, shapes: &[ImportShape]) -> Option<String> {
+    let mut text = source.to_string();
+    let mut changed = false;
+    for shape in shapes.iter().rev() {
+        let names = usize::from(shape.default.is_some())
+            + usize::from(shape.namespace.is_some())
+            + shape.named.len();
+        if names <= 1 {
+            continue;
+        }
+        let head = if shape.type_only {
+            "import type"
+        } else {
+            "import"
+        };
+        let mut lines = Vec::new();
+        if let Some(default) = &shape.default {
+            lines.push(format!("{head} {default} from \"{}\";", shape.module));
+        }
+        if let Some(namespace) = &shape.namespace {
+            lines.push(format!("{head} {namespace} from \"{}\";", shape.module));
+        }
+        for written in &shape.named {
+            let (form, spec) = match written.strip_prefix("type ") {
+                Some(rest) if !shape.type_only => ("import type", rest),
+                _ => (head, written.as_str()),
+            };
+            lines.push(format!("{form} {{ {spec} }} from \"{}\";", shape.module));
+        }
+        text.replace_range(shape.start..shape.end, &lines.join("\n"));
+        changed = true;
+    }
+    changed.then_some(text)
 }
 
 fn language() -> Language {

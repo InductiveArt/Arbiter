@@ -33,7 +33,13 @@ pub fn run(asked: &str, fixing: bool) -> Option<Run> {
         let root = PathBuf::from(asked).canonicalize().ok()?;
         let packs = packs::all();
         let repo = units::scan(&root, &packs);
-        let (outcomes, notes) = outcomes::judged(&root, &repo, &packs, true);
+        // Packs repair their own findings before the tools format the result.
+        let mut mended = Vec::new();
+        for pack in &packs {
+            mended.extend(pack.mend(&root, &repo));
+        }
+        let (outcomes, mut notes) = outcomes::judged(&root, &repo, &packs, true);
+        notes.extend(mended);
         (outcomes, notes, graph::graph(asked)?)
     } else {
         let found = graph::graph(asked)?;

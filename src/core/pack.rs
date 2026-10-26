@@ -144,6 +144,13 @@ pub trait Pack {
         &[]
     }
 
+    // Repairs the pack's own findings in place before the tools run; each note
+    // names one file rewritten. Only a fixing run calls it.
+    fn mend(&self, root: &Path, repo: &Repo) -> Vec<String> {
+        let _ = (root, repo);
+        Vec::new()
+    }
+
     // Holds the unit's declared environment to the pack's bar; None where no bar exists yet.
     // Settings may add, never lower: each finding names one option sitting below the bar.
     fn wiring(&self, folder: &Path) -> Option<Vec<String>> {
