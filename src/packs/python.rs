@@ -42,6 +42,10 @@ impl Pack for Python {
     fn rules(&self) -> &'static [(&'static str, &'static str)] {
         &[
             ("resolve", "held"),
+            (
+                "pinned-image",
+                "never: the language names no container images",
+            ),
             ("no-reexport", "held"),
             (
                 "self-entry",

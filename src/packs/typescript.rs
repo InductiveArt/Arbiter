@@ -50,6 +50,10 @@ impl Pack for TypeScript {
     fn rules(&self) -> &'static [(&'static str, &'static str)] {
         &[
             ("resolve", "held"),
+            (
+                "pinned-image",
+                "never: the language names no container images",
+            ),
             ("dynamic-import", "held"),
             ("no-reexport", "held"),
             ("self-entry", "held"),

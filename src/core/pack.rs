@@ -116,6 +116,10 @@ pub const RULES: &[(&str, &str)] = &[
         "drift",
         "generated code matches its contract, and a contract break is a finding",
     ),
+    (
+        "pinned-image",
+        "a container image is named by digest, never by a tag alone",
+    ),
 ];
 
 // A language. It says what defines a symbol and what uses one; the core knows no language.

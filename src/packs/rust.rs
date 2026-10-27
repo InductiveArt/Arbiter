@@ -38,6 +38,10 @@ impl Pack for Rust {
         &[
             ("resolve", "held"),
             (
+                "pinned-image",
+                "never: the language names no container images",
+            ),
+            (
                 "dynamic-import",
                 "never: a crate links its dependencies; nothing imports at run time",
             ),

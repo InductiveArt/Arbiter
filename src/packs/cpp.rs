@@ -32,6 +32,10 @@ impl Pack for Cpp {
     fn rules(&self) -> &'static [(&'static str, &'static str)] {
         &[
             ("resolve", "held"),
+            (
+                "pinned-image",
+                "never: the language names no container images",
+            ),
             ("no-comment-overreach", "held"),
             (
                 "one-import-per-line",

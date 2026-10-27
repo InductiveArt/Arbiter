@@ -48,6 +48,10 @@ fn integrity_names_the_cycle_and_each_reexport() {
             ".arbiter/units.toml app declares libs/facade and never uses it",
             "app/src/app/alias.py imported as v; a symbol keeps its own name",
             "app/src/app/web.py requests is imported, and no manifest declares it",
+            "infra/deploy.yaml registry.local/app:1.2.3 is pulled by tag; \
+             an image is named by digest, never by a tag alone",
+            "infra/deploy.yaml registry.local/cache:latest is pulled by tag; \
+             an image is named by digest, never by a tag alone",
             "libs/cyc_a units import each other: libs/cyc_a, libs/cyc_b",
             "libs/cyc_a/src/cyc_a/calc.py libs/cyc_a uses libs/cyc_b, \
              which only nothing/* may",

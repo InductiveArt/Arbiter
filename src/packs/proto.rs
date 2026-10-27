@@ -33,6 +33,10 @@ impl Pack for Proto {
         &[
             ("resolve", "held"),
             (
+                "pinned-image",
+                "never: the language names no container images",
+            ),
+            (
                 "dynamic-import",
                 "never: a contract names its imports in the file",
             ),
@@ -52,7 +56,10 @@ impl Pack for Proto {
                 "never: the contract is the source others generate from",
             ),
             ("drift", "held"),
-            ("coverage", "never: a contract declares shapes; nothing of it executes"),
+            (
+                "coverage",
+                "never: a contract declares shapes; nothing of it executes",
+            ),
         ]
     }
 
