@@ -12,6 +12,16 @@ use arbiter::judge::outcomes;
 use arbiter::judge::verdict;
 
 fn main() -> ExitCode {
+    // A closed pipe ends the read, not the program: piping a report into
+    // `head` is a normal way to read it, never a panic.
+    #[cfg(unix)]
+    unsafe {
+        unsafe extern "C" {
+            fn signal(number: i32, handler: usize) -> usize;
+        }
+        // SIGPIPE is 13 and the default disposition is 0 on every unix here.
+        signal(13, 0);
+    }
     let arguments: Vec<String> = env::args().skip(1).collect();
     if arguments.first().map(String::as_str) == Some("fix") {
         eprintln!("fix became a mode: arbiter gate --fix");
@@ -229,6 +239,18 @@ fn main() -> ExitCode {
         );
         return ExitCode::SUCCESS;
     }
+    if arguments.first().map(String::as_str) == Some("adopt") {
+        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let root = std::path::PathBuf::from(&asked);
+        if !root.is_dir() {
+            eprintln!("adopt: no folder at {asked}");
+            return ExitCode::from(2);
+        }
+        for line in adopted(&root) {
+            println!("adopt: {line}");
+        }
+        return ExitCode::SUCCESS;
+    }
     if arguments.first().map(String::as_str) == Some("rules") {
         matrix();
         return ExitCode::SUCCESS;
@@ -293,8 +315,13 @@ fn main() -> ExitCode {
     }
     let asked = match arguments.first().map(String::as_str) {
         Some("winnow") => arguments.get(1).cloned().unwrap_or_else(|| ".".to_string()),
-        Some(folder) => folder.to_string(),
-        None => ".".to_string(),
+        _ => {
+            eprintln!(
+                "arbiter <verb> [folder] — gate [--fix] [--cold], findings, winnow, \
+                 integrity, blast <name>, ledger, warm, rules, accept, adopt"
+            );
+            return ExitCode::from(2);
+        }
     };
     let Some(found) = graph(&asked) else {
         eprintln!("winnow: no folder at {asked}");
@@ -543,4 +570,61 @@ fn matrix() {
             println!("  {rule} ({}): {why}", labels.join(", "));
         }
     }
+}
+
+// The agent layer, installed where agents will look: written once, never
+// overwritten, each file named as kept when it already exists.
+fn adopted(root: &Path) -> Vec<String> {
+    let mut told = Vec::new();
+    let files: [(&str, &str); 4] = [
+        (
+            ".claude/agent-rules.md",
+            include_str!("../share/agent-rules.md"),
+        ),
+        (
+            ".claude/skills/arbiter-quality/SKILL.md",
+            include_str!("../share/skills/arbiter-quality/SKILL.md"),
+        ),
+        (
+            ".claude/hooks/arbiter-stop.sh",
+            include_str!("../share/hooks/arbiter-stop.sh"),
+        ),
+        (
+            ".claude/settings.json",
+            "{\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash .claude/hooks/arbiter-stop.sh\"\n          }\n        ]\n      }\n    ]\n  }\n}\n",
+        ),
+    ];
+    for (place, content) in files {
+        let path = root.join(place);
+        if path.exists() {
+            told.push(format!("kept {place}"));
+            continue;
+        }
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if fs::write(&path, content).is_ok() {
+            told.push(format!("adopted {place}"));
+        }
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let hook = root.join(".claude/hooks/arbiter-stop.sh");
+        let _ = fs::set_permissions(&hook, fs::Permissions::from_mode(0o755));
+    }
+    let claude = root.join("CLAUDE.md");
+    let pointer = "@.claude/agent-rules.md";
+    match fs::read_to_string(&claude) {
+        Ok(text) if text.contains(pointer) => told.push("kept CLAUDE.md".to_string()),
+        Ok(text) => {
+            let _ = fs::write(&claude, format!("{}\n{pointer}\n", text.trim_end()));
+            told.push("pointed CLAUDE.md at the rules".to_string());
+        }
+        Err(_) => {
+            let _ = fs::write(&claude, format!("{pointer}\n"));
+            told.push("wrote CLAUDE.md pointing at the rules".to_string());
+        }
+    }
+    told
 }
