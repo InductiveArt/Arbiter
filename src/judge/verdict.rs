@@ -28,22 +28,38 @@ pub struct Run {
 
 // Judges everything: the units' tools, then the graph. A fixing run repairs first,
 // so the graph is read only after the repairs have settled.
-pub fn run(asked: &str, fixing: bool) -> Option<Run> {
+pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
     let (outcomes, notes, found) = if fixing {
         let root = PathBuf::from(asked).canonicalize().ok()?;
         let packs = packs::all();
         let repo = units::scan(&root, &packs);
-        // Packs repair their own findings before the tools format the result.
+        // Packs repair their own findings before the tools format the result;
+        // the graph and the warm keys read the repaired state.
         let mut mended = Vec::new();
         for pack in &packs {
             mended.extend(pack.mend(&root, &repo));
         }
-        let (outcomes, mut notes) = outcomes::judged(&root, &repo, &packs, true);
+        let found = graph::graph(asked)?;
+        let warmth = heated(&found, cold);
+        let (outcomes, mut notes) = outcomes::judged(
+            &found.root,
+            &found.repo,
+            &found.packs,
+            true,
+            warmth.as_ref(),
+        );
         notes.extend(mended);
-        (outcomes, notes, graph::graph(asked)?)
+        (outcomes, notes, found)
     } else {
         let found = graph::graph(asked)?;
-        let (outcomes, notes) = outcomes::judged(&found.root, &found.repo, &found.packs, false);
+        let warmth = heated(&found, cold);
+        let (outcomes, notes) = outcomes::judged(
+            &found.root,
+            &found.repo,
+            &found.packs,
+            false,
+            warmth.as_ref(),
+        );
         (outcomes, notes, found)
     };
     let mut all = findings::winnow(&found.defs, &found.edges, &found.repo);
@@ -77,18 +93,39 @@ pub fn run(asked: &str, fixing: bool) -> Option<Run> {
 }
 
 // Per check: how many units passed, how many failed, and the seconds they took.
-pub fn tallied(outcomes: &[Outcome]) -> BTreeMap<String, (usize, usize, f64)> {
-    let mut tallies: BTreeMap<String, (usize, usize, f64)> = BTreeMap::new();
+pub fn tallied(outcomes: &[Outcome]) -> BTreeMap<String, (usize, usize, usize, f64)> {
+    let mut tallies: BTreeMap<String, (usize, usize, usize, f64)> = BTreeMap::new();
     for outcome in outcomes {
-        let entry = tallies.entry(outcome.check.clone()).or_insert((0, 0, 0.0));
+        let entry = tallies
+            .entry(outcome.check.clone())
+            .or_insert((0, 0, 0, 0.0));
         if outcome.passed {
             entry.0 += 1;
         } else {
             entry.1 += 1;
         }
-        entry.2 += outcome.seconds;
+        if outcome.warm {
+            entry.2 += 1;
+        } else {
+            entry.3 += outcome.seconds;
+        }
     }
     tallies
+}
+
+// The warm store, built from the resolved graph; a cold run carries none.
+fn heated(found: &graph::Graph, cold: bool) -> Option<crate::core::warm::Warmth> {
+    if cold {
+        return None;
+    }
+    let defs_units: Vec<usize> = found.defs.iter().map(|def| def.unit).collect();
+    Some(crate::core::warm::warmth(
+        &found.root,
+        &found.repo,
+        &found.packs,
+        &found.edges,
+        &defs_units,
+    ))
 }
 
 // Writes the run's detail where the dashboard points: a report of sections to read
@@ -149,6 +186,7 @@ pub fn written(run: &Run) -> Option<PathBuf> {
         });
         if !outcome.passed {
             entry["output"] = serde_json::Value::String(outcome.output.clone());
+            entry["warm"] = serde_json::Value::Bool(outcome.warm);
         }
         lines.push_str(&entry.to_string());
         lines.push('\n');
@@ -206,6 +244,7 @@ mod tests {
             passed,
             seconds,
             output: String::new(),
+            warm: false,
         }
     }
 
@@ -217,7 +256,7 @@ mod tests {
             outcome("test", true, 3.0),
         ];
         let tallies = tallied(&outcomes);
-        assert_eq!(tallies["lint"], (1, 1, 3.0));
-        assert_eq!(tallies["test"], (1, 0, 3.0));
+        assert_eq!(tallies["lint"], (1, 1, 0, 3.0));
+        assert_eq!(tallies["test"], (1, 0, 0, 3.0));
     }
 }

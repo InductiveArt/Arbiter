@@ -14,7 +14,13 @@ use arbiter::judge::verdict;
 fn main() -> ExitCode {
     let arguments: Vec<String> = env::args().skip(1).collect();
     if let Some(command @ ("gate" | "fix")) = arguments.first().map(String::as_str) {
-        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let cold = arguments.iter().any(|argument| argument == "--cold");
+        let asked = arguments
+            .iter()
+            .skip(1)
+            .find(|argument| !argument.starts_with("--"))
+            .cloned()
+            .unwrap_or_else(|| ".".to_string());
         let gaps = outcomes::preflight(Path::new(&asked));
         if !gaps.is_empty() {
             for gap in &gaps {
@@ -25,17 +31,22 @@ fn main() -> ExitCode {
             );
             return ExitCode::from(2);
         }
-        let Some(run) = verdict::run(&asked, command == "fix") else {
+        let Some(run) = verdict::run(&asked, command == "fix", cold) else {
             eprintln!("{command}: no folder at {asked}");
             return ExitCode::from(2);
         };
         println!("{command}: {} units, {} files", run.units, run.files);
-        for (check, (passed, failed, seconds)) in verdict::tallied(&run.outcomes) {
+        for (check, (passed, failed, warm, seconds)) in verdict::tallied(&run.outcomes) {
+            let heat = if warm > 0 {
+                format!(" ({warm} warm)")
+            } else {
+                String::new()
+            };
             if failed == 0 {
-                println!("  {check:10} ok     {passed} units   {seconds:.1}s");
+                println!("  {check:10} ok     {passed} units{heat}   {seconds:.1}s");
             } else {
                 println!(
-                    "  {check:10} failed {failed} of {}   {seconds:.1}s",
+                    "  {check:10} failed {failed} of {}{heat}   {seconds:.1}s",
                     passed + failed
                 );
             }
@@ -178,6 +189,40 @@ fn main() -> ExitCode {
             println!("  {}", shown(suppression));
         }
         return ExitCode::FAILURE;
+    }
+    if arguments.first().map(String::as_str) == Some("warm") {
+        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let Some(found) = graph(&asked) else {
+            eprintln!("warm: no folder at {asked}");
+            return ExitCode::from(2);
+        };
+        let defs_units: Vec<usize> = found.defs.iter().map(|def| def.unit).collect();
+        let warmth = arbiter::core::warm::warmth(
+            &found.root,
+            &found.repo,
+            &found.packs,
+            &found.edges,
+            &defs_units,
+        );
+        let mut counted = (0, 0);
+        for (index, unit) in found.repo.units.iter().enumerate() {
+            let Some(Some(key)) = warmth.keys.get(index) else {
+                continue;
+            };
+            let state = if warmth.stored(index, &unit.path).is_some() {
+                counted.0 += 1;
+                "warm"
+            } else {
+                counted.1 += 1;
+                "cold"
+            };
+            println!("  {state}  {:12.12}  {}", key, unit.path.display());
+        }
+        println!(
+            "warm: {} warm, {} cold; the store is .arbiter/warm, cleared by deleting it",
+            counted.0, counted.1
+        );
+        return ExitCode::SUCCESS;
     }
     if arguments.first().map(String::as_str) == Some("rules") {
         matrix();

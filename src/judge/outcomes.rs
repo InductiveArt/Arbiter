@@ -59,6 +59,8 @@ pub struct Outcome {
     pub passed: bool,
     pub seconds: f64,
     pub output: String,
+    // Whether the result is a stored green run under an unchanged key.
+    pub warm: bool,
 }
 
 pub(crate) fn judged(
@@ -66,6 +68,7 @@ pub(crate) fn judged(
     repo: &Repo,
     packs: &[Box<dyn Pack>],
     fixing: bool,
+    warmth: Option<&crate::core::warm::Warmth>,
 ) -> (Vec<Outcome>, Vec<String>) {
     let mut outcomes = Vec::new();
     let mut notes = Vec::new();
@@ -74,6 +77,33 @@ pub(crate) fn judged(
         if repo.is_test(index, &unit.path) {
             continue;
         }
+        // A green run stored under an unchanged key answers for the unit's tools;
+        // the graph is recomputed regardless, so no finding ever rests on the store.
+        if let Some(warmth) = warmth {
+            if let Some(stored) = warmth.stored(index, &unit.path) {
+                let shown = if unit.path.as_os_str().is_empty() {
+                    ".".to_string()
+                } else {
+                    unit.path.to_string_lossy().to_string()
+                };
+                for check in stored {
+                    let Some(pack) = packs.iter().find(|pack| pack.label() == check.pack) else {
+                        continue;
+                    };
+                    outcomes.push(Outcome {
+                        unit: shown.clone(),
+                        pack: pack.label(),
+                        check: check.check,
+                        passed: true,
+                        seconds: check.seconds,
+                        output: String::new(),
+                        warm: true,
+                    });
+                }
+                continue;
+            }
+        }
+        let first = outcomes.len();
         let folder = root.join(&unit.path);
         let shown = if unit.path.as_os_str().is_empty() {
             ".".to_string()
@@ -103,6 +133,7 @@ pub(crate) fn judged(
                     passed: findings.is_empty(),
                     seconds: started.elapsed().as_secs_f64(),
                     output: findings.join("\n"),
+                    warm: false,
                 });
             }
             let Some(adapter) = pack.adapter() else {
@@ -145,7 +176,27 @@ pub(crate) fn judged(
                     passed: drift.problems.is_empty(),
                     seconds: drift.seconds,
                     output: drift.problems.join("\n"),
+                    warm: false,
                 });
+            }
+        }
+        if let Some(warmth) = warmth {
+            let mine = &outcomes[first..];
+            if mine.is_empty() {
+                continue;
+            }
+            if mine.iter().all(|outcome| outcome.passed) {
+                let checks: Vec<crate::core::warm::StoredCheck> = mine
+                    .iter()
+                    .map(|outcome| crate::core::warm::StoredCheck {
+                        check: outcome.check.clone(),
+                        pack: outcome.pack.to_string(),
+                        seconds: outcome.seconds,
+                    })
+                    .collect();
+                warmth.record(index, &unit.path, &checks);
+            } else {
+                warmth.invalidate(&unit.path);
             }
         }
     }
@@ -242,6 +293,7 @@ fn executed(unit: &str, pack: &'static str, folder: &Path, check: &Check) -> Out
         passed,
         seconds,
         output: if passed { String::new() } else { output },
+        warm: false,
     }
 }
 
