@@ -58,6 +58,7 @@ impl Pack for Python {
             ("suppressions", "held"),
             ("wiring", "held"),
             ("tools", "held"),
+            ("no-warnings", "held"),
             ("container", "held"),
             ("generated", "held"),
             (

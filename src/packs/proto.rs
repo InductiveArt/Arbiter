@@ -46,6 +46,7 @@ impl Pack for Proto {
             ),
             ("no-comment-overreach", "held"),
             ("tools", "held"),
+            ("no-warnings", "held"),
             (
                 "generated",
                 "never: the contract is the source others generate from",

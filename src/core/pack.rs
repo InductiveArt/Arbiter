@@ -100,6 +100,10 @@ pub const RULES: &[(&str, &str)] = &[
     ("wiring", "a unit's declared environment meets the pack's bar"),
     ("tools", "lint, types and tests run pinned by the pack"),
     (
+        "no-warnings",
+        "a tool's warning is a finding, never a soft state",
+    ),
+    (
         "container",
         "a members-only manifest bounds a unit without being judged",
     ),

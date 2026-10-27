@@ -61,6 +61,7 @@ impl Pack for TypeScript {
             ("suppressions", "held"),
             ("wiring", "held"),
             ("tools", "held"),
+            ("no-warnings", "held"),
             ("container", "held"),
             ("generated", "held"),
             (
