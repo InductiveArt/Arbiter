@@ -104,6 +104,10 @@ pub const RULES: &[(&str, &str)] = &[
         "a tool's warning is a finding, never a soft state",
     ),
     (
+        "coverage",
+        "a unit's tests reach every branch of its source",
+    ),
+    (
         "container",
         "a members-only manifest bounds a unit without being judged",
     ),
