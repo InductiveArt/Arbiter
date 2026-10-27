@@ -13,8 +13,13 @@ use arbiter::judge::verdict;
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = env::args().skip(1).collect();
-    if let Some(command @ ("gate" | "fix")) = arguments.first().map(String::as_str) {
+    if arguments.first().map(String::as_str) == Some("fix") {
+        eprintln!("fix became a mode: arbiter gate --fix");
+        return ExitCode::from(2);
+    }
+    if let Some(command @ "gate") = arguments.first().map(String::as_str) {
         let cold = arguments.iter().any(|argument| argument == "--cold");
+        let fixing = arguments.iter().any(|argument| argument == "--fix");
         let asked = arguments
             .iter()
             .skip(1)
@@ -31,7 +36,7 @@ fn main() -> ExitCode {
             );
             return ExitCode::from(2);
         }
-        let Some(run) = verdict::run(&asked, command == "fix", cold) else {
+        let Some(run) = verdict::run(&asked, fixing, cold) else {
             eprintln!("{command}: no folder at {asked}");
             return ExitCode::from(2);
         };

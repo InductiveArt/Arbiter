@@ -41,6 +41,7 @@ impl Default for Digest {
 pub struct Warmth {
     folder: PathBuf,
     pub keys: Vec<Option<String>>,
+    reading: bool,
 }
 
 const STORE: &str = ".arbiter/warm";
@@ -116,6 +117,7 @@ pub fn warmth(
     Warmth {
         folder: root.join(STORE),
         keys,
+        reading: true,
     }
 }
 
@@ -193,8 +195,16 @@ pub struct StoredCheck {
 }
 
 impl Warmth {
+    // A chilled store answers no reads; records still land.
+    pub fn chill(&mut self) {
+        self.reading = false;
+    }
+
     // The green run stored under today's key, or nothing to skip with.
     pub fn stored(&self, index: usize, unit: &Path) -> Option<Vec<StoredCheck>> {
+        if !self.reading {
+            return None;
+        }
         let key = self.keys.get(index)?.as_ref()?;
         let text = fs::read_to_string(self.folder.join(format!("{}.json", slug(unit)))).ok()?;
         let parsed: serde_json::Value = serde_json::from_str(&text).ok()?;

@@ -11,8 +11,8 @@ what they decide.
 
 | Command | Does | Changes files |
 |---|---|---|
-| `arbiter gate .` | Judges everything: each unit's pinned tools and the resolved graph. | no |
-| `arbiter fix .` | Repairs first - packs mend their own findings, tools apply safe fixes - then the same full judgment. | yes |
+| `arbiter gate .` | Judges everything: each unit's pinned tools and the resolved graph. Warm by default: a unit green under an unchanged input cone skips its tools, and the dashboard counts it. `--cold` reads no store. | no |
+| `arbiter gate --fix .` | The same judgment, repairs first: packs mend their own findings, tools apply safe fixes. | yes |
 | `arbiter findings .` | The graph plane alone as JSON lines, in seconds. | no |
 | `arbiter blast <name> .` | Each definition of a name and every resolved use of that one. | no |
 | `arbiter ledger .` | Every suppression, counted against the accepted reference. | no |
@@ -38,7 +38,7 @@ Before the first edit of a session, and when asked how the code stands:
 
 ## Changing anything
 
-1. After each change, run `arbiter fix .`. Read what its dashboard names and
+1. After each change, run `arbiter gate --fix .`. Read what its dashboard names and
    repeat until only findings you understand remain. Re-read any file the fix
    rewrote before editing it again - the mend phase splits crowded imports
    and tools reformat.
@@ -56,7 +56,7 @@ Each finding has one expected fix. A suppression is never one of them.
 | `self-entry` | Import the defining module, not the unit's own surface. |
 | `no-reexport` | A surface names each symbol; any other module offers only its own. Move the re-export to the surface or import the defining file. |
 | `interior-import` | Enter the unit through a route its manifest declares, or declare the route. |
-| `one-import-per-line` | `arbiter fix` splits it; by hand, one symbol and its module per line. |
+| `one-import-per-line` | `arbiter gate --fix` splits it; by hand, one symbol and its module per line. |
 | `no-hidden-names` | Import under the symbol's own name; a genuine collision takes a namespace import named for its module. A computed dynamic import becomes a literal. |
 | `no-comment-overreach` | Reword the comment to name only what its file defines, uses or quotes - keep the meaning, lose the foreign names. |
 | `undeclared-dependency` | Declare it in the unit's manifest. Dynamic imports count. |

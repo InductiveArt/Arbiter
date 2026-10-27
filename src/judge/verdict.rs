@@ -113,19 +113,21 @@ pub fn tallied(outcomes: &[Outcome]) -> BTreeMap<String, (usize, usize, usize, f
     tallies
 }
 
-// The warm store, built from the resolved graph; a cold run carries none.
+// The warm store, built from the resolved graph. A cold run reads nothing,
+// yet still records: a full cold proof is the best evidence a store can hold.
 fn heated(found: &graph::Graph, cold: bool) -> Option<crate::core::warm::Warmth> {
-    if cold {
-        return None;
-    }
     let defs_units: Vec<usize> = found.defs.iter().map(|def| def.unit).collect();
-    Some(crate::core::warm::warmth(
+    let mut warmth = crate::core::warm::warmth(
         &found.root,
         &found.repo,
         &found.packs,
         &found.edges,
         &defs_units,
-    ))
+    );
+    if cold {
+        warmth.chill();
+    }
+    Some(warmth)
 }
 
 // Writes the run's detail where the dashboard points: a report of sections to read
