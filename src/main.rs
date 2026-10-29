@@ -572,11 +572,12 @@ fn matrix() {
     }
 }
 
-// The agent layer, installed where agents will look: written once, never
-// overwritten, each file named as kept when it already exists.
+// The agent layer, installed where agents will look. The judge's own files
+// (rules, skill, hook) follow the binary and are refreshed when they drift;
+// settings.json is the repository's and is written once, never overwritten.
 fn adopted(root: &Path) -> Vec<String> {
     let mut told = Vec::new();
-    let files: [(&str, &str); 4] = [
+    let owned: [(&str, &str); 3] = [
         (
             ".claude/agent-rules.md",
             include_str!("../share/agent-rules.md"),
@@ -589,22 +590,39 @@ fn adopted(root: &Path) -> Vec<String> {
             ".claude/hooks/arbiter-stop.sh",
             include_str!("../share/hooks/arbiter-stop.sh"),
         ),
-        (
-            ".claude/settings.json",
-            "{\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash .claude/hooks/arbiter-stop.sh\"\n          }\n        ]\n      }\n    ]\n  }\n}\n",
-        ),
     ];
-    for (place, content) in files {
+    for (place, content) in owned {
         let path = root.join(place);
-        if path.exists() {
-            told.push(format!("kept {place}"));
-            continue;
+        match fs::read_to_string(&path) {
+            Ok(present) if present == content => {
+                told.push(format!("kept {place}"));
+                continue;
+            }
+            Ok(_) => {
+                if fs::write(&path, content).is_ok() {
+                    told.push(format!("refreshed {place}"));
+                }
+                continue;
+            }
+            Err(_) => {}
         }
         if let Some(parent) = path.parent() {
             let _ = fs::create_dir_all(parent);
         }
         if fs::write(&path, content).is_ok() {
             told.push(format!("adopted {place}"));
+        }
+    }
+    let settings = root.join(".claude/settings.json");
+    if settings.exists() {
+        told.push("kept .claude/settings.json".to_string());
+    } else {
+        if let Some(parent) = settings.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let content = "{\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash \\\"$CLAUDE_PROJECT_DIR/.claude/hooks/arbiter-stop.sh\\\"\"\n          }\n        ]\n      }\n    ]\n  }\n}\n";
+        if fs::write(&settings, content).is_ok() {
+            told.push("adopted .claude/settings.json".to_string());
         }
     }
     #[cfg(unix)]

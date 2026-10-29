@@ -61,6 +61,7 @@ impl Pack for Rust {
             ("wiring", "held"),
             ("tools", "held"),
             ("no-warnings", "held"),
+            ("vendor", "held"),
             (
                 "drift",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",

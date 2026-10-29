@@ -120,6 +120,10 @@ pub const RULES: &[(&str, &str)] = &[
         "pinned-image",
         "a container image is named by digest, never by a tag alone",
     ),
+    (
+        "vendor",
+        "every third party's bytes are held with the repository and match the lockfile",
+    ),
 ];
 
 // A language. It says what defines a symbol and what uses one; the core knows no language.
