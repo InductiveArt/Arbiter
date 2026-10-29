@@ -66,6 +66,7 @@ fn integrity_names_the_cycle_and_each_reexport() {
              and 4.17.21 in web/pnpm-lock.yaml",
             "ui/src/index.ts re-exports every name from \"./extra\"; \
              a surface names each symbol it offers",
+            "ui/src/kit.ts defines Kit; a surface offers only names defined elsewhere",
             "ui/src/parts/index.ts re-exports from \"./button\"; \
              a module offers only its own names",
             "ui/src/widget.ts enters its own unit at ui/src/index.ts; \

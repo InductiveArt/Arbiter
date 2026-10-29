@@ -224,10 +224,35 @@ impl Pack for TypeScript {
     fn integrity(&self, root: &Path, repo: &Repo) -> Vec<Finding> {
         let present: std::collections::HashSet<&PathBuf> = repo.files.iter().collect();
         let routes = manifest_routes(root, repo, &present);
+        // A surface holding definitions is at once the offering file and the
+        // defining file, and every judgment telling the two roles apart misreads it.
+        let defined = surface_definitions(root, &routes.surfaces);
+        let mut findings: Vec<Finding> = Vec::new();
+        for file in &routes.written {
+            let unit = repo.unit_of(file);
+            let home = repo.units[unit].path.clone();
+            if repo.is_test(unit, &home) {
+                continue;
+            }
+            let Some(owned) = defined.get(file) else {
+                continue;
+            };
+            let Some((name, line)) = owned.iter().min_by_key(|(_, line)| *line) else {
+                continue;
+            };
+            let reason = if owned.len() == 1 {
+                format!("defines {name}; a surface offers only names defined elsewhere")
+            } else {
+                format!(
+                    "defines {name} and {} more names; a surface offers only names defined elsewhere",
+                    owned.len() - 1
+                )
+            };
+            findings.push(Finding::integrity(file, *line, "no-reexport", reason));
+        }
         // A route target is the unit's declared surface, so a named re-export there is
         // the declaration itself; anywhere else it hides a name, and a star hides
         // every name even on the surface.
-        let mut findings: Vec<Finding> = Vec::new();
         for (file, from, line, star) in &self.reexports {
             let surface = routes.surfaces.contains(file);
             if surface && !star {
@@ -370,7 +395,12 @@ impl Pack for TypeScript {
             };
             let owner = repo.unit_of(&target);
             if owner == unit {
-                if routes.surfaces.contains(&target) && target != *file {
+                // A surface holding definitions is itself the defining file, so
+                // reaching it by path is what the rule prescribes, not a detour.
+                if routes.surfaces.contains(&target)
+                    && target != *file
+                    && !defined.contains_key(&target)
+                {
                     findings.push(Finding::integrity(
                         file,
                         *line,
@@ -870,6 +900,9 @@ struct Routes {
     // Every file an exports route names: the declared surface of its unit. An
     // imports alias is inside routing and blesses nothing.
     surfaces: std::collections::HashSet<PathBuf>,
+    // The surfaces a manifest wrote a route for, as opposed to the imputed
+    // src/index fallback: only a written route is the user's declaration to judge.
+    written: std::collections::HashSet<PathBuf>,
 }
 
 // Where each workspace package enters and where each unit's subpath aliases lead,
@@ -886,6 +919,7 @@ fn manifest_routes(
         packages: std::collections::HashSet::new(),
         declared: std::collections::HashSet::new(),
         surfaces: std::collections::HashSet::new(),
+        written: std::collections::HashSet::new(),
     };
     for manifest in &repo.manifests {
         if manifest
@@ -923,6 +957,7 @@ fn manifest_routes(
                     .or_else(|| existing(&normalized(&folder.join(fallback)), present));
                 if let Some(entry) = entry {
                     routes.surfaces.insert(entry.clone());
+                    routes.written.insert(entry.clone());
                     routes.names.insert(route, entry);
                 }
             }
@@ -944,6 +979,28 @@ fn manifest_routes(
         }
     }
     routes
+}
+
+// What each surface file defines of its own, a named re-export counting as
+// nothing: an empty answer marks the surface pure.
+fn surface_definitions(
+    root: &Path,
+    surfaces: &std::collections::HashSet<PathBuf>,
+) -> std::collections::HashMap<PathBuf, Vec<(String, usize)>> {
+    let mut found = std::collections::HashMap::new();
+    for file in surfaces {
+        let Ok(source) = std::fs::read_to_string(root.join(file)) else {
+            continue;
+        };
+        let Some(tree) = trees::parse(&language(), &source) else {
+            continue;
+        };
+        let owned = definitions(&tree, &source);
+        if !owned.is_empty() {
+            found.insert(file.clone(), owned);
+        }
+    }
+    found
 }
 
 // Every route the manifest exports with the file it enters, the source condition

@@ -54,7 +54,7 @@ Each finding has one expected fix. A suppression is never one of them.
 | `winnow` (no user anywhere) | Verify with `blast` plus a grep, then delete the symbol, its surface line, its doc comment and its tests. Deletions cascade: loop until dry. |
 | `winnow` (no user but tests) | Tests exist for the symbol itself: delete both. The symbol is scaffolding for tests of other live code: move it into `src/__tests__/` and off the surface. |
 | `self-entry` | Import the defining module, not the unit's own surface. |
-| `no-reexport` | A surface names each symbol; any other module offers only its own. Move the re-export to the surface or import the defining file. |
+| `no-reexport` | A surface names each symbol and defines none; any other module offers only its own. Move the re-export to the surface, move a surface's own definitions behind it, or import the defining file. |
 | `interior-import` | Enter the unit through a route its manifest declares, or declare the route. |
 | `one-import-per-line` | `arbiter gate --fix` splits it; by hand, one symbol and its module per line. |
 | `no-hidden-names` | Import under the symbol's own name; a genuine collision takes a namespace import named for its module. A computed dynamic import becomes a literal. |

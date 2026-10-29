@@ -1,6 +1,10 @@
 {
   "name": "@demo/ui",
   "version": "0.0.0",
-  "exports": { ".": { "source": "./src/index.ts" } },
+  "exports": {
+    ".": { "source": "./src/index.ts" },
+    "./kit": { "source": "./src/kit.ts" },
+    "./testkit": { "source": "./src/testkit.ts" }
+  },
   "imports": { "#parts": "./src/parts/index.ts" }
 }

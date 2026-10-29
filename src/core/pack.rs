@@ -73,7 +73,7 @@ pub const RULES: &[(&str, &str)] = &[
     ),
     (
         "no-reexport",
-        "a module offers only its own names; a surface names each symbol it offers",
+        "a module offers only its own names; a surface names each symbol it offers and defines none",
     ),
     ("self-entry", "a unit's own code imports from the defining file"),
     (

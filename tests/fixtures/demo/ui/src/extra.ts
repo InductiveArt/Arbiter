@@ -1,1 +1,3 @@
-export const Chip = (): string => "chip";
+import { Kit } from "./kit";
+
+export const Chip = (): string => "chip " + Kit();
