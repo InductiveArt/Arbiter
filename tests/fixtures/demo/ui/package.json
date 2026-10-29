@@ -6,5 +6,6 @@
     "./kit": { "source": "./src/kit.ts" },
     "./testkit": { "source": "./src/testkit.ts" }
   },
-  "imports": { "#parts": "./src/parts/index.ts" }
+  "imports": { "#parts": "./src/parts/index.ts" },
+  "dependencies": { "lodash": "4.17.20" }
 }

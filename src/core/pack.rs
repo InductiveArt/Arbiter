@@ -91,7 +91,7 @@ pub const RULES: &[(&str, &str)] = &[
     ),
     (
         "undeclared-dependency",
-        "every third party an import names is declared by a manifest",
+        "every third party an import names is declared by the importing unit's manifest; a development table carries only what tests import",
     ),
     (
         "suppressions",
@@ -245,6 +245,27 @@ pub trait Pack {
     fn scan(&mut self, file: &Path, source: &str, surface: bool) -> Vec<Definition>;
 
     fn resolve(&self, mine: usize, defs: &[Def], root: &Path, repo: &Repo) -> Vec<Edge>;
+}
+
+// The packages the adapter itself pins and runs: a unit never declares the
+// pack's toolchain, and a unit-written version would not even be the one run.
+pub fn pinned(adapter: &str) -> std::collections::HashSet<String> {
+    let mut provided = std::collections::HashSet::new();
+    let tokens = adapter.split(|c: char| c.is_whitespace() || matches!(c, '"' | ',' | '[' | ']'));
+    for raw in tokens {
+        let token = raw.trim_start_matches("--package=");
+        let (name, version) = match token.split_once("==") {
+            Some(parts) => parts,
+            None => match token.rfind('@') {
+                Some(at) if at > 0 => (&token[..at], &token[at + 1..]),
+                _ => continue,
+            },
+        };
+        if !name.is_empty() && version.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            provided.insert(name.to_string());
+        }
+    }
+    provided
 }
 
 pub fn toml_locked(text: &str) -> Vec<(String, String)> {

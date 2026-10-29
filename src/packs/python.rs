@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::core::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::core::pack::{pinned, Def, Definition, Edge, Finding, Pack, Suppression};
 use crate::core::prose;
 use crate::core::trees;
 use crate::core::units::Repo;
@@ -295,6 +295,7 @@ impl Pack for Python {
             ),
         }));
         let declared = declared_distributions(root, repo);
+        let provided = pinned(self.adapter().unwrap_or(""));
         let stdlib: HashSet<&str> = STDLIB.lines().collect();
         let known = distribution_map();
         let mut named = std::collections::BTreeSet::new();
@@ -317,17 +318,31 @@ impl Pack for Python {
             if stdlib.contains(top) || module_file(module, &repo.files).is_some() {
                 continue;
             }
-            let distribution = known.get(top).cloned().unwrap_or_else(|| top.to_string());
-            if declared.contains(&normalized(&distribution)) {
+            let distribution =
+                normalized(&known.get(top).cloned().unwrap_or_else(|| top.to_string()));
+            if provided.contains(&distribution) {
                 continue;
             }
-            if named.insert(top.to_string()) {
+            let manifest = declared.get(&unit);
+            let shipped = manifest.is_some_and(|entry| entry.shipped.contains(&distribution));
+            let developed = manifest.is_some_and(|entry| entry.dev.contains(&distribution));
+            if shipped || (developed && repo.is_test(unit, file)) {
+                continue;
+            }
+            if named.insert((unit, top.to_string())) {
+                let reason = if developed {
+                    format!(
+                        "{top} is imported by shipped code and declared only in a dependency group"
+                    )
+                } else {
+                    format!("{top} is imported, and the unit's manifest does not declare it")
+                };
                 findings.push(Finding {
                     check: "integrity",
                     file: file.clone(),
                     line,
                     name: "undeclared-dependency".to_string(),
-                    reason: format!("{top} is imported, and no manifest declares it"),
+                    reason,
                 });
             }
         }
@@ -432,8 +447,16 @@ fn normalized(name: &str) -> String {
         .join("-")
 }
 
-fn declared_distributions(root: &Path, repo: &Repo) -> HashSet<String> {
-    let mut declared = HashSet::new();
+// One unit's declarations, the lists that ship kept apart from the dependency
+// groups: a test import may lean on either, shipped code on the first alone.
+#[derive(Default)]
+struct Declared {
+    shipped: HashSet<String>,
+    dev: HashSet<String>,
+}
+
+fn declared_distributions(root: &Path, repo: &Repo) -> HashMap<usize, Declared> {
+    let mut declared: HashMap<usize, Declared> = HashMap::new();
     for manifest in &repo.manifests {
         if manifest
             .file_name()
@@ -447,41 +470,55 @@ fn declared_distributions(root: &Path, repo: &Repo) -> HashSet<String> {
         let Ok(parsed) = text.parse::<toml::Value>() else {
             continue;
         };
-        let mut lists: Vec<&toml::Value> = Vec::new();
-        lists.extend(
+        let entry = declared.entry(repo.unit_of(manifest)).or_default();
+        let mut ships: Vec<&toml::Value> = Vec::new();
+        ships.extend(
             parsed
                 .get("project")
                 .and_then(|project| project.get("dependencies")),
         );
-        for groups in ["optional-dependencies", "dependency-groups"] {
-            let table = match groups {
-                "optional-dependencies" => parsed
-                    .get("project")
-                    .and_then(|project| project.get(groups)),
-                _ => parsed.get(groups),
-            };
-            if let Some(table) = table.and_then(toml::Value::as_table) {
-                lists.extend(table.values());
+        if let Some(table) = parsed
+            .get("project")
+            .and_then(|project| project.get("optional-dependencies"))
+            .and_then(toml::Value::as_table)
+        {
+            ships.extend(table.values());
+        }
+        for list in ships {
+            for name in requirement_names(list) {
+                entry.shipped.insert(name.clone());
+                entry.dev.insert(name);
             }
         }
-        for list in lists {
-            let Some(entries) = list.as_array() else {
-                continue;
-            };
-            for entry in entries {
-                if let Some(requirement) = entry.as_str() {
-                    let name: String = requirement
-                        .chars()
-                        .take_while(|part| {
-                            part.is_ascii_alphanumeric() || matches!(part, '-' | '_' | '.')
-                        })
-                        .collect();
-                    declared.insert(normalized(&name));
+        if let Some(table) = parsed
+            .get("dependency-groups")
+            .and_then(toml::Value::as_table)
+        {
+            for list in table.values() {
+                for name in requirement_names(list) {
+                    entry.dev.insert(name);
                 }
             }
         }
     }
     declared
+}
+
+fn requirement_names(list: &toml::Value) -> Vec<String> {
+    let Some(entries) = list.as_array() else {
+        return Vec::new();
+    };
+    entries
+        .iter()
+        .filter_map(toml::Value::as_str)
+        .map(|requirement| {
+            let name: String = requirement
+                .chars()
+                .take_while(|part| part.is_ascii_alphanumeric() || matches!(part, '-' | '_' | '.'))
+                .collect();
+            normalized(&name)
+        })
+        .collect()
 }
 
 fn distribution_map() -> HashMap<String, String> {

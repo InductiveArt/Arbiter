@@ -47,7 +47,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
             ".arbiter/units.toml app grants ghost, which never uses it",
             ".arbiter/units.toml app declares libs/facade and never uses it",
             "app/src/app/alias.py imported as v; a symbol keeps its own name",
-            "app/src/app/web.py requests is imported, and no manifest declares it",
+            "app/src/app/web.py requests is imported, \
+             and the unit's manifest does not declare it",
             "infra/deploy.yaml registry.local/app:1.2.3 is pulled by tag; \
              an image is named by digest, never by a tag alone",
             "infra/deploy.yaml registry.local/cache:latest is pulled by tag; \
@@ -71,6 +72,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
              a module offers only its own names",
             "ui/src/widget.ts enters its own unit at ui/src/index.ts; \
              a unit's own code imports from the defining file",
+            "web/src/__tests__/panel.test.ts lodash is imported, \
+             and the unit's manifest does not declare it",
             "web/src/barrel.ts re-exports from \"./index\"; a module offers only its own names",
             "web/src/deep.ts reaches ui/src/parts/button.ts inside ui; \
              a unit is entered through the routes its manifest declares",
@@ -78,6 +81,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
              a module is named by a literal",
             "web/src/panel.ts names 3 symbols in one import; \
              an import line names one symbol and the module it comes from",
+            "web/src/panel.ts mockery is imported by shipped code \
+             and declared only under devDependencies",
             "web/src/sneak.ts goes into @demo/ui past its routes; \
              a unit is entered through the routes its manifest declares",
         ]

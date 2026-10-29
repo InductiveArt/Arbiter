@@ -3,7 +3,7 @@ use std::path::{Component, Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::core::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::core::pack::{pinned, Def, Definition, Edge, Finding, Pack, Suppression};
 use crate::core::prose;
 use crate::core::trees;
 use crate::core::units::Repo;
@@ -38,6 +38,8 @@ pub struct TypeScript {
     overreaches: Vec<(PathBuf, String, usize)>,
     computed: Vec<(PathBuf, usize)>,
     crowded: Vec<(PathBuf, usize, usize)>,
+    // The lines holding a type-only import, which erases at build time.
+    typed: std::collections::HashSet<(PathBuf, usize)>,
 }
 
 impl TypeScript {
@@ -148,7 +150,10 @@ impl Pack for TypeScript {
         let Some(tree) = trees::parse(&language(), source) else {
             return Vec::new();
         };
-        for (from, name, line) in imports(&tree, source) {
+        for (from, name, line, typed) in imports(&tree, source) {
+            if typed {
+                self.typed.insert((file.to_path_buf(), line));
+            }
             self.imports.push((file.to_path_buf(), from, name, line));
         }
         for captures in trees::matches(&language(), SUPPRESSIONS, &tree, source) {
@@ -303,6 +308,7 @@ impl Pack for TypeScript {
             ),
         }));
         let declared = declared_packages(root, repo);
+        let provided = pinned(self.adapter().unwrap_or(""));
         let builtins: std::collections::HashSet<&str> = BUILTINS.lines().collect();
         let mut named = std::collections::BTreeSet::new();
         for (file, from, _, line) in &self.imports {
@@ -319,16 +325,38 @@ impl Pack for TypeScript {
             } else {
                 from.split('/').next().unwrap_or(from).to_string()
             };
-            if builtins.contains(package.as_str()) || declared.contains(&package) {
+            if builtins.contains(package.as_str()) || provided.contains(&package) {
                 continue;
             }
-            if named.insert(package.clone()) {
+            let manifest = declared.get(&unit);
+            // A unit importing its own name is self-entry's case, never a missing dependency.
+            if manifest.and_then(|entry| entry.own.as_deref()) == Some(package.as_str()) {
+                continue;
+            }
+            let shipped = manifest.is_some_and(|entry| entry.shipped.contains(&package));
+            let developed = manifest.is_some_and(|entry| entry.dev.contains(&package));
+            // Development code may rest on devDependencies: tests, the toolchain's
+            // config files, and a type-only import, which erases at build time.
+            let development = repo.is_test(unit, file)
+                || developmental(file)
+                || self.typed.contains(&(file.clone(), *line));
+            if shipped || (developed && development) {
+                continue;
+            }
+            if named.insert((unit, package.clone())) {
+                let reason = if developed {
+                    format!(
+                        "{package} is imported by shipped code and declared only under devDependencies"
+                    )
+                } else {
+                    format!("{package} is imported, and the unit's manifest does not declare it")
+                };
                 findings.push(Finding {
                     check: "integrity",
                     file: file.clone(),
                     line: *line,
                     name: "undeclared-dependency".to_string(),
-                    reason: format!("{package} is imported, and no manifest declares it"),
+                    reason,
                 });
             }
         }
@@ -723,18 +751,19 @@ fn mentions(tree: &Tree, source: &str) -> Vec<(String, usize)> {
     trees::texts(&language(), MENTIONS, tree, source, "mention")
 }
 
-fn imports(tree: &Tree, source: &str) -> Vec<(String, String, usize)> {
+fn imports(tree: &Tree, source: &str) -> Vec<(String, String, usize, bool)> {
     trees::matches(&language(), USES, tree, source)
         .into_iter()
         .filter_map(|captures| {
             // A dynamic literal import takes names only run time resolves: the
             // star stands for every name the module offers.
             if let Some(dynamic) = captures.iter().find(|capture| capture.name == "dynamic") {
-                return Some((dynamic.text.clone(), "*".to_string(), dynamic.line));
+                return Some((dynamic.text.clone(), "*".to_string(), dynamic.line, false));
             }
             let from = captures.iter().find(|capture| capture.name == "source")?;
             let name = captures.iter().find(|capture| capture.name == "name")?;
-            Some((from.text.clone(), name.text.clone(), name.line))
+            let typed = captures.iter().any(|capture| capture.name == "typemark");
+            Some((from.text.clone(), name.text.clone(), name.line, typed))
         })
         .collect()
 }
@@ -837,8 +866,17 @@ fn option_findings(options: &serde_json::Value) -> Vec<String> {
     findings
 }
 
-fn declared_packages(root: &Path, repo: &Repo) -> std::collections::HashSet<String> {
-    let mut declared = std::collections::HashSet::new();
+// One unit's declarations, the tables that ship kept apart from the one that
+// only develops: a test import may lean on either, shipped code on the first alone.
+#[derive(Default)]
+struct Declared {
+    own: Option<String>,
+    shipped: std::collections::HashSet<String>,
+    dev: std::collections::HashSet<String>,
+}
+
+fn declared_packages(root: &Path, repo: &Repo) -> std::collections::HashMap<usize, Declared> {
+    let mut declared: std::collections::HashMap<usize, Declared> = std::collections::HashMap::new();
     for manifest in &repo.manifests {
         if manifest
             .file_name()
@@ -852,17 +890,25 @@ fn declared_packages(root: &Path, repo: &Repo) -> std::collections::HashSet<Stri
         let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) else {
             continue;
         };
-        for table in [
-            "dependencies",
-            "devDependencies",
-            "peerDependencies",
-            "optionalDependencies",
-        ] {
-            let Some(entries) = parsed.get(table).and_then(serde_json::Value::as_object) else {
+        let entry = declared.entry(repo.unit_of(manifest)).or_default();
+        if let Some(name) = parsed.get("name").and_then(serde_json::Value::as_str) {
+            entry.own = Some(name.to_string());
+        }
+        for table in ["dependencies", "peerDependencies", "optionalDependencies"] {
+            let Some(names) = parsed.get(table).and_then(serde_json::Value::as_object) else {
                 continue;
             };
-            for name in entries.keys() {
-                declared.insert(name.clone());
+            for name in names.keys() {
+                entry.shipped.insert(name.clone());
+                entry.dev.insert(name.clone());
+            }
+        }
+        if let Some(names) = parsed
+            .get("devDependencies")
+            .and_then(serde_json::Value::as_object)
+        {
+            for name in names.keys() {
+                entry.dev.insert(name.clone());
             }
         }
     }
@@ -979,6 +1025,14 @@ fn manifest_routes(
         }
     }
     routes
+}
+
+// A toolchain's config file runs at build time and ships nothing.
+fn developmental(file: &Path) -> bool {
+    file.file_stem()
+        .map(|stem| stem.to_string_lossy().to_string())
+        .unwrap_or_default()
+        .ends_with(".config")
 }
 
 // What each surface file defines of its own, a named re-export counting as

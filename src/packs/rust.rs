@@ -317,16 +317,21 @@ impl Pack for Rust {
             {
                 continue;
             }
-            if declared.contains(&first.replace('_', "-")) {
+            if declared
+                .get(&unit)
+                .is_some_and(|names| names.contains(&first.replace('_', "-")))
+            {
                 continue;
             }
-            if named.insert(first.clone()) {
+            if named.insert((unit, first.clone())) {
                 findings.push(Finding {
                     check: "integrity",
                     file: file.clone(),
                     line: *line,
                     name: "undeclared-dependency".to_string(),
-                    reason: format!("{first} is imported, and no manifest declares it"),
+                    reason: format!(
+                        "{first} is imported, and the unit's manifest does not declare it"
+                    ),
                 });
             }
         }
@@ -360,9 +365,14 @@ impl Pack for Rust {
     }
 }
 
-// The keys of every dependency table, dashed, which is how crates are published.
-fn declared_crates(root: &Path, repo: &Repo) -> std::collections::HashSet<String> {
-    let mut declared = std::collections::HashSet::new();
+// Each unit's dependency-table keys, dashed, which is how crates are published.
+// Cargo already refuses a dev-dependency outside tests, so the tables stay one set.
+fn declared_crates(
+    root: &Path,
+    repo: &Repo,
+) -> std::collections::HashMap<usize, std::collections::HashSet<String>> {
+    let mut declared: std::collections::HashMap<usize, std::collections::HashSet<String>> =
+        std::collections::HashMap::new();
     for manifest in &repo.manifests {
         if manifest.file_name().is_none_or(|name| name != "Cargo.toml") {
             continue;
@@ -373,10 +383,11 @@ fn declared_crates(root: &Path, repo: &Repo) -> std::collections::HashSet<String
         let Ok(parsed) = text.parse::<toml::Value>() else {
             continue;
         };
+        let entry = declared.entry(repo.unit_of(manifest)).or_default();
         // A crate's own name: its library half is imported under it from its binaries.
         if let Some(own) = table_at(&parsed, "package").and_then(|package| package.get("name")) {
             if let Some(own) = own.as_str() {
-                declared.insert(own.replace('_', "-"));
+                entry.insert(own.replace('_', "-"));
             }
         }
         for path in [
@@ -389,7 +400,7 @@ fn declared_crates(root: &Path, repo: &Repo) -> std::collections::HashSet<String
                 continue;
             };
             for name in table.keys() {
-                declared.insert(name.replace('_', "-"));
+                entry.insert(name.replace('_', "-"));
             }
         }
     }

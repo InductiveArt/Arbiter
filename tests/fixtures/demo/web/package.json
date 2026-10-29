@@ -1,5 +1,6 @@
 {
   "name": "web",
   "version": "0.0.0",
-  "dependencies": { "@demo/ui": "workspace:*" }
+  "dependencies": { "@demo/ui": "workspace:*" },
+  "devDependencies": { "mockery": "1.0.0", "typemock": "1.0.0" }
 }

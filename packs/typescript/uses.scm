@@ -1,5 +1,7 @@
-; A named import, with the module path it names.
+; A named import, with the module path it names; a type-only import is marked,
+; since it erases at build time and so never ships.
 (import_statement
+  "type"? @typemark
   (import_clause (named_imports (import_specifier name: (identifier) @name)))
   source: (string (string_fragment) @source))
 
