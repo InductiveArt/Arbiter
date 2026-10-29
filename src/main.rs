@@ -462,11 +462,15 @@ fn deps(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
         None => println!("  grants: everyone; no visibility is declared"),
     }
     for pack in &found.packs {
-        let Some(lock) = pack.lockfile() else {
+        let locks = pack.lockfiles();
+        if locks.is_empty() {
             continue;
-        };
+        }
         for path in &found.repo.lockfiles {
-            if path.file_name().is_none_or(|name| name != lock) {
+            let Some(name) = path.file_name().map(|name| name.to_string_lossy()) else {
+                continue;
+            };
+            if !locks.contains(&name.as_ref()) {
                 continue;
             }
             if found.repo.unit_of(path) != unit {
@@ -475,7 +479,7 @@ fn deps(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
             let Ok(text) = fs::read_to_string(found.root.join(path)) else {
                 continue;
             };
-            let locked = pack.locked(&text);
+            let locked = pack.locked(&name, &text);
             println!(
                 "  third parties ({}): {} locked",
                 pack.label(),

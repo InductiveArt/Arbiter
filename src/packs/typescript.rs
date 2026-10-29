@@ -500,37 +500,16 @@ impl Pack for TypeScript {
         found
     }
 
-    fn lockfile(&self) -> Option<&'static str> {
-        Some("pnpm-lock.yaml")
+    fn lockfiles(&self) -> &'static [&'static str] {
+        &["pnpm-lock.yaml", "package-lock.json"]
     }
 
-    // pnpm writes YAML: under `packages:`, each key is name@version, quoted when
-    // scoped, any peer qualifiers in parentheses; older locks prefix a slash.
-    fn locked(&self, text: &str) -> Vec<(String, String)> {
-        let mut found = Vec::new();
-        let mut inside = false;
-        for line in text.lines() {
-            if !line.starts_with(' ') && !line.trim().is_empty() {
-                inside = line.trim_end() == "packages:";
-                continue;
-            }
-            if !inside || !line.starts_with("  ") || line.starts_with("   ") {
-                continue;
-            }
-            let Some(key) = line.trim().strip_suffix(':') else {
-                continue;
-            };
-            let key = key.trim_matches(['\'', '"']).trim_start_matches('/');
-            let key = key.split('(').next().unwrap_or(key);
-            let Some(at) = key.rfind('@') else {
-                continue;
-            };
-            if at == 0 {
-                continue;
-            }
-            found.push((key[..at].to_string(), key[at + 1..].to_string()));
+    fn locked(&self, name: &str, text: &str) -> Vec<(String, String)> {
+        if name == "package-lock.json" {
+            npm_locked(text)
+        } else {
+            pnpm_locked(text)
         }
-        found
     }
 
     fn generated(&self, name: &str) -> bool {
@@ -1041,6 +1020,68 @@ fn manifest_routes(
     routes
 }
 
+// pnpm writes YAML: under `packages:`, each key is name@version, quoted when
+// scoped, any peer qualifiers in parentheses; older locks prefix a slash.
+fn pnpm_locked(text: &str) -> Vec<(String, String)> {
+    let mut found = Vec::new();
+    let mut inside = false;
+    for line in text.lines() {
+        if !line.starts_with(' ') && !line.trim().is_empty() {
+            inside = line.trim_end() == "packages:";
+            continue;
+        }
+        if !inside || !line.starts_with("  ") || line.starts_with("   ") {
+            continue;
+        }
+        let Some(key) = line.trim().strip_suffix(':') else {
+            continue;
+        };
+        let key = key.trim_matches(['\'', '"']).trim_start_matches('/');
+        let key = key.split('(').next().unwrap_or(key);
+        let Some(at) = key.rfind('@') else {
+            continue;
+        };
+        if at == 0 {
+            continue;
+        }
+        found.push((key[..at].to_string(), key[at + 1..].to_string()));
+    }
+    found
+}
+
+// npm writes JSON: under "packages", each key is an install path whose last
+// node_modules/ segment names the package; a workspace link carries no version.
+fn npm_locked(text: &str) -> Vec<(String, String)> {
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) else {
+        return Vec::new();
+    };
+    let Some(packages) = parsed
+        .get("packages")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
+    for (key, entry) in packages {
+        let Some(position) = key.rfind("node_modules/") else {
+            continue;
+        };
+        if entry
+            .get("link")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let Some(version) = entry.get("version").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        let name = &key[position + "node_modules/".len()..];
+        found.push((name.to_string(), version.to_string()));
+    }
+    found
+}
+
 // A toolchain's config file runs at build time and ships nothing.
 fn developmental(file: &Path) -> bool {
     file.file_stem()
@@ -1188,10 +1229,7 @@ fn normalized(path: &Path) -> PathBuf {
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use super::{
-        dependency_findings, manifest_license, normalized, option_findings, routed, TypeScript,
-    };
-    use crate::core::pack::Pack;
+    use super::{dependency_findings, manifest_license, normalized, option_findings, routed};
 
     #[test]
     fn a_license_is_the_string_or_the_object_form_or_unstated() {
@@ -1263,7 +1301,7 @@ mod tests {
                     lodash@4.17.21:\n    resolution: {integrity: sha512-b}\n\n  \
                     react-dom@18.2.0(react@18.2.0):\n    resolution: {integrity: sha512-c}\n";
         assert_eq!(
-            TypeScript::new().locked(lock),
+            super::pnpm_locked(lock),
             [
                 ("@scope/kit".to_string(), "2.0.1".to_string()),
                 ("lodash".to_string(), "4.17.21".to_string()),
@@ -1289,6 +1327,24 @@ mod tests {
         assert_eq!(
             normalized(Path::new("web/src/../lib/x")),
             PathBuf::from("web/lib/x")
+        );
+    }
+    #[test]
+    fn an_npm_lock_names_each_installed_package_and_skips_links() {
+        let lock = r#"{
+          "packages": {
+            "": { "name": "web", "version": "0.0.0" },
+            "node_modules/@demo/ui": { "resolved": "../ui", "link": true },
+            "node_modules/lodash": { "version": "4.17.21" },
+            "node_modules/a/node_modules/lodash": { "version": "4.17.20" }
+          }
+        }"#;
+        assert_eq!(
+            super::npm_locked(lock),
+            [
+                ("lodash".to_string(), "4.17.20".to_string()),
+                ("lodash".to_string(), "4.17.21".to_string()),
+            ]
         );
     }
 }

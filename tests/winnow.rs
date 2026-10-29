@@ -64,7 +64,7 @@ fn integrity_names_the_cycle_and_each_reexport() {
              which nothing in the file defines, uses or quotes",
             "rlib/src/lib.rs re-exports shapes::area; a module offers only its own names",
             "ui/pnpm-lock.yaml lodash is locked at 4.17.20 in ui/pnpm-lock.yaml \
-             and 4.17.21 in web/pnpm-lock.yaml",
+             and 4.17.21 in web/package-lock.json",
             "ui/src/index.ts re-exports every name from \"./extra\"; \
              a surface names each symbol it offers",
             "ui/src/kit.ts defines Kit; a surface offers only names defined elsewhere",

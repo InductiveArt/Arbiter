@@ -189,14 +189,16 @@ pub trait Pack {
         Vec::new()
     }
 
-    // The lockfile recording what the ecosystem resolved, for holding versions to one.
-    fn lockfile(&self) -> Option<&'static str> {
-        None
+    // The lockfiles recording what the ecosystem resolved, for holding versions
+    // to one; an ecosystem with several lock formats names each.
+    fn lockfiles(&self) -> &'static [&'static str] {
+        &[]
     }
 
-    // The (name, version) pairs the pack's lockfile records; TOML [[package]]
-    // entries are the common shape, so they are the default reading.
-    fn locked(&self, text: &str) -> Vec<(String, String)> {
+    // The (name, version) pairs one of the pack's lockfiles records; TOML
+    // [[package]] entries are the common shape, so they are the default reading.
+    fn locked(&self, name: &str, text: &str) -> Vec<(String, String)> {
+        let _ = name;
         toml_locked(text)
     }
 

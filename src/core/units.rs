@@ -197,7 +197,7 @@ fn walk(
                 found.manifests.push(relative);
             } else if packs
                 .iter()
-                .any(|pack| pack.lockfile() == Some(name.as_str()))
+                .any(|pack| pack.lockfiles().contains(&name.as_str()))
             {
                 found.lockfiles.push(relative);
             } else if packs.iter().any(|pack| pack.handles(&name)) {

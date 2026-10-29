@@ -260,8 +260,8 @@ impl Pack for Python {
         found
     }
 
-    fn lockfile(&self) -> Option<&'static str> {
-        Some("uv.lock")
+    fn lockfiles(&self) -> &'static [&'static str] {
+        &["uv.lock"]
     }
 
     fn integrity(&self, root: &Path, repo: &Repo) -> Vec<Finding> {

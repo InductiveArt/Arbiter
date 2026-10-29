@@ -201,8 +201,8 @@ impl Pack for Rust {
         &["cargo"]
     }
 
-    fn lockfile(&self) -> Option<&'static str> {
-        Some("Cargo.lock")
+    fn lockfiles(&self) -> &'static [&'static str] {
+        &["Cargo.lock"]
     }
 
     fn integrity(&self, root: &Path, repo: &Repo) -> Vec<Finding> {

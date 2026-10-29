@@ -57,11 +57,15 @@ pub fn blanket_findings(found: &Graph) -> Vec<Finding> {
 pub fn packages(found: &Graph) -> Vec<String> {
     let mut names = std::collections::BTreeSet::new();
     for pack in &found.packs {
-        let Some(lock) = pack.lockfile() else {
+        let locks = pack.lockfiles();
+        if locks.is_empty() {
             continue;
-        };
+        }
         for path in &found.repo.lockfiles {
-            if path.file_name().is_none_or(|name| name != lock) {
+            let Some(name) = path.file_name().map(|name| name.to_string_lossy()) else {
+                continue;
+            };
+            if !locks.contains(&name.as_ref()) {
                 continue;
             }
             let unit = found.repo.unit_of(path);
@@ -72,8 +76,8 @@ pub fn packages(found: &Graph) -> Vec<String> {
             let Ok(text) = fs::read_to_string(found.root.join(path)) else {
                 continue;
             };
-            for (name, _) in pack.locked(&text) {
-                names.insert(format!("{}:{name}", pack.label()));
+            for (locked, _) in pack.locked(&name, &text) {
+                names.insert(format!("{}:{locked}", pack.label()));
             }
         }
     }

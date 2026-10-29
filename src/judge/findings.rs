@@ -116,15 +116,19 @@ fn licenses(found: &Graph) -> Vec<Finding> {
 fn one_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Finding> {
     let mut findings = Vec::new();
     for pack in packs {
-        let Some(lock) = pack.lockfile() else {
+        let locks = pack.lockfiles();
+        if locks.is_empty() {
             continue;
-        };
+        }
         let mut versions: std::collections::BTreeMap<
             String,
             std::collections::BTreeMap<String, PathBuf>,
         > = std::collections::BTreeMap::new();
         for path in &repo.lockfiles {
-            if path.file_name().is_none_or(|name| name != lock) {
+            let Some(name) = path.file_name().map(|name| name.to_string_lossy()) else {
+                continue;
+            };
+            if !locks.contains(&name.as_ref()) {
                 continue;
             }
             let unit = repo.unit_of(path);
@@ -135,9 +139,9 @@ fn one_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Finding
             let Ok(text) = fs::read_to_string(root.join(path)) else {
                 continue;
             };
-            for (name, version) in pack.locked(&text) {
+            for (locked, version) in pack.locked(&name, &text) {
                 versions
-                    .entry(name)
+                    .entry(locked)
                     .or_default()
                     .entry(version)
                     .or_insert_with(|| path.clone());
