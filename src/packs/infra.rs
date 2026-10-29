@@ -49,10 +49,6 @@ impl Pack for Infra {
                 "never: a manifest declares state; nothing of it executes",
             ),
             (
-                "vendor",
-                "never: a manifest's third parties are images, held to pinned-image",
-            ),
-            (
                 "drift",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
             ),

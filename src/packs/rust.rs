@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::core::pack::{Def, Definition, Drift, Edge, Finding, Pack, Suppression};
+use crate::core::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
 use crate::core::prose;
 use crate::core::trees;
 use crate::core::units::Repo;
@@ -61,7 +61,6 @@ impl Pack for Rust {
             ("wiring", "held"),
             ("tools", "held"),
             ("no-warnings", "held"),
-            ("vendor", "held"),
             (
                 "drift",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
@@ -83,34 +82,6 @@ impl Pack for Rust {
 
     fn adapter(&self) -> Option<&'static str> {
         Some(include_str!("../../packs/rust/tools.toml"))
-    }
-
-    // A vendor repair fetches, which a run never does: the problems name the command.
-    fn drift(
-        &self,
-        root: &Path,
-        folder: &Path,
-        _fixing: bool,
-        notes: &mut Vec<String>,
-    ) -> Vec<Drift> {
-        let vendor = root.join("third_party").join("rust");
-        if !vendor.is_dir() || !folder.join("Cargo.lock").exists() {
-            return Vec::new();
-        }
-        let started = std::time::Instant::now();
-        let Ok(lock) = std::fs::read_to_string(folder.join("Cargo.lock")) else {
-            return Vec::new();
-        };
-        let problems = vendor_problems(&lock, &vendored_crates(&vendor));
-        if !problems.is_empty() {
-            notes
-                .push("the vendor tree is repaired by `cargo vendor third_party/rust`".to_string());
-        }
-        vec![Drift {
-            check: "vendor".to_string(),
-            problems,
-            seconds: started.elapsed().as_secs_f64(),
-        }]
     }
 
     fn wiring(&self, folder: &Path) -> Option<Vec<String>> {
@@ -228,40 +199,6 @@ impl Pack for Rust {
 
     fn axioms(&self) -> &'static [&'static str] {
         &["cargo"]
-    }
-
-    fn licenses(&self, root: &Path, _repo: &Repo) -> Vec<(PathBuf, String, String)> {
-        let vendor = root.join("third_party").join("rust");
-        let Ok(entries) = std::fs::read_dir(&vendor) else {
-            return Vec::new();
-        };
-        let mut found = Vec::new();
-        for entry in entries.flatten() {
-            let Ok(text) = std::fs::read_to_string(entry.path().join("Cargo.toml")) else {
-                continue;
-            };
-            let Ok(parsed) = text.parse::<toml::Value>() else {
-                continue;
-            };
-            let Some(package) = parsed.get("package") else {
-                continue;
-            };
-            let Some(name) = package.get("name").and_then(toml::Value::as_str) else {
-                continue;
-            };
-            let license = package
-                .get("license")
-                .and_then(toml::Value::as_str)
-                .unwrap_or("unstated")
-                .to_string();
-            let place = PathBuf::from("third_party")
-                .join("rust")
-                .join(entry.file_name())
-                .join("Cargo.toml");
-            found.push((place, name.to_string(), license));
-        }
-        found.sort();
-        found
     }
 
     fn lockfile(&self) -> Option<&'static str> {
@@ -461,74 +398,6 @@ fn manifest_findings(manifest: &str) -> Vec<String> {
     findings
 }
 
-// The (name, version) of each crate the vendor folder holds, read from its manifest.
-fn vendored_crates(vendor: &Path) -> Vec<(String, String)> {
-    let Ok(entries) = std::fs::read_dir(vendor) else {
-        return Vec::new();
-    };
-    let mut found = Vec::new();
-    for entry in entries.flatten() {
-        let Ok(text) = std::fs::read_to_string(entry.path().join("Cargo.toml")) else {
-            continue;
-        };
-        let Ok(parsed) = text.parse::<toml::Value>() else {
-            continue;
-        };
-        let Some(package) = parsed.get("package") else {
-            continue;
-        };
-        let name = package.get("name").and_then(toml::Value::as_str);
-        let version = package.get("version").and_then(toml::Value::as_str);
-        if let (Some(name), Some(version)) = (name, version) {
-            found.push((name.to_string(), version.to_string()));
-        }
-    }
-    found.sort();
-    found
-}
-
-// The lock's registry crates and the vendored ones account for each other, pair by
-// (name, version); a crate the lock names without a source is the repository's own.
-fn vendor_problems(lock: &str, vendored: &[(String, String)]) -> Vec<String> {
-    let Ok(parsed) = lock.parse::<toml::Value>() else {
-        return vec!["Cargo.lock does not parse".to_string()];
-    };
-    let mut locked: Vec<(String, String)> = Vec::new();
-    let entries = parsed.get("package").and_then(toml::Value::as_array);
-    for entry in entries.into_iter().flatten() {
-        let registry = entry
-            .get("source")
-            .and_then(toml::Value::as_str)
-            .is_some_and(|source| source.starts_with("registry+"));
-        if !registry {
-            continue;
-        }
-        let name = entry.get("name").and_then(toml::Value::as_str);
-        let version = entry.get("version").and_then(toml::Value::as_str);
-        if let (Some(name), Some(version)) = (name, version) {
-            locked.push((name.to_string(), version.to_string()));
-        }
-    }
-    let mut problems = Vec::new();
-    for pair in &locked {
-        if !vendored.contains(pair) {
-            problems.push(format!(
-                "{} {} is missing; the lock names it",
-                pair.0, pair.1
-            ));
-        }
-    }
-    for pair in vendored {
-        if !locked.contains(pair) {
-            problems.push(format!(
-                "{} {} is orphaned; no lock names it",
-                pair.0, pair.1
-            ));
-        }
-    }
-    problems
-}
-
 fn table_at<'manifest>(
     parsed: &'manifest toml::Value,
     path: &str,
@@ -592,22 +461,7 @@ fn uses(tree: &Tree, source: &str) -> Vec<(String, String, usize, bool)> {
 mod tests {
     use std::path::Path;
 
-    use super::{is_module_file, manifest_findings, vendor_problems};
-
-    #[test]
-    fn a_missing_and_an_orphaned_crate_are_each_named() {
-        let lock = "[[package]]\nname = \"serde\"\nversion = \"1.0.0\"\n\
-                    source = \"registry+https://github.com/rust-lang/crates.io-index\"\n\n\
-                    [[package]]\nname = \"arbiter\"\nversion = \"0.1.0\"\n";
-        let vendored = vec![("toml".to_string(), "0.8.0".to_string())];
-        assert_eq!(
-            vendor_problems(lock, &vendored),
-            [
-                "serde 1.0.0 is missing; the lock names it",
-                "toml 0.8.0 is orphaned; no lock names it",
-            ]
-        );
-    }
+    use super::{is_module_file, manifest_findings};
 
     #[test]
     fn a_git_or_absolute_path_dependency_is_named() {
