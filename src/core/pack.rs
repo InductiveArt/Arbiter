@@ -135,7 +135,7 @@ pub const CORE: &[(&str, &str)] = &[
     ),
     (
         "one-version",
-        "a third party resolves to one version across the repository's lockfiles",
+        "a third party resolves to one version across the repository's lockfiles; a copy nested inside another third party is that party's own",
     ),
     (
         "boundaries",

@@ -1051,6 +1051,8 @@ fn pnpm_locked(text: &str) -> Vec<(String, String)> {
 
 // npm writes JSON: under "packages", each key is an install path whose last
 // node_modules/ segment names the package; a workspace link carries no version.
+// A copy nested inside another package's node_modules is that party's own and
+// unreachable from any unit, so only single-segment paths count as resolved.
 fn npm_locked(text: &str) -> Vec<(String, String)> {
     let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) else {
         return Vec::new();
@@ -1063,6 +1065,9 @@ fn npm_locked(text: &str) -> Vec<(String, String)> {
     };
     let mut found = Vec::new();
     for (key, entry) in packages {
+        if key.matches("node_modules/").count() != 1 {
+            continue;
+        }
         let Some(position) = key.rfind("node_modules/") else {
             continue;
         };
@@ -1330,19 +1335,20 @@ mod tests {
         );
     }
     #[test]
-    fn an_npm_lock_names_each_installed_package_and_skips_links() {
+    fn an_npm_lock_keeps_what_units_reach_and_skips_links_and_nested_copies() {
         let lock = r#"{
           "packages": {
             "": { "name": "web", "version": "0.0.0" },
             "node_modules/@demo/ui": { "resolved": "../ui", "link": true },
             "node_modules/lodash": { "version": "4.17.21" },
+            "apps/x/node_modules/lodash": { "version": "4.18.0" },
             "node_modules/a/node_modules/lodash": { "version": "4.17.20" }
           }
         }"#;
         assert_eq!(
             super::npm_locked(lock),
             [
-                ("lodash".to_string(), "4.17.20".to_string()),
+                ("lodash".to_string(), "4.18.0".to_string()),
                 ("lodash".to_string(), "4.17.21".to_string()),
             ]
         );
