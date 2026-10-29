@@ -563,10 +563,15 @@ fn matrix() {
         println!();
     }
     println!();
-    println!(
-        "core judges every language through the one graph: no-cycles, one-version, \
-         boundaries, winnow, licenses, the ledger reference."
-    );
+    println!("each rule's law:");
+    for (rule, law) in pack::RULES {
+        println!("  {rule}: {law}");
+    }
+    println!();
+    println!("core judges every language through the one graph:");
+    for (name, law) in pack::CORE {
+        println!("  {name}: {law}");
+    }
     if !nevers.is_empty() {
         println!();
         println!("never, and why:");

@@ -122,6 +122,35 @@ pub const RULES: &[(&str, &str)] = &[
     ),
 ];
 
+// The judgments the core makes through the one resolved graph, the same law for
+// every language; a pack only teaches the core to read its ecosystem.
+pub const CORE: &[(&str, &str)] = &[
+    (
+        "winnow",
+        "a public symbol no one uses is named for deletion; a test keeps nothing alive",
+    ),
+    (
+        "no-cycles",
+        "units form an order; no two import each other, however long the loop",
+    ),
+    (
+        "one-version",
+        "a third party resolves to one version across the repository's lockfiles",
+    ),
+    (
+        "boundaries",
+        "the visibility and deps units.toml declares are held against the resolved graph",
+    ),
+    (
+        "licenses",
+        "a written allowlist holds every third party's license; no list is no policy yet",
+    ),
+    (
+        "ledger",
+        "every suppression and third party is counted against what accept recorded",
+    ),
+];
+
 // A language. It says what defines a symbol and what uses one; the core knows no language.
 pub trait Pack {
     fn label(&self) -> &'static str;
