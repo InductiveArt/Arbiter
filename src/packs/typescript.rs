@@ -755,14 +755,28 @@ fn imports(tree: &Tree, source: &str) -> Vec<(String, String, usize, bool)> {
     trees::matches(&language(), USES, tree, source)
         .into_iter()
         .filter_map(|captures| {
-            // A dynamic literal import takes names only run time resolves: the
-            // star stands for every name the module offers.
+            // A dynamic literal import and a namespace import take names only
+            // run time resolves: the star stands for every name the module offers.
             if let Some(dynamic) = captures.iter().find(|capture| capture.name == "dynamic") {
                 return Some((dynamic.text.clone(), "*".to_string(), dynamic.line, false));
             }
+            let typed = captures.iter().any(|capture| capture.name == "typemark");
+            if captures.iter().any(|capture| capture.name == "namespace") {
+                let from = captures.iter().find(|capture| capture.name == "source")?;
+                return Some((from.text.clone(), "*".to_string(), from.line, typed));
+            }
+            // A default import binds no exported name, and "default" is a word
+            // no export can carry, so it resolves to nothing by construction.
+            if captures.iter().any(|capture| capture.name == "default") {
+                let from = captures.iter().find(|capture| capture.name == "source")?;
+                return Some((from.text.clone(), "default".to_string(), from.line, typed));
+            }
+            // A bare import binds nothing at all; the empty name matches no definition.
+            if let Some(bare) = captures.iter().find(|capture| capture.name == "bare") {
+                return Some((bare.text.clone(), String::new(), bare.line, false));
+            }
             let from = captures.iter().find(|capture| capture.name == "source")?;
             let name = captures.iter().find(|capture| capture.name == "name")?;
-            let typed = captures.iter().any(|capture| capture.name == "typemark");
             Some((from.text.clone(), name.text.clone(), name.line, typed))
         })
         .collect()

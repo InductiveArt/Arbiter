@@ -5,6 +5,22 @@
   (import_clause (named_imports (import_specifier name: (identifier) @name)))
   source: (string (string_fragment) @source))
 
+; A default import binds the module's one default export, which no name matches.
+(import_statement
+  "type"? @typemark
+  (import_clause (identifier) @default)
+  source: (string (string_fragment) @source))
+
+; A namespace import reaches names only member access resolves, so every name
+; the module offers counts as used.
+(import_statement
+  "type"? @typemark
+  (import_clause (namespace_import (identifier) @namespace))
+  source: (string (string_fragment) @source))
+
+; A bare import runs a module for its effect alone, and still names it.
+(import_statement . (string (string_fragment) @bare))
+
 ; A name taken under another: readable only by whoever knows the alias.
 ((import_specifier alias: (identifier) @alias) @aliased)
 

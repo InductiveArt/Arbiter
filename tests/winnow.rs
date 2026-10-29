@@ -75,6 +75,9 @@ fn integrity_names_the_cycle_and_each_reexport() {
             "web/src/__tests__/panel.test.ts lodash is imported, \
              and the unit's manifest does not declare it",
             "web/src/barrel.ts re-exports from \"./index\"; a module offers only its own names",
+            "web/src/boot.ts bootpkg is imported, and the unit's manifest does not declare it",
+            "web/src/boot.ts sparkpkg is imported, and the unit's manifest does not declare it",
+            "web/src/boot.ts effectpkg is imported, and the unit's manifest does not declare it",
             "web/src/deep.ts reaches ui/src/parts/button.ts inside ui; \
              a unit is entered through the routes its manifest declares",
             "web/src/lazy.ts imports a module through a computed value; \
@@ -151,6 +154,20 @@ fn a_name_crosses_units_through_the_route_and_its_barrels() {
             "missing edge for {name}"
         );
     }
+}
+
+#[test]
+fn a_namespace_import_keeps_the_whole_surface() {
+    let found = graph(DEMO).expect("the fixture folder exists");
+    let badge = found
+        .defs
+        .iter()
+        .position(|def| def.name == "Badge")
+        .expect("the fixture defines Badge");
+    assert!(found
+        .edges
+        .iter()
+        .any(|edge| edge.def == badge && edge.file.to_string_lossy() == "web/src/boot.ts"));
 }
 
 #[test]

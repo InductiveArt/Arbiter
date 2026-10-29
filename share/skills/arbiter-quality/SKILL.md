@@ -59,7 +59,7 @@ Each finding has one expected fix. A suppression is never one of them.
 | `one-import-per-line` | `arbiter gate --fix` splits it; by hand, one symbol and its module per line. |
 | `no-hidden-names` | Import under the symbol's own name; a genuine collision takes a namespace import named for its module. A computed dynamic import becomes a literal. |
 | `no-comment-overreach` | Reword the comment to name only what its file defines, uses or quotes - keep the meaning, lose the foreign names. |
-| `undeclared-dependency` | Declare it in the importing unit's own manifest - another unit's declaration never counts. Shipped code takes a real dependency; development code (a test, a toolchain config file, a type-only import) may rest on a development table. Dynamic imports count. |
+| `undeclared-dependency` | Declare it in the importing unit's own manifest - another unit's declaration never counts. Shipped code takes a real dependency; development code (a test, a toolchain config file, a type-only import) may rest on a development table. Dynamic, default, namespace and bare side-effect imports all count. |
 | `one-version` | Converge the lockfiles on one version. |
 | `cycle` | Move what both sides need into a module each imports. |
 | boundaries (`units.toml`) | Invert the dependency or ask the user to amend the declaration - the file is theirs. |
