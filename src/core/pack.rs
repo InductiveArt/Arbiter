@@ -269,6 +269,13 @@ pub trait Pack {
         Vec::new()
     }
 
+    // The function-grain shapes of one file, feeding the rhyme measure; a pack
+    // with no function grammar answers nothing.
+    fn shapes(&self, source: &str) -> Vec<crate::core::trees::Shape> {
+        let _ = source;
+        Vec::new()
+    }
+
     // Files whose symbols live by being named from outside the repository.
     fn roots(&self, root: &Path, repo: &Repo) -> Vec<PathBuf>;
 

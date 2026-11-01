@@ -9,6 +9,7 @@ use arbiter::core::units::Repo;
 use arbiter::judge::findings::{integrity, winnow};
 use arbiter::judge::ledger;
 use arbiter::judge::outcomes;
+use arbiter::judge::rhyme;
 use arbiter::judge::verdict;
 
 fn main() -> ExitCode {
@@ -205,6 +206,41 @@ fn main() -> ExitCode {
         }
         return ExitCode::FAILURE;
     }
+    if arguments.first().map(String::as_str) == Some("rhyme") {
+        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let Some(found) = graph(&asked) else {
+            eprintln!("rhyme: no folder at {asked}");
+            return ExitCode::from(2);
+        };
+        let groups = rhyme::rhymes(&found);
+        if groups.is_empty() {
+            println!("rhyme: nothing repeats at function grain");
+            return ExitCode::SUCCESS;
+        }
+        let plural = if groups.len() == 1 { "" } else { "s" };
+        println!(
+            "rhyme: {} shape{plural} sounding in more than one place",
+            groups.len()
+        );
+        for group in groups {
+            let kind = if group.perfect { "perfect" } else { "slant" };
+            println!();
+            println!(
+                "{kind}, {} places, {} leaves:",
+                group.places.len(),
+                group.leaves
+            );
+            for place in group.places {
+                let title = if place.title.is_empty() {
+                    String::new()
+                } else {
+                    format!(" {}", place.title)
+                };
+                println!("  {}:{}{}", place.file.to_string_lossy(), place.line, title);
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
     if arguments.first().map(String::as_str) == Some("warm") {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
         let Some(found) = graph(&asked) else {
@@ -318,7 +354,7 @@ fn main() -> ExitCode {
         _ => {
             eprintln!(
                 "arbiter <verb> [folder] — gate [--fix] [--cold], findings, winnow, \
-                 integrity, blast <name>, ledger, warm, rules, accept, adopt"
+                 integrity, blast <name>, rhyme, ledger, warm, rules, accept, adopt"
             );
             return ExitCode::from(2);
         }

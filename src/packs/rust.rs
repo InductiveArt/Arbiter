@@ -93,6 +93,10 @@ impl Pack for Rust {
         Some(manifest_findings(&manifest))
     }
 
+    fn shapes(&self, source: &str) -> Vec<trees::Shape> {
+        trees::shapes(&language(), source)
+    }
+
     // Cargo's convention: a crate's binary entry is src/main.rs beside its manifest.
     fn roots(&self, _root: &Path, repo: &Repo) -> Vec<PathBuf> {
         let mut found = Vec::new();

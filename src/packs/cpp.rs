@@ -63,6 +63,10 @@ impl Pack for Cpp {
         matches!(extension, "cc" | "cpp" | "cxx" | "h" | "hh" | "hpp")
     }
 
+    fn shapes(&self, source: &str) -> Vec<trees::Shape> {
+        trees::shapes(&language(), source)
+    }
+
     fn roots(&self, _root: &Path, _repo: &Repo) -> Vec<PathBuf> {
         Vec::new()
     }

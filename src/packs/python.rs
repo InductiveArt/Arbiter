@@ -112,6 +112,10 @@ impl Pack for Python {
         Some(manifest_findings(&manifest))
     }
 
+    fn shapes(&self, source: &str) -> Vec<trees::Shape> {
+        trees::shapes(&language(), source)
+    }
+
     fn roots(&self, root: &Path, repo: &Repo) -> Vec<PathBuf> {
         let mut found = Vec::new();
         for manifest in &repo.manifests {
