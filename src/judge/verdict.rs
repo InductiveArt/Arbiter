@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use crate::core::graph;
 use crate::core::pack::Finding;
 use crate::core::units;
+use crate::judge::brief;
 use crate::judge::findings;
 use crate::judge::ledger;
 use crate::judge::outcomes;
@@ -12,6 +13,21 @@ use crate::judge::proof;
 use crate::packs;
 
 // One whole judgment of a repository: both planes, with the ledger's footer.
+// What the gate says of the brief: the step skipped, no brief written yet, or
+// the counted states of a read one.
+pub enum BriefLine {
+    Skipped,
+    Unwritten,
+    Read {
+        cases: usize,
+        held: usize,
+        planned: usize,
+        manual: usize,
+        unanswered: usize,
+        unwired: usize,
+    },
+}
+
 pub struct Run {
     pub root: PathBuf,
     pub units: usize,
@@ -22,6 +38,7 @@ pub struct Run {
     pub counted: usize,
     // Suppressions added since the reference; None when none was recorded yet.
     pub added: Option<usize>,
+    pub brief: BriefLine,
     pub claims: usize,
     pub claims_removed: Option<usize>,
     pub third: usize,
@@ -31,7 +48,7 @@ pub struct Run {
 
 // Judges everything: the units' tools, then the graph. A fixing run repairs first,
 // so the graph is read only after the repairs have settled.
-pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
+pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run> {
     let (outcomes, notes, found) = if fixing {
         let root = PathBuf::from(asked).canonicalize().ok()?;
         let packs = packs::all();
@@ -68,6 +85,33 @@ pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
     let mut all = findings::winnow(&found.defs, &found.edges, &found.repo);
     all.extend(findings::integrity(&found));
     all.extend(ledger::blanket_findings(&found));
+    let brief = if briefless {
+        BriefLine::Skipped
+    } else {
+        match brief::read(&found) {
+            None => BriefLine::Unwritten,
+            Some(reading) => {
+                let count = |state: brief::State| {
+                    reading
+                        .needs
+                        .iter()
+                        .filter(|need| need.state == state)
+                        .count()
+                };
+                BriefLine::Read {
+                    cases: reading.cases,
+                    held: count(brief::State::Held),
+                    planned: count(brief::State::Planned),
+                    manual: count(brief::State::Manual),
+                    unanswered: count(brief::State::Unanswered),
+                    unwired: reading.unwired.len(),
+                }
+            }
+        }
+    };
+    if !briefless {
+        all.extend(brief::findings(&found));
+    }
     let removed = proof::vanished(&found);
     let claims = proof::spoken(&found).len();
     let claims_removed = proof::recorded_claims(&found.root).map(|_| removed.len());
@@ -92,6 +136,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
         outcomes,
         notes,
         findings: all,
+        brief,
         claims,
         claims_removed,
         counted,
@@ -217,6 +262,25 @@ const UNITS_SEED: &str = "\
 # # finding, and so is declaring one never used.\n\
 # deps = [\"libs/other\"]\n";
 
+const BRIEF_SEED: &str = "\
+# The brief: the needs this software answers, as cases of activity, each need\n\
+# bound to the claims proving it. A binding is a claim's identity from\n\
+# arbiter brief ., or a frame prefix covering every claim under it. With one\n\
+# case written the gate holds every need answered and every claim wired.\n\
+#\n\
+# [[case]]\n\
+# name = \"joining\"\n\
+# story = \"a peer joins a room and collaborates from the present state\"\n\
+#\n\
+#   [[case.need]]\n\
+#   need = \"a late joiner stands in the present before its first render\"\n\
+#   claims = [\"libs/relay | wire | a late joiner stands in the present\"]\n\
+#\n\
+#   [[case.need]]\n\
+#   need = \"a full room refuses the next peer\"\n\
+#   planned = true\n\
+";
+
 const LICENSES_SEED: &str = "\
 # The licenses third parties may carry. Until an allow list is written here,\n\
 # no license policy exists; once written, every dependency whose license the\n\
@@ -234,7 +298,11 @@ pub fn seeded(root: &std::path::Path) {
     if std::fs::create_dir_all(&folder).is_err() {
         return;
     }
-    for (name, seed) in [("units.toml", UNITS_SEED), ("licenses.toml", LICENSES_SEED)] {
+    for (name, seed) in [
+        ("units.toml", UNITS_SEED),
+        ("licenses.toml", LICENSES_SEED),
+        ("brief.toml", BRIEF_SEED),
+    ] {
         let path = folder.join(name);
         if !path.exists() {
             let _ = std::fs::write(path, seed);

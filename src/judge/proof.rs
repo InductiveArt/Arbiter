@@ -59,7 +59,7 @@ pub fn proofs(found: &Graph) -> (BTreeMap<PathBuf, Vec<Proof>>, Vec<PathBuf>) {
 
 // One claim's identity across runs: where it lives at unit grain and what it
 // says, so a moved test file keeps its claim and a reworded one trades it.
-fn identity(unit: &Path, proof: &Proof) -> String {
+pub fn identity(unit: &Path, proof: &Proof) -> String {
     let shown = if unit.as_os_str().is_empty() {
         "."
     } else {

@@ -1,0 +1,16 @@
+# The brief: the needs this software answers, as cases of activity, each need
+# bound to the claims proving it. A binding is a claim's identity from
+# arbiter brief ., or a frame prefix covering every claim under it. With one
+# case written the gate holds every need answered and every claim wired.
+#
+# [[case]]
+# name = "joining"
+# story = "a peer joins a room and collaborates from the present state"
+#
+#   [[case.need]]
+#   need = "a late joiner stands in the present before its first render"
+#   claims = ["libs/relay | wire | a late joiner stands in the present"]
+#
+#   [[case.need]]
+#   need = "a full room refuses the next peer"
+#   planned = true

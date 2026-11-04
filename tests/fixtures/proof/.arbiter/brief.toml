@@ -1,0 +1,32 @@
+[[case]]
+name = "docking"
+story = "an arrow docks onto a form"
+
+  [[case.need]]
+  need = "arrows dock and crowd politely"
+  claims = [". | docking"]
+
+  [[case.need]]
+  need = "a full rim refuses the next arrow"
+  planned = true
+
+[[case]]
+name = "lattice"
+
+  [[case.need]]
+  need = "the lattice holds its points"
+  claims = [". | TestLattice | holds a point per cell"]
+
+  [[case.need]]
+  need = "the lattice survives a snapshot restore"
+  manual = "the restore drill lives outside this repository"
+
+  [[case.need]]
+  need = "a binding gone stale"
+  claims = [". | lattice | a sentence nobody speaks"]
+
+  [[case.need]]
+  need = "a need with nothing at all"
+
+[[case]]
+name = "hollow"

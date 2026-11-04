@@ -11,13 +11,13 @@ what they decide.
 
 | Command | Does | Changes files |
 |---|---|---|
-| `arbiter gate .` | Judges everything: each unit's pinned tools and the resolved graph. Warm by default: a unit green under an unchanged input cone skips its tools, and the dashboard counts it. `--cold` reads no store. | no |
+| `arbiter gate .` | Judges everything: each unit's pinned tools, the resolved graph, and the brief once one is written (`--no-brief` skips that step). Warm by default: a unit green under an unchanged input cone skips its tools, and the dashboard counts it. `--cold` reads no store. | no |
 | `arbiter gate --fix .` | The same judgment, repairs first: packs mend their own findings, tools apply safe fixes. | yes |
 | `arbiter findings .` | The graph plane alone as JSON lines, in seconds. | no |
 | `arbiter blast <name> .` | Each definition of a name and every resolved use of that one. | no |
 | `arbiter ledger .` | Every suppression, counted against the accepted reference. | no |
 | `arbiter rules` | The rule-by-language matrix - held, never with its why, or open - then each rule's and each core judgment's one-line law. | no |
-| `arbiter proof .` | Every behavior the tests claim, as sentences in a tree by unit; the footer names units proving nothing. The capability map: read it before expanding code to learn what is and what is not. | no |
+| `arbiter brief [case] .` | The brief against the proof tree: each case's needs as held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units proving nothing. A case argument prints that one slice. | no |
 | `arbiter rhyme .` | Structurally equivalent functions, grouped and largest first: a perfect rhyme reads identically, a slant rhyme is the same shape in different words. A measure to read and judge - never findings, never a gate stage. | no |
 | `arbiter accept .` | Records the suppression, dependency and claim references. **The user's signature - never run it.** | yes |
 
@@ -69,6 +69,9 @@ Each finding has one expected fix. A suppression is never one of them.
 | wiring (option below the bar) | Earn the option: annotate exports, guard index access. Never a non-null assertion, never a cast, never lowering the config. |
 | tool failures (lint, types, test) | Read the unit's section in the report - it holds the whole output - and fix the code. Complexity findings take named extractions, not reshuffling. |
 | `proof` (vanished claim) | Restore the behavior and its test, or ask the user to accept the removal - a proven behavior leaves only with their signature. |
+| `brief` (unanswered need) | Bind the claims that prove it, or mark it planned or manual - never invent the binding; the need's meaning is the user's. |
+| `brief` (stale binding) | The test moved or was reworded: rebind to the claim's current identity from `arbiter brief`, or ask the user whether the need itself changed. |
+| `brief` (unwired claim) | Wire the claim to the need it serves, or propose the missing need - a behavior worth proving is worth a sentence in the brief. |
 | `tautology` | Assert the system's output against an expectation, never a value against itself. |
 | A unit with no tests | Real behavior tests. An entry running `main()` at import time gets its pure seams extracted first - and that refactor is reported. |
 
@@ -77,7 +80,7 @@ Each finding has one expected fix. A suppression is never one of them.
 - Any suppression, in any language. Ask, with the why.
 - `arbiter accept .` - recording suppressions and dependency references.
 - A `PUBLISHED` marker (a unit whose unused surface is deliberate).
-- Entries in `.arbiter/units.toml` (visibility, deps) and `licenses.toml`.
+- Entries in `.arbiter/units.toml` (visibility, deps), `licenses.toml`, and the meaning of `brief.toml` - agents draft and wire; the user signs by committing.
 - Deleting a test, skipping a test, or mocking away a service a test needs. A skip form (`it.skip`, `it.only`, `test.todo`, `#[ignore]`, `@pytest.mark.skip`) is a counted suppression, and a focused test fails the run.
 
 ## When to stop and tell the user
@@ -95,5 +98,5 @@ Each finding has one expected fix. A suppression is never one of them.
 `units.toml` (the declared unit graph), `licenses.toml` (the license allow
 list), `reference.json` and `contracts/` (what `accept` recorded) - all
 committed. `last/` is the newest run, overwritten every time, never
-committed. The first gate seeds the two toml files as comments; writing the
+committed. The first gate seeds the three toml files as comments; writing the
 first real entry in either is the user's ruling.

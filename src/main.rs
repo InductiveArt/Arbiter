@@ -5,7 +5,7 @@ use std::process::ExitCode;
 
 use arbiter::core::graph::graph;
 use arbiter::core::pack::{self, Def, Edge, Finding, Suppression};
-use arbiter::core::units::Repo;
+use arbiter::judge::brief;
 use arbiter::judge::findings::{integrity, winnow};
 use arbiter::judge::ledger;
 use arbiter::judge::outcomes;
@@ -32,6 +32,7 @@ fn main() -> ExitCode {
     if let Some(command @ "gate") = arguments.first().map(String::as_str) {
         let cold = arguments.iter().any(|argument| argument == "--cold");
         let fixing = arguments.iter().any(|argument| argument == "--fix");
+        let briefless = arguments.iter().any(|argument| argument == "--no-brief");
         let asked = arguments
             .iter()
             .skip(1)
@@ -48,7 +49,7 @@ fn main() -> ExitCode {
             );
             return ExitCode::from(2);
         }
-        let Some(run) = verdict::run(&asked, fixing, cold) else {
+        let Some(run) = verdict::run(&asked, fixing, cold, briefless) else {
             eprintln!("{command}: no folder at {asked}");
             return ExitCode::from(2);
         };
@@ -101,6 +102,21 @@ fn main() -> ExitCode {
             Some(removed) => println!(
                 "  proof      {} claims, {removed} removed since accept",
                 run.claims
+            ),
+        }
+        match run.brief {
+            verdict::BriefLine::Skipped => println!("  brief      skipped"),
+            verdict::BriefLine::Unwritten => println!("  brief      no brief written"),
+            verdict::BriefLine::Read {
+                cases,
+                held,
+                planned,
+                manual,
+                unanswered,
+                unwired,
+            } => println!(
+                "  brief      {cases} cases — {held} held, {planned} planned, \
+                 {manual} manual, {unanswered} unanswered; {unwired} claims unwired"
             ),
         }
         for note in &run.notes {
@@ -168,6 +184,7 @@ fn main() -> ExitCode {
         all.extend(integrity(&found));
         all.extend(ledger::blanket_findings(&found));
         all.extend(proof::vanished(&found));
+        all.extend(brief::findings(&found));
         all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
         emit(&all, &arguments[2.min(arguments.len())..]);
         return ExitCode::SUCCESS;
@@ -216,60 +233,72 @@ fn main() -> ExitCode {
         }
         return ExitCode::FAILURE;
     }
-    if arguments.first().map(String::as_str) == Some("proof") {
-        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+    if arguments.first().map(String::as_str) == Some("brief") {
+        let (case, asked) = match (arguments.get(1), arguments.get(2)) {
+            (Some(first), second) if !Path::new(first).is_dir() => (
+                Some(first.clone()),
+                second.cloned().unwrap_or_else(|| ".".to_string()),
+            ),
+            (first, _) => (None, first.cloned().unwrap_or_else(|| ".".to_string())),
+        };
         let Some(found) = graph(&asked) else {
-            eprintln!("proof: no folder at {asked}");
+            eprintln!("brief: no folder at {asked}");
             return ExitCode::from(2);
         };
-        let (claimed, unproven) = proof::proofs(&found);
-        let behaviors: usize = claimed.values().map(Vec::len).sum();
-        let plural = if claimed.len() == 1 { "" } else { "s" };
-        println!(
-            "proof: {behaviors} behaviors proven across {} unit{plural}",
-            claimed.len()
-        );
-        for (unit, proofs) in &claimed {
-            let shown = if unit.as_os_str().is_empty() {
-                ".".to_string()
-            } else {
-                unit.to_string_lossy().to_string()
-            };
-            println!();
-            println!("{shown} - {}", proofs.len());
-            let mut file = None;
-            let mut told: Vec<String> = Vec::new();
-            for proof in proofs {
-                if file != Some(&proof.file) {
-                    println!("  {}", proof.file.to_string_lossy());
-                    file = Some(&proof.file);
-                    told.clear();
-                }
-                for (depth, frame) in proof.path.iter().enumerate() {
-                    if told.len() > depth && told[depth] == *frame {
-                        continue;
-                    }
-                    told.truncate(depth);
-                    told.push(frame.clone());
-                    println!("{}{frame}", "  ".repeat(depth + 2));
-                }
-                told.truncate(proof.path.len());
-                println!("{}{}", "  ".repeat(proof.path.len() + 2), proof.sentence);
-            }
+        let Some(reading) = brief::read(&found) else {
+            return unwritten(&found);
+        };
+        if let Some(case) = case {
+            return slice(&case, &reading);
         }
-        if !unproven.is_empty() {
-            let names: Vec<String> = unproven
+        println!(
+            "brief: {} cases — {} held, {} planned, {} manual, {} unanswered; \
+             {} claims, {} unwired",
+            reading.cases,
+            reading
+                .needs
                 .iter()
-                .map(|unit| {
-                    if unit.as_os_str().is_empty() {
-                        ".".to_string()
-                    } else {
-                        unit.to_string_lossy().to_string()
-                    }
-                })
-                .collect();
+                .filter(|need| need.state == brief::State::Held)
+                .count(),
+            reading
+                .needs
+                .iter()
+                .filter(|need| need.state == brief::State::Planned)
+                .count(),
+            reading
+                .needs
+                .iter()
+                .filter(|need| need.state == brief::State::Manual)
+                .count(),
+            reading
+                .needs
+                .iter()
+                .filter(|need| need.state == brief::State::Unanswered)
+                .count(),
+            reading.claims,
+            reading.unwired.len(),
+        );
+        let mut case = String::new();
+        for need in &reading.needs {
+            if need.case != case {
+                println!();
+                println!("{}", need.case);
+                case = need.case.clone();
+            }
+            let state = match need.state {
+                brief::State::Held => "held",
+                brief::State::Planned => "planned",
+                brief::State::Manual => "manual",
+                brief::State::Unanswered => "unanswered",
+            };
+            println!("  {state:10} {}", need.need);
+        }
+        if !reading.unwired.is_empty() {
             println!();
-            println!("proves nothing: {}", names.join(", "));
+            println!("unwired claims:");
+            for (file, line, sentence) in &reading.unwired {
+                println!("  {}:{line} {sentence}", file.to_string_lossy());
+            }
         }
         return ExitCode::SUCCESS;
     }
@@ -400,40 +429,89 @@ fn main() -> ExitCode {
             }
         }
     }
-    if arguments.first().map(String::as_str) == Some("integrity") {
-        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
-        let Some(found) = graph(&asked) else {
-            eprintln!("integrity: no folder at {asked}");
-            return ExitCode::from(2);
+    eprintln!(
+        "arbiter <verb> [folder] — gate [--fix] [--cold] [--no-brief], findings, \
+         blast <name>, deps <unit>, brief [case], rhyme, ledger, warm, rules, accept, adopt"
+    );
+    ExitCode::from(2)
+}
+
+// With no brief written, the whole tree is the unwired world: the claims an
+// agent reads to draft the first cases.
+fn unwritten(found: &arbiter::core::graph::Graph) -> ExitCode {
+    let (claimed, unproven) = proof::proofs(found);
+    let behaviors: usize = claimed.values().map(Vec::len).sum();
+    println!("brief: no brief written; {behaviors} claims unwired");
+    for (unit, proofs) in &claimed {
+        let shown = if unit.as_os_str().is_empty() {
+            ".".to_string()
+        } else {
+            unit.to_string_lossy().to_string()
         };
-        let findings = integrity(&found);
-        if findings.is_empty() {
-            println!("integrity: every unit stands on its own");
-            return ExitCode::SUCCESS;
+        println!();
+        println!("{shown} - {}", proofs.len());
+        let mut file = None;
+        let mut told: Vec<String> = Vec::new();
+        for proof in proofs {
+            if file != Some(&proof.file) {
+                println!("  {}", proof.file.to_string_lossy());
+                file = Some(&proof.file);
+                told.clear();
+            }
+            for (depth, frame) in proof.path.iter().enumerate() {
+                if told.len() > depth && told[depth] == *frame {
+                    continue;
+                }
+                told.truncate(depth);
+                told.push(frame.clone());
+                println!("{}{frame}", "  ".repeat(depth + 2));
+            }
+            told.truncate(proof.path.len());
+            println!("{}{}", "  ".repeat(proof.path.len() + 2), proof.sentence);
         }
-        let plural = if findings.len() == 1 { "" } else { "s" };
-        println!("integrity: {} finding{plural}:", findings.len());
-        for finding in &findings {
-            println!("  {} {}", place(finding), finding.reason);
-        }
-        return ExitCode::SUCCESS;
     }
-    let asked = match arguments.first().map(String::as_str) {
-        Some("winnow") => arguments.get(1).cloned().unwrap_or_else(|| ".".to_string()),
-        _ => {
-            eprintln!(
-                "arbiter <verb> [folder] — gate [--fix] [--cold], findings, winnow, \
-                 integrity, blast <name>, rhyme, proof, ledger, warm, rules, accept, adopt"
-            );
-            return ExitCode::from(2);
-        }
-    };
-    let Some(found) = graph(&asked) else {
-        eprintln!("winnow: no folder at {asked}");
+    if !unproven.is_empty() {
+        let names: Vec<String> = unproven
+            .iter()
+            .map(|unit| {
+                if unit.as_os_str().is_empty() {
+                    ".".to_string()
+                } else {
+                    unit.to_string_lossy().to_string()
+                }
+            })
+            .collect();
+        println!();
+        println!("proves nothing: {}", names.join(", "));
+    }
+    ExitCode::SUCCESS
+}
+
+// One case whole: its needs, their states, and what each binds.
+fn slice(case: &str, reading: &arbiter::judge::brief::Reading) -> ExitCode {
+    let needs: Vec<&arbiter::judge::brief::Need> = reading
+        .needs
+        .iter()
+        .filter(|need| need.case == case)
+        .collect();
+    if needs.is_empty() {
+        eprintln!("brief: no case named {case}");
         return ExitCode::from(2);
-    };
-    let findings = winnow(&found.defs, &found.edges, &found.repo);
-    report(&found.repo, &found.defs, &found.edges, &findings);
+    }
+    println!("{case} — {} needs", needs.len());
+    for need in needs {
+        let state = match need.state {
+            brief::State::Held => "held",
+            brief::State::Planned => "planned",
+            brief::State::Manual => "manual",
+            brief::State::Unanswered => "unanswered",
+        };
+        println!();
+        println!("  {state:10} {}", need.need);
+        for entry in &need.entries {
+            println!("             {entry}");
+        }
+    }
     ExitCode::SUCCESS
 }
 
@@ -446,43 +524,6 @@ fn shown(suppression: &Suppression) -> String {
     )
 }
 
-// The file alone where no single line holds the finding.
-fn place(finding: &Finding) -> String {
-    if finding.line == 0 {
-        finding.file.to_string_lossy().to_string()
-    } else {
-        format!("{}:{}", finding.file.to_string_lossy(), finding.line)
-    }
-}
-
-fn report(repo: &Repo, defs: &[Def], edges: &[Edge], findings: &[Finding]) {
-    println!(
-        "winnow: {} units, {} files, {} public symbols, {} resolved uses",
-        repo.units.len(),
-        repo.files.len(),
-        defs.len(),
-        edges.len()
-    );
-    if findings.is_empty() {
-        println!("winnow: every public symbol has a user outside its unit");
-        return;
-    }
-    let plural = if findings.len() == 1 { "" } else { "s" };
-    println!(
-        "winnow: {} public symbol{plural} inviting deletion:",
-        findings.len()
-    );
-    for finding in findings {
-        println!(
-            "  {} {} has {}",
-            place(finding),
-            finding.name,
-            finding.reason
-        );
-    }
-}
-
-// One JSON object per line, held to the named files when any are named.
 fn emit(findings: &[Finding], files: &[String]) {
     for finding in findings {
         let shown = finding.file.to_string_lossy();

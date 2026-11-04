@@ -1289,7 +1289,7 @@ fn claimed(node: tree_sitter::Node, source: &str, path: &mut Vec<String>, found:
                 .unwrap_or(""),
             _ => "",
         });
-        if matches!(name, "describe" | "it" | "test") {
+        if matches!(name, "describe" | "it" | "test" | "bench") {
             // A skipped or todo claim proves nothing, so it never enters the tree.
             let mark = callee
                 .filter(|callee| callee.kind() == "member_expression")
@@ -1352,7 +1352,7 @@ fn marked(node: tree_sitter::Node, source: &str) -> Vec<(String, usize)> {
                 .child_by_field_name("property")
                 .and_then(|property| property.utf8_text(source.as_bytes()).ok())
                 .unwrap_or("");
-            if matches!(object, "describe" | "it" | "test")
+            if matches!(object, "describe" | "it" | "test" | "bench")
                 && matches!(property, "skip" | "todo" | "only")
             {
                 found.push((

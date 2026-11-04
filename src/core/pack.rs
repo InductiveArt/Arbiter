@@ -165,6 +165,10 @@ pub const CORE: &[(&str, &str)] = &[
         "proof",
         "a proven behavior leaves only with the user's signature",
     ),
+    (
+        "brief",
+        "every need is answered by proof or says why not, and every claim answers a need",
+    ),
 ];
 
 // A language. It says what defines a symbol and what uses one; the core knows no language.
