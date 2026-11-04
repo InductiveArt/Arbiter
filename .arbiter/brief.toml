@@ -1,16 +1,204 @@
-# The brief: the needs this software answers, as cases of activity, each need
-# bound to the claims proving it. A binding is a claim's identity from
-# arbiter brief ., or a frame prefix covering every claim under it. With one
-# case written the gate holds every need answered and every claim wired.
-#
-# [[case]]
-# name = "joining"
-# story = "a peer joins a room and collaborates from the present state"
-#
-#   [[case.need]]
-#   need = "a late joiner stands in the present before its first render"
-#   claims = ["libs/relay | wire | a late joiner stands in the present"]
-#
-#   [[case.need]]
-#   need = "a full room refuses the next peer"
-#   planned = true
+# The brief: the needs arbiter answers, as cases, each need bound to the
+# claims proving it. The gate holds every need answered and every claim wired.
+
+[[case]]
+name = "units"
+story = "manifests carve a repository into units before anything is judged"
+
+  [[case.need]]
+  need = "every manifest declares a unit, and files belong to the deepest one"
+  claims = [
+    ". |  | every manifest declares a unit",
+    ". |  | the deepest unit claims the file",
+  ]
+
+  [[case.need]]
+  need = "tests, fixtures, ignored folders and containers are told apart from code"
+  claims = [
+    ". |  | a test is told by its name or its folder",
+    ". |  | a git ignored folder is not the repository",
+    ". |  | a workspace manifest with no entry is a container",
+  ]
+
+[[case]]
+name = "resolution"
+story = "an import reaches the file its module path names, in every language"
+
+  [[case.need]]
+  need = "uses resolve to definitions through routes, barrels and chains"
+  claims = [
+    ". |  | a used symbol keeps its resolved user",
+    ". |  | a whole module import reaches the name through its chain",
+    ". |  | a name crosses units through the route and its barrels",
+    ". |  | a wildcard route admits only what it spans",
+    ". |  | dots fold away and parents climb",
+  ]
+
+  [[case.need]]
+  need = "a namespace import keeps the whole surface alive"
+  claims = [". |  | a namespace import keeps the whole surface"]
+
+  [[case.need]]
+  need = "python and rust module paths reach their files and no lookalike"
+  claims = [
+    ". |  | a module path reaches its file or its package",
+    ". |  | a longer name sharing a suffix is another module",
+    ". |  | the crate keyword reaches either crate root",
+    ". |  | a segment reaches its module file and no lookalike",
+  ]
+
+  [[case.need]]
+  need = "generated code answers for the contract it was generated from"
+  claims = [". |  | a contract is reached through generated code in both languages"]
+
+[[case]]
+name = "judgment"
+story = "the graph plane finds what breaks the laws and names it"
+
+  [[case.need]]
+  need = "the fixture's findings are the known answer, winnow and integrity alike"
+  claims = [
+    ". |  | the fixture yields its known findings",
+    ". |  | integrity names the cycle and each reexport",
+  ]
+
+  [[case.need]]
+  need = "a published unit keeps its unused surface"
+  claims = [". |  | a published unit keeps its unused surface"]
+
+  [[case.need]]
+  need = "visibility patterns span folders exactly"
+  claims = [". |  | a star covers the folder and everything below"]
+
+  [[case.need]]
+  need = "a comment names only what its file reaches"
+  claims = [
+    ". |  | a name the file reaches passes and a foreign one is found",
+    ". |  | a name quoted in a string is within reach",
+  ]
+
+[[case]]
+name = "the-bar"
+story = "a unit's declared environment meets the pack's bar, which never lowers"
+
+  [[case.need]]
+  need = "typescript wiring names each unset or lowered option"
+  claims = [
+    ". |  | the bar names each unset option and leaves a met one",
+    ". |  | a lowered option is named with its value",
+  ]
+
+  [[case.need]]
+  need = "python wiring names lowered settings, checkers and excludes"
+  claims = [
+    ". |  | a setting lowering the bar is named with its reason",
+    ". |  | a lowered checker rule and mode are named",
+    ". |  | an environment setting passes the wiring",
+    ". |  | an exclude may name generated code and nothing else",
+  ]
+
+  [[case.need]]
+  need = "rust wiring names a lint turned to allow and passes one raised to deny"
+  claims = [
+    ". |  | a lint turned to allow is named in either form",
+    ". |  | a lint raised to deny passes the wiring",
+  ]
+
+[[case]]
+name = "third-parties"
+story = "dependencies come from the locked registry, at one version, licensed"
+
+  [[case.need]]
+  need = "a dependency outside the registry or the workspace is named"
+  claims = [
+    ". |  | a dependency pulled past the registry is named",
+    ". |  | a git or absolute path dependency is named",
+    ". |  | a dependency outside the registry or workspace is named",
+  ]
+
+  [[case.need]]
+  need = "every lock format yields what units can reach"
+  claims = [
+    ". |  | a pnpm lock yields each package with peers stripped",
+    ". |  | an npm lock keeps what units reach and skips links and nested copies",
+  ]
+
+  [[case.need]]
+  need = "licenses are read from what the ecosystems materialized"
+  claims = [
+    ". |  | a license comes from the expression the field or the classifier",
+    ". |  | a license is the string or the object form or unstated",
+  ]
+
+[[case]]
+name = "ledger"
+story = "every suppression is counted against the user's signature"
+
+  [[case.need]]
+  need = "named suppressions are counted, blankets refused, the reference absorbs the known"
+  claims = [
+    ". |  | the ledger counts a named suppression and refuses a blanket",
+    ". |  | the reference absorbs known entries and names the extra",
+  ]
+
+[[case]]
+name = "proof"
+story = "behavior is claimed by tests and commissioned by the brief"
+
+  [[case.need]]
+  need = "every language's tests claim their sentences under their frames"
+  claims = [". |  | each language claims its sentences under their frames"]
+
+  [[case.need]]
+  need = "a proven behavior leaves only with the user's signature"
+  claims = [". |  | a claim that left without signature is a finding"]
+
+  [[case.need]]
+  need = "the brief states each need and roars at the unwired"
+  claims = [". |  | the brief states each need and roars at the unwired"]
+
+[[case]]
+name = "rhyme"
+story = "structurally equivalent code is named, never judged"
+
+  [[case.need]]
+  need = "equal bones group shapes and flesh splits a paste from a drift"
+  claims = [". |  | bones group the shapes and flesh splits perfect from slant"]
+
+[[case]]
+name = "the-run"
+story = "a gate runs pinned tools, warm where nothing moved, repairing first when fixing"
+
+  [[case.need]]
+  need = "outcomes are tallied per check and a missing binary is a broken machine"
+  claims = [
+    ". |  | a tally counts passes and failures per check with their time",
+    ". |  | an absent binary does not answer and a present one does",
+  ]
+
+  [[case.need]]
+  need = "a unit green under an unchanged input cone skips its tools"
+  claims = [
+    ". |  | a warm key follows the dependency cone",
+    ". |  | the store answers the key and forgets a failure",
+  ]
+
+  [[case.need]]
+  need = "a fixing run mends the packs' own findings in place"
+  claims = [". |  | fix splits an import to one per line"]
+
+  [[case.need]]
+  need = "the first gate seeds the decision files and never overwrites them"
+  claims = [". |  | the first gate seeds the decision files and never overwrites"]
+
+  [[case.need]]
+  need = "a unit's tests reach every branch of its source"
+  planned = true
+
+[[case]]
+name = "drift"
+story = "generated code matches its contract, and a break is a finding"
+
+  [[case.need]]
+  need = "a missing, a drifted and an orphaned generated file are each named"
+  claims = [". |  | a missing a drifted and an orphaned file are each named"]
