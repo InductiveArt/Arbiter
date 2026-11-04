@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::core::pack::{pinned, Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::core::pack::{pinned, Claim, Def, Definition, Edge, Finding, Pack, Suppression};
 use crate::core::prose;
 use crate::core::trees;
 use crate::core::units::Repo;
@@ -110,6 +110,15 @@ impl Pack for Python {
             ]);
         };
         Some(manifest_findings(&manifest))
+    }
+
+    fn claims(&self, source: &str) -> Vec<Claim> {
+        let Some(tree) = trees::parse(&language(), source) else {
+            return Vec::new();
+        };
+        let mut found = Vec::new();
+        claimed(tree.root_node(), source, &mut Vec::new(), &mut found);
+        found
     }
 
     fn shapes(&self, source: &str) -> Vec<trees::Shape> {
@@ -792,6 +801,38 @@ fn checker_findings(parsed: &toml::Value) -> Vec<String> {
 
 fn is_error(value: &toml::Value) -> bool {
     value.as_str() == Some("error") || value.as_bool() == Some(true)
+}
+
+// pytest's grammar of behavior: a test_ function claims its name as a
+// sentence, framed by the classes that hold it.
+fn claimed(node: tree_sitter::Node, source: &str, path: &mut Vec<String>, found: &mut Vec<Claim>) {
+    if node.kind() == "class_definition" {
+        if let Some(name) = node.child_by_field_name("name") {
+            path.push(name.utf8_text(source.as_bytes()).unwrap_or("").to_string());
+            let mut walker = node.walk();
+            for child in node.children(&mut walker) {
+                claimed(child, source, path, found);
+            }
+            path.pop();
+            return;
+        }
+    }
+    if node.kind() == "function_definition" {
+        if let Some(name) = node.child_by_field_name("name") {
+            let name = name.utf8_text(source.as_bytes()).unwrap_or("");
+            if let Some(rest) = name.strip_prefix("test_") {
+                found.push(Claim {
+                    path: path.clone(),
+                    sentence: rest.replace('_', " "),
+                    line: node.start_position().row + 1,
+                });
+            }
+        }
+    }
+    let mut walker = node.walk();
+    for child in node.children(&mut walker) {
+        claimed(child, source, path, found);
+    }
 }
 
 #[cfg(test)]

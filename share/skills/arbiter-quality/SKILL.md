@@ -17,6 +17,7 @@ what they decide.
 | `arbiter blast <name> .` | Each definition of a name and every resolved use of that one. | no |
 | `arbiter ledger .` | Every suppression, counted against the accepted reference. | no |
 | `arbiter rules` | The rule-by-language matrix - held, never with its why, or open - then each rule's and each core judgment's one-line law. | no |
+| `arbiter proof .` | Every behavior the tests claim, as sentences in a tree by unit; the footer names units proving nothing. The capability map: read it before expanding code to learn what is and what is not. | no |
 | `arbiter rhyme .` | Structurally equivalent functions, grouped and largest first: a perfect rhyme reads identically, a slant rhyme is the same shape in different words. A measure to read and judge - never findings, never a gate stage. | no |
 | `arbiter accept .` | Records the suppression and dependency references. **The user's signature - never run it.** | yes |
 

@@ -9,6 +9,7 @@ use arbiter::core::units::Repo;
 use arbiter::judge::findings::{integrity, winnow};
 use arbiter::judge::ledger;
 use arbiter::judge::outcomes;
+use arbiter::judge::proof;
 use arbiter::judge::rhyme;
 use arbiter::judge::verdict;
 
@@ -206,6 +207,63 @@ fn main() -> ExitCode {
         }
         return ExitCode::FAILURE;
     }
+    if arguments.first().map(String::as_str) == Some("proof") {
+        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let Some(found) = graph(&asked) else {
+            eprintln!("proof: no folder at {asked}");
+            return ExitCode::from(2);
+        };
+        let (claimed, unproven) = proof::proofs(&found);
+        let behaviors: usize = claimed.values().map(Vec::len).sum();
+        let plural = if claimed.len() == 1 { "" } else { "s" };
+        println!(
+            "proof: {behaviors} behaviors proven across {} unit{plural}",
+            claimed.len()
+        );
+        for (unit, proofs) in &claimed {
+            let shown = if unit.as_os_str().is_empty() {
+                ".".to_string()
+            } else {
+                unit.to_string_lossy().to_string()
+            };
+            println!();
+            println!("{shown} - {}", proofs.len());
+            let mut file = None;
+            let mut told: Vec<String> = Vec::new();
+            for proof in proofs {
+                if file != Some(&proof.file) {
+                    println!("  {}", proof.file.to_string_lossy());
+                    file = Some(&proof.file);
+                    told.clear();
+                }
+                for (depth, frame) in proof.path.iter().enumerate() {
+                    if told.len() > depth && told[depth] == *frame {
+                        continue;
+                    }
+                    told.truncate(depth);
+                    told.push(frame.clone());
+                    println!("{}{frame}", "  ".repeat(depth + 2));
+                }
+                told.truncate(proof.path.len());
+                println!("{}{}", "  ".repeat(proof.path.len() + 2), proof.sentence);
+            }
+        }
+        if !unproven.is_empty() {
+            let names: Vec<String> = unproven
+                .iter()
+                .map(|unit| {
+                    if unit.as_os_str().is_empty() {
+                        ".".to_string()
+                    } else {
+                        unit.to_string_lossy().to_string()
+                    }
+                })
+                .collect();
+            println!();
+            println!("proves nothing: {}", names.join(", "));
+        }
+        return ExitCode::SUCCESS;
+    }
     if arguments.first().map(String::as_str) == Some("rhyme") {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
         let Some(found) = graph(&asked) else {
@@ -354,7 +412,7 @@ fn main() -> ExitCode {
         _ => {
             eprintln!(
                 "arbiter <verb> [folder] — gate [--fix] [--cold], findings, winnow, \
-                 integrity, blast <name>, rhyme, ledger, warm, rules, accept, adopt"
+                 integrity, blast <name>, rhyme, proof, ledger, warm, rules, accept, adopt"
             );
             return ExitCode::from(2);
         }

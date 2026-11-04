@@ -56,6 +56,14 @@ pub struct Definition {
     pub self_used: bool,
 }
 
+// One executable claim about behavior: the sentence a test names itself with,
+// under the suite path that frames it.
+pub struct Claim {
+    pub path: Vec<String>,
+    pub sentence: String,
+    pub line: usize,
+}
+
 // One tool-run judgment of a unit's generated code against its contracts.
 pub struct Drift {
     pub check: String,
@@ -272,6 +280,13 @@ pub trait Pack {
     // The function-grain shapes of one file, feeding the rhyme measure; a pack
     // with no function grammar answers nothing.
     fn shapes(&self, source: &str) -> Vec<crate::core::trees::Shape> {
+        let _ = source;
+        Vec::new()
+    }
+
+    // The behaviors one file's tests claim, each a sentence under its suite
+    // path; a pack whose language has no test form answers nothing.
+    fn claims(&self, source: &str) -> Vec<Claim> {
         let _ = source;
         Vec::new()
     }

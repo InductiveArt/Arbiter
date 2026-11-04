@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use tree_sitter::{Language, Tree};
 
-use crate::core::pack::{Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::core::pack::{Claim, Def, Definition, Edge, Finding, Pack, Suppression};
 use crate::core::prose;
 use crate::core::trees;
 use crate::core::units::Repo;
@@ -91,6 +91,15 @@ impl Pack for Rust {
             ]);
         };
         Some(manifest_findings(&manifest))
+    }
+
+    fn claims(&self, source: &str) -> Vec<Claim> {
+        let Some(tree) = trees::parse(&language(), source) else {
+            return Vec::new();
+        };
+        let mut found = Vec::new();
+        claimed(tree.root_node(), source, &mut Vec::new(), &mut found);
+        found
     }
 
     fn shapes(&self, source: &str) -> Vec<trees::Shape> {
@@ -459,6 +468,62 @@ fn uses(tree: &Tree, source: &str) -> Vec<(String, String, usize, bool)> {
             ))
         })
         .collect()
+}
+
+// Rust's grammar of behavior: a #[test] function claims its name as a
+// sentence, framed by its modules; the conventional tests module frames nothing.
+fn claimed(node: tree_sitter::Node, source: &str, path: &mut Vec<String>, found: &mut Vec<Claim>) {
+    if node.kind() == "mod_item" {
+        if let Some(name) = node.child_by_field_name("name") {
+            let name = name.utf8_text(source.as_bytes()).unwrap_or("").to_string();
+            let framed = name != "tests";
+            if framed {
+                path.push(name);
+            }
+            let mut walker = node.walk();
+            for child in node.children(&mut walker) {
+                claimed(child, source, path, found);
+            }
+            if framed {
+                path.pop();
+            }
+            return;
+        }
+    }
+    if node.kind() == "function_item" && attributed(node, source) {
+        if let Some(name) = node.child_by_field_name("name") {
+            found.push(Claim {
+                path: path.clone(),
+                sentence: name
+                    .utf8_text(source.as_bytes())
+                    .unwrap_or("")
+                    .replace('_', " "),
+                line: node.start_position().row + 1,
+            });
+        }
+    }
+    let mut walker = node.walk();
+    for child in node.children(&mut walker) {
+        claimed(child, source, path, found);
+    }
+}
+
+fn attributed(function: tree_sitter::Node, source: &str) -> bool {
+    let mut before = function.prev_named_sibling();
+    while let Some(node) = before {
+        if node.kind() != "attribute_item" {
+            return false;
+        }
+        if node
+            .utf8_text(source.as_bytes())
+            .unwrap_or("")
+            .contains("test")
+        {
+            return true;
+        }
+        before = node.prev_named_sibling();
+    }
+    false
 }
 
 #[cfg(test)]
