@@ -1335,6 +1335,19 @@ fn first_sentence(call: tree_sitter::Node, source: &str) -> Option<String> {
             let text = argument.utf8_text(source.as_bytes()).ok()?;
             return Some(text.trim_matches(['"', '\'', '`']).to_string());
         }
+        // A naming helper still names by a literal: the sentence rides one
+        // call deep, as test(its("...")) does.
+        if argument.kind() == "call_expression" {
+            if let Some(inner) = argument.child_by_field_name("arguments") {
+                let mut deeper = inner.walk();
+                for part in inner.named_children(&mut deeper) {
+                    if part.kind() == "string" || part.kind() == "template_string" {
+                        let text = part.utf8_text(source.as_bytes()).ok()?;
+                        return Some(text.trim_matches(['"', '\'', '`']).to_string());
+                    }
+                }
+            }
+        }
     }
     None
 }
@@ -1504,8 +1517,9 @@ fn strays(node: tree_sitter::Node, source: &str) -> Vec<usize> {
     let mut stack = vec![node];
     while let Some(node) = stack.pop() {
         if node.kind() == "call_expression" {
+            // bench stays out: a fluent builder of that name is not a test form.
             let (name, mark) = test_callee(node, source);
-            if matches!(name, "describe" | "it" | "test" | "bench")
+            if matches!(name, "describe" | "it" | "test")
                 && !matches!(mark, "skip" | "todo")
                 && first_sentence(node, source).is_none()
             {

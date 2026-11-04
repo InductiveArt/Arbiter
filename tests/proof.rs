@@ -27,6 +27,7 @@ fn each_language_claims_its_sentences_under_their_frames() {
             "dock.test.ts | docking / a crowded rim | spreads the arrows a pitch apart",
             "dock.test.ts |  | a bare claim stands outside any suite",
             "dock.test.ts |  | doubles %s into place",
+            "dock.test.ts |  | a helper still names the door",
             "lib.rs |  | doubling two gives four",
             "test_lattice.py | TestLattice | holds a point per cell",
             "test_lattice.py |  | an empty lattice spans nothing",

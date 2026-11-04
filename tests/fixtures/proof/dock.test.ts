@@ -18,3 +18,8 @@ test("a bare claim stands outside any suite", () => {
 it.each([2, 3])("doubles %s into place", () => {
   expect(4).toBeDefined();
 });
+
+const its = (sentence: string): string => sentence;
+test(its("a helper still names the door"), () => {
+  expect(5).toBeDefined();
+});

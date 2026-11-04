@@ -17,3 +17,6 @@ const named = "a name the tree cannot read";
 it(named, () => {
   expect(fake()).toBe("fake");
 });
+
+const bench = () => ({ runs: (count: number) => count });
+bench().runs(3);
