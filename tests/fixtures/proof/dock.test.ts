@@ -14,3 +14,7 @@ describe("docking", () => {
 test("a bare claim stands outside any suite", () => {
   expect(3).toBe(3);
 });
+
+it.each([2, 3])("doubles %s into place", () => {
+  expect(4).toBeDefined();
+});

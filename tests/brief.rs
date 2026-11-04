@@ -8,7 +8,7 @@ fn the_brief_states_each_need_and_roars_at_the_unwired() {
     let found = graph(PROOF).expect("the fixture folder exists");
     let reading = read(&found).expect("the fixture writes a brief");
     assert_eq!(reading.cases, 3);
-    assert_eq!(reading.claims, 6);
+    assert_eq!(reading.claims, 7);
     let states: Vec<String> = reading
         .needs
         .iter()
@@ -48,6 +48,7 @@ fn the_brief_states_each_need_and_roars_at_the_unwired() {
             "empty-case the case 'hollow' declares no needs; a parcel with no spec proves nothing",
             "unwired-claim the claim 'a bare claim stands outside any suite' answers no need \
              in the brief",
+            "unwired-claim the claim 'doubles %s into place' answers no need in the brief",
             "unwired-claim the claim 'doubling two gives four' answers no need in the brief",
             "unwired-claim the claim 'an empty lattice spans nothing' answers no need in the brief",
         ]

@@ -80,6 +80,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
              and the unit's manifest does not declare it",
             "web/src/__tests__/panel.test.ts asserts 1 equals itself; \
              an assertion compares the system to an expectation",
+            "web/src/__tests__/panel.test.ts a test the tree cannot name; \
+             a claim speaks a literal sentence",
             "web/src/barrel.ts re-exports from \"./index\"; a module offers only its own names",
             "web/src/boot.ts bootpkg is imported, and the unit's manifest does not declare it",
             "web/src/boot.ts sparkpkg is imported, and the unit's manifest does not declare it",

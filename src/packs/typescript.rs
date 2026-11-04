@@ -41,6 +41,8 @@ pub struct TypeScript {
     // The lines holding a type-only import, which erases at build time.
     typed: std::collections::HashSet<(PathBuf, usize)>,
     tautologies: Vec<(PathBuf, usize, String)>,
+    // Test calls whose sentence no literal provides: claims the tree cannot speak.
+    strays: Vec<(PathBuf, usize)>,
 }
 
 impl TypeScript {
@@ -194,6 +196,11 @@ impl Pack for TypeScript {
         for (text, line) in tautologies(tree.root_node(), source) {
             self.tautologies.push((file.to_path_buf(), line, text));
         }
+        if testish(file) {
+            for line in strays(tree.root_node(), source) {
+                self.strays.push((file.to_path_buf(), line));
+            }
+        }
         if !surface {
             return Vec::new();
         }
@@ -320,6 +327,16 @@ impl Pack for TypeScript {
             let unit = repo.unit_of(file);
             repo.is_test(unit, &repo.units[unit].path.clone())
         };
+        findings.extend(self.strays.iter().filter(|(file, _)| !fixture(file)).map(
+            |(file, line)| Finding {
+                check: "integrity",
+                file: file.clone(),
+                line: *line,
+                name: "stray-test".to_string(),
+                reason:
+                    "a test the tree cannot name; a claim speaks a literal sentence".to_string(),
+            },
+        ));
         findings.extend(
             self.tautologies
                 .iter()
@@ -1279,23 +1296,9 @@ fn normalized(path: &Path) -> PathBuf {
 // sentence; a describe body is walked inside its own frame.
 fn claimed(node: tree_sitter::Node, source: &str, path: &mut Vec<String>, found: &mut Vec<Claim>) {
     if node.kind() == "call_expression" {
-        let callee = node.child_by_field_name("function");
-        let name = callee.map_or("", |callee| match callee.kind() {
-            "identifier" => callee.utf8_text(source.as_bytes()).unwrap_or(""),
-            "member_expression" => callee
-                .child_by_field_name("object")
-                .filter(|object| object.kind() == "identifier")
-                .and_then(|object| object.utf8_text(source.as_bytes()).ok())
-                .unwrap_or(""),
-            _ => "",
-        });
+        let (name, mark) = test_callee(node, source);
         if matches!(name, "describe" | "it" | "test" | "bench") {
             // A skipped or todo claim proves nothing, so it never enters the tree.
-            let mark = callee
-                .filter(|callee| callee.kind() == "member_expression")
-                .and_then(|callee| callee.child_by_field_name("property"))
-                .and_then(|property| property.utf8_text(source.as_bytes()).ok())
-                .unwrap_or("");
             if matches!(mark, "skip" | "todo") {
                 return;
             }
@@ -1434,6 +1437,88 @@ fn simple_argument(call: tree_sitter::Node, source: &str) -> Option<String> {
         return None;
     }
     Some(argument.utf8_text(source.as_bytes()).ok()?.to_string())
+}
+
+// The test vocabulary a call speaks, through a member or an each table: the
+// caller's name and the property marking it, if any.
+fn test_callee<'tree>(
+    node: tree_sitter::Node<'tree>,
+    source: &'tree str,
+) -> (&'tree str, &'tree str) {
+    let Some(callee) = node.child_by_field_name("function") else {
+        return ("", "");
+    };
+    match callee.kind() {
+        "identifier" => (callee.utf8_text(source.as_bytes()).unwrap_or(""), ""),
+        "member_expression" => member_parts(callee, source),
+        // it.each(table)("sentence", run): the sentence rides the outer call.
+        "call_expression" => match callee.child_by_field_name("function") {
+            Some(inner) if inner.kind() == "member_expression" => {
+                let (name, mark) = member_parts(inner, source);
+                if mark == "each" {
+                    (name, "each")
+                } else {
+                    ("", "")
+                }
+            }
+            _ => ("", ""),
+        },
+        _ => ("", ""),
+    }
+}
+
+fn member_parts<'tree>(
+    member: tree_sitter::Node<'tree>,
+    source: &'tree str,
+) -> (&'tree str, &'tree str) {
+    let name = member
+        .child_by_field_name("object")
+        .filter(|object| object.kind() == "identifier")
+        .and_then(|object| object.utf8_text(source.as_bytes()).ok())
+        .unwrap_or("");
+    let mark = member
+        .child_by_field_name("property")
+        .and_then(|property| property.utf8_text(source.as_bytes()).ok())
+        .unwrap_or("");
+    (name, mark)
+}
+
+// Test files by their names alone, the way the repository tells them.
+fn testish(file: &Path) -> bool {
+    let stem = file
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().to_string())
+        .unwrap_or_default();
+    stem.starts_with("test_")
+        || stem.ends_with("_test")
+        || stem.ends_with(".test")
+        || file
+            .components()
+            .any(|part| part.as_os_str() == "tests" || part.as_os_str() == "__tests__")
+}
+
+// A test call whose sentence no literal provides is a stray: it runs, yet the
+// tree cannot speak for it, so no need can bind it.
+fn strays(node: tree_sitter::Node, source: &str) -> Vec<usize> {
+    let mut found = Vec::new();
+    let mut stack = vec![node];
+    while let Some(node) = stack.pop() {
+        if node.kind() == "call_expression" {
+            let (name, mark) = test_callee(node, source);
+            if matches!(name, "describe" | "it" | "test" | "bench")
+                && !matches!(mark, "skip" | "todo")
+                && first_sentence(node, source).is_none()
+            {
+                found.push(node.start_position().row + 1);
+            }
+        }
+        let mut walker = node.walk();
+        for child in node.children(&mut walker) {
+            stack.push(child);
+        }
+    }
+    found.sort_unstable();
+    found
 }
 
 #[cfg(test)]

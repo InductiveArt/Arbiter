@@ -12,3 +12,8 @@ it("a tautology asserts nothing", () => {
 it.skip("a skipped claim is a suppression", () => {
   expect(fake()).toBe("fake");
 });
+
+const named = "a name the tree cannot read";
+it(named, () => {
+  expect(fake()).toBe("fake");
+});
