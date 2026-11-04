@@ -38,6 +38,41 @@ Before the first edit of a session, and when asked how the code stands:
    the code and a clean gate, ask whether to set up first or do the task, and
    follow their call.
 
+## How a change is made
+
+The judgment the gate cannot check. The gate holds everything mechanical;
+these rules hold the thinking:
+
+- A change begins at the brief: name the need, or find it there; write the
+  failing claim wired to it; see it fail for the reason you expect; make the
+  smallest change that passes. An honest test you cannot write yet is never
+  replaced by a bad one.
+- Ship the smallest edit that solves the problem, and keep one decision in
+  one place.
+- Get the data shape right before the logic; do first what helps every later
+  phase.
+- A new requirement is not bolted onto the old design: ask what you would
+  have built had it been there from the start, and deliver that in pieces.
+- When two fixes sharing one premise fail the same gate, write the premise
+  down in one sentence and question it before any third fix.
+- Subtract before you add.
+- Work that is not obvious at a glance gets a lever: do one unit by hand,
+  then build the tool that matches it, and assert each target is free before
+  the tool writes.
+- The domain lives in structures that make illegal states impossible to
+  write. Data is checked where it enters; inside, it is trusted; the business
+  logic stays pure. An operation run twice, or resumed after a crash, ends in
+  the same state. Two writers never share a mutable thing; what must be
+  shared has one writer, enforced by the structure.
+- A failure is reproduced, then its cause is fixed: a guard that only hides
+  a crash is not a fix.
+- A test calls the code as its user does and checks what that user would
+  see; a test that would pass if every function returned nothing is thrown
+  out.
+- A refactor pins behavior first, changes structure, then proves the
+  behavior unmoved.
+- Uncommitted work that is not yours waits for a decision, always.
+
 ## Changing anything
 
 1. After each change, run `arbiter gate --fix .`. Read what its dashboard names and
