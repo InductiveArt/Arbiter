@@ -13,4 +13,4 @@ run = ["npx", "--yes", "--package", "typescript@7.0.2", "tsc", "--noEmit", "-p",
 name = "test"
 # happy-dom rides beside vitest: a unit's config names its test environment,
 # and vitest resolves that package from its own install, not the unit's.
-run = ["npx", "--yes", "--package=happy-dom@20.11.2", "--package=vitest@4.0.17", "vitest", "run"]
+run = ["npx", "--yes", "--package=happy-dom@20.11.2", "--package=vitest@4.0.17", "vitest", "run", "--allowOnly=false"]

@@ -60,6 +60,7 @@ impl Pack for Proto {
                 "coverage",
                 "never: a contract declares shapes; nothing of it executes",
             ),
+            ("tautology", "never: nothing of a contract executes"),
         ]
     }
 

@@ -19,7 +19,7 @@ what they decide.
 | `arbiter rules` | The rule-by-language matrix - held, never with its why, or open - then each rule's and each core judgment's one-line law. | no |
 | `arbiter proof .` | Every behavior the tests claim, as sentences in a tree by unit; the footer names units proving nothing. The capability map: read it before expanding code to learn what is and what is not. | no |
 | `arbiter rhyme .` | Structurally equivalent functions, grouped and largest first: a perfect rhyme reads identically, a slant rhyme is the same shape in different words. A measure to read and judge - never findings, never a gate stage. | no |
-| `arbiter accept .` | Records the suppression and dependency references. **The user's signature - never run it.** | yes |
+| `arbiter accept .` | Records the suppression, dependency and claim references. **The user's signature - never run it.** | yes |
 
 Exit codes: 0 clean, 1 findings or failures, 2 nothing to judge or a broken
 machine. A preflight gap ("X is not on this machine") is a broken machine,
@@ -68,6 +68,8 @@ Each finding has one expected fix. A suppression is never one of them.
 | `licenses` | Ask the user: the allow list is a policy decision. |
 | wiring (option below the bar) | Earn the option: annotate exports, guard index access. Never a non-null assertion, never a cast, never lowering the config. |
 | tool failures (lint, types, test) | Read the unit's section in the report - it holds the whole output - and fix the code. Complexity findings take named extractions, not reshuffling. |
+| `proof` (vanished claim) | Restore the behavior and its test, or ask the user to accept the removal - a proven behavior leaves only with their signature. |
+| `tautology` | Assert the system's output against an expectation, never a value against itself. |
 | A unit with no tests | Real behavior tests. An entry running `main()` at import time gets its pure seams extracted first - and that refactor is reported. |
 
 ## What only the user decides
@@ -76,7 +78,7 @@ Each finding has one expected fix. A suppression is never one of them.
 - `arbiter accept .` - recording suppressions and dependency references.
 - A `PUBLISHED` marker (a unit whose unused surface is deliberate).
 - Entries in `.arbiter/units.toml` (visibility, deps) and `licenses.toml`.
-- Deleting a test, skipping a test, or mocking away a service a test needs.
+- Deleting a test, skipping a test, or mocking away a service a test needs. A skip form (`it.skip`, `it.only`, `test.todo`, `#[ignore]`, `@pytest.mark.skip`) is a counted suppression, and a focused test fails the run.
 
 ## When to stop and tell the user
 

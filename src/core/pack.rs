@@ -128,6 +128,10 @@ pub const RULES: &[(&str, &str)] = &[
         "pinned-image",
         "a container image is named by digest, never by a tag alone",
     ),
+    (
+        "tautology",
+        "an assertion compares the system to an expectation; a value equal to itself asserts nothing",
+    ),
 ];
 
 // The judgments the core makes through the one resolved graph, the same law for
@@ -156,6 +160,10 @@ pub const CORE: &[(&str, &str)] = &[
     (
         "ledger",
         "every suppression and third party is counted against what accept recorded",
+    ),
+    (
+        "proof",
+        "a proven behavior leaves only with the user's signature",
     ),
 ];
 

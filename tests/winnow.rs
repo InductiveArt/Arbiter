@@ -62,7 +62,11 @@ fn integrity_names_the_cycle_and_each_reexport() {
              a symbol is imported from the module defining it",
             "libs/facade/src/facade/inner.py a comment names dashboard_frontend, \
              which nothing in the file defines, uses or quotes",
+            "libs/testy/tests/test_calc.py asserts True; \
+             an assertion compares the system to an expectation",
             "rlib/src/lib.rs re-exports shapes::area; a module offers only its own names",
+            "rlib/src/lib.rs asserts 4 equals itself; \
+             an assertion compares the system to an expectation",
             "ui/pnpm-lock.yaml lodash is locked at 4.17.20 in ui/pnpm-lock.yaml \
              and 4.17.21 in web/package-lock.json",
             "ui/src/index.ts re-exports every name from \"./extra\"; \
@@ -74,6 +78,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
              a unit's own code imports from the defining file",
             "web/src/__tests__/panel.test.ts lodash is imported, \
              and the unit's manifest does not declare it",
+            "web/src/__tests__/panel.test.ts asserts 1 equals itself; \
+             an assertion compares the system to an expectation",
             "web/src/barrel.ts re-exports from \"./index\"; a module offers only its own names",
             "web/src/boot.ts bootpkg is imported, and the unit's manifest does not declare it",
             "web/src/boot.ts sparkpkg is imported, and the unit's manifest does not declare it",
@@ -174,8 +180,15 @@ fn a_namespace_import_keeps_the_whole_surface() {
 fn the_ledger_counts_a_named_suppression_and_refuses_a_blanket() {
     let found = graph(DEMO).expect("the fixture folder exists");
     let counted = arbiter::judge::ledger::counted(&found);
-    assert_eq!(counted.len(), 1);
-    assert!(counted[0].text.contains("noqa: PLR2004"));
+    let texts: Vec<&str> = counted
+        .iter()
+        .map(|suppression| suppression.text.as_str())
+        .collect();
+    assert_eq!(counted.len(), 4);
+    assert!(texts.iter().any(|text| text.contains("noqa: PLR2004")));
+    assert!(texts.contains(&"@pytest.mark.skip(reason=\"a rogue skip\")"));
+    assert!(texts.contains(&"#[ignore]"));
+    assert!(texts.contains(&"it.skip"));
     let blankets = arbiter::judge::ledger::blankets(&found);
     assert_eq!(blankets.len(), 1);
     assert!(blankets[0].text.contains("type: ignore"));

@@ -23,6 +23,7 @@ pub struct Rust {
     aliases: Vec<(PathBuf, String, usize)>,
     reexports: Vec<(PathBuf, String, usize)>,
     overreaches: Vec<(PathBuf, String, usize)>,
+    tautologies: Vec<(PathBuf, usize, String)>,
 }
 
 const BUILTIN_CRATES: [&str; 5] = ["std", "core", "alloc", "proc_macro", "test"];
@@ -61,6 +62,7 @@ impl Pack for Rust {
             ("wiring", "held"),
             ("tools", "held"),
             ("no-warnings", "held"),
+            ("tautology", "held"),
             (
                 "drift",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
@@ -138,6 +140,7 @@ impl Pack for Rust {
                 let first = capture.text.lines().next().unwrap_or("").trim().to_string();
                 let quiets = first.contains("allow(") || first.contains("expect(");
                 let recorded = match capture.name.as_str() {
+                    "outer" if first.contains("#[ignore") => Some(("#[ignore]".to_string(), false)),
                     "outer" if quiets => Some((first, false)),
                     "inner" if quiets => Some((first, true)),
                     "unsafe" => Some(("unsafe".to_string(), false)),
@@ -155,6 +158,9 @@ impl Pack for Rust {
                     });
                 }
             }
+        }
+        for (text, line) in tautologies(tree.root_node(), source) {
+            self.tautologies.push((file.to_path_buf(), line, text));
         }
         if !surface {
             return Vec::new();
@@ -230,6 +236,23 @@ impl Pack for Rust {
                 reason: format!("re-exports {argument}; a module offers only its own names"),
             })
             .collect();
+        // A fixture's tautologies are some test's data, never judged.
+        let fixture = |file: &PathBuf| {
+            let unit = repo.unit_of(file);
+            repo.is_test(unit, &repo.units[unit].path.clone())
+        };
+        findings.extend(
+            self.tautologies
+                .iter()
+                .filter(|(file, _, _)| !fixture(file))
+                .map(|(file, line, text)| Finding {
+                    check: "integrity",
+                    file: file.clone(),
+                    line: *line,
+                    name: "tautology".to_string(),
+                    reason: format!("{text}; an assertion compares the system to an expectation"),
+                }),
+        );
         findings.extend(self.aliases.iter().map(|(file, alias, line)| Finding {
             check: "integrity",
             file: file.clone(),
@@ -491,6 +514,10 @@ fn claimed(node: tree_sitter::Node, source: &str, path: &mut Vec<String>, found:
         }
     }
     if node.kind() == "function_item" && attributed(node, source) {
+        // An ignored test never runs, so it proves nothing.
+        if ignored(node, source) {
+            return;
+        }
         if let Some(name) = node.child_by_field_name("name") {
             found.push(Claim {
                 path: path.clone(),
@@ -524,6 +551,88 @@ fn attributed(function: tree_sitter::Node, source: &str) -> bool {
         before = node.prev_named_sibling();
     }
     false
+}
+
+fn ignored(function: tree_sitter::Node, source: &str) -> bool {
+    let mut before = function.prev_named_sibling();
+    while let Some(node) = before {
+        if node.kind() != "attribute_item" {
+            return false;
+        }
+        if node
+            .utf8_text(source.as_bytes())
+            .unwrap_or("")
+            .contains("#[ignore")
+        {
+            return true;
+        }
+        before = node.prev_named_sibling();
+    }
+    false
+}
+
+// assert!(true) and assert_eq! on a value paired with itself: always true,
+// asserting nothing.
+fn tautologies(node: tree_sitter::Node, source: &str) -> Vec<(String, usize)> {
+    let mut found = Vec::new();
+    let mut stack = vec![node];
+    while let Some(node) = stack.pop() {
+        if node.kind() == "macro_invocation" {
+            let name = node
+                .child_by_field_name("macro")
+                .and_then(|name| name.utf8_text(source.as_bytes()).ok())
+                .unwrap_or("");
+            let tokens = node
+                .named_child(node.named_child_count().saturating_sub(1))
+                .filter(|last| last.kind() == "token_tree")
+                .and_then(|last| last.utf8_text(source.as_bytes()).ok())
+                .unwrap_or("");
+            let inner = tokens.trim_start_matches('(').trim_end_matches(')').trim();
+            if name == "assert" && inner == "true" {
+                found.push(("asserts true".to_string(), node.start_position().row + 1));
+            }
+            if name == "assert_eq" {
+                if let Some((left, right)) = paired(inner) {
+                    if left == right && !left.is_empty() {
+                        found.push((
+                            format!("asserts {left} equals itself"),
+                            node.start_position().row + 1,
+                        ));
+                    }
+                }
+            }
+        }
+        let mut walker = node.walk();
+        for child in node.children(&mut walker) {
+            stack.push(child);
+        }
+    }
+    found.sort_by_key(|(_, line)| *line);
+    found
+}
+
+// The two macro arguments split at the one comma outside any nesting.
+fn paired(tokens: &str) -> Option<(String, String)> {
+    let mut depth = 0;
+    let mut split = None;
+    for (at, part) in tokens.char_indices() {
+        match part {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth -= 1,
+            ',' if depth == 0 => {
+                if split.is_some() {
+                    return None;
+                }
+                split = Some(at);
+            }
+            _ => {}
+        }
+    }
+    let at = split?;
+    Some((
+        tokens[..at].trim().to_string(),
+        tokens[at + 1..].trim().to_string(),
+    ))
 }
 
 #[cfg(test)]

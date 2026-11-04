@@ -30,6 +30,7 @@ pub struct Python {
     suppressions: Vec<Suppression>,
     aliases: Vec<(PathBuf, String, usize)>,
     overreaches: Vec<(PathBuf, String, usize)>,
+    tautologies: Vec<(PathBuf, usize, String)>,
 }
 
 impl Python {
@@ -63,6 +64,7 @@ impl Pack for Python {
             ("wiring", "held"),
             ("tools", "held"),
             ("no-warnings", "held"),
+            ("tautology", "held"),
             ("container", "held"),
             ("generated", "held"),
             (
@@ -173,6 +175,17 @@ impl Pack for Python {
                     });
                 }
             }
+        }
+        for (text, line) in marked(tree.root_node(), source) {
+            self.suppressions.push(Suppression {
+                file: file.to_path_buf(),
+                line,
+                text,
+                blanket: false,
+            });
+        }
+        for (text, line) in tautologies(tree.root_node(), source) {
+            self.tautologies.push((file.to_path_buf(), line, text));
         }
         if !surface {
             return Vec::new();
@@ -298,6 +311,23 @@ impl Pack for Python {
             name: "no-hidden-names".to_string(),
             reason: format!("imported as {alias}; a symbol keeps its own name"),
         }));
+        // A fixture's tautologies are some test's data, never judged.
+        let fixture = |file: &PathBuf| {
+            let unit = repo.unit_of(file);
+            repo.is_test(unit, &repo.units[unit].path.clone())
+        };
+        findings.extend(
+            self.tautologies
+                .iter()
+                .filter(|(file, _, _)| !fixture(file))
+                .map(|(file, line, text)| Finding {
+                    check: "integrity",
+                    file: file.clone(),
+                    line: *line,
+                    name: "tautology".to_string(),
+                    reason: format!("{text}; an assertion compares the system to an expectation"),
+                }),
+        );
         findings.extend(self.overreaches.iter().map(|(file, token, line)| Finding {
             check: "integrity",
             file: file.clone(),
@@ -821,6 +851,10 @@ fn claimed(node: tree_sitter::Node, source: &str, path: &mut Vec<String>, found:
         if let Some(name) = node.child_by_field_name("name") {
             let name = name.utf8_text(source.as_bytes()).unwrap_or("");
             if let Some(rest) = name.strip_prefix("test_") {
+                // A skipped or expected-to-fail test proves nothing.
+                if silenced(node, source) {
+                    return;
+                }
                 found.push(Claim {
                     path: path.clone(),
                     sentence: rest.replace('_', " "),
@@ -833,6 +867,96 @@ fn claimed(node: tree_sitter::Node, source: &str, path: &mut Vec<String>, found:
     for child in node.children(&mut walker) {
         claimed(child, source, path, found);
     }
+}
+
+// A pytest skip, skipif or xfail is a suppression the ledger counts.
+fn marked(node: tree_sitter::Node, source: &str) -> Vec<(String, usize)> {
+    let mut found = Vec::new();
+    let mut stack = vec![node];
+    while let Some(node) = stack.pop() {
+        if node.kind() == "decorator" {
+            let text = node.utf8_text(source.as_bytes()).unwrap_or("");
+            if ["mark.skipif", "mark.skip", "mark.xfail"]
+                .iter()
+                .any(|form| text.contains(form))
+            {
+                let first = text.lines().next().unwrap_or("").trim().to_string();
+                found.push((first, node.start_position().row + 1));
+            }
+        }
+        let mut walker = node.walk();
+        for child in node.children(&mut walker) {
+            stack.push(child);
+        }
+    }
+    found.sort_by_key(|(_, line)| *line);
+    found
+}
+
+// Whether a test's decorators silence it: skip and skipif never run it, and a
+// strict xfail proves only that it fails.
+fn silenced(function: tree_sitter::Node, source: &str) -> bool {
+    let Some(parent) = function.parent() else {
+        return false;
+    };
+    if parent.kind() != "decorated_definition" {
+        return false;
+    }
+    let mut walker = parent.walk();
+    let silenced = parent.children(&mut walker).any(|child| {
+        child.kind() == "decorator"
+            && ["mark.skipif", "mark.skip", "mark.xfail"]
+                .iter()
+                .any(|form| {
+                    child
+                        .utf8_text(source.as_bytes())
+                        .unwrap_or("")
+                        .contains(form)
+                })
+    });
+    silenced
+}
+
+// assert True and assert on a value compared to itself: always true, asserting
+// nothing.
+fn tautologies(node: tree_sitter::Node, source: &str) -> Vec<(String, usize)> {
+    let mut found = Vec::new();
+    let mut stack = vec![node];
+    while let Some(node) = stack.pop() {
+        if node.kind() == "assert_statement" {
+            if let Some(condition) = node.named_child(0) {
+                let text = condition.utf8_text(source.as_bytes()).unwrap_or("");
+                if condition.kind() == "true" || condition.kind() == "integer" {
+                    found.push((format!("asserts {text}"), node.start_position().row + 1));
+                }
+                if condition.kind() == "comparison_operator" {
+                    let mut walker = condition.walk();
+                    let sides: Vec<String> = condition
+                        .named_children(&mut walker)
+                        .filter(|&side| {
+                            matches!(
+                                side.kind(),
+                                "identifier" | "integer" | "string" | "true" | "false"
+                            )
+                        })
+                        .map(|side| side.utf8_text(source.as_bytes()).unwrap_or("").to_string())
+                        .collect();
+                    if sides.len() == 2 && sides[0] == sides[1] && text.contains("==") {
+                        found.push((
+                            format!("asserts {} equals itself", sides[0]),
+                            node.start_position().row + 1,
+                        ));
+                    }
+                }
+            }
+        }
+        let mut walker = node.walk();
+        for child in node.children(&mut walker) {
+            stack.push(child);
+        }
+    }
+    found.sort_by_key(|(_, line)| *line);
+    found
 }
 
 #[cfg(test)]

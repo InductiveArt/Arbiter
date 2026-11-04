@@ -32,3 +32,14 @@ fn each_language_claims_its_sentences_under_their_frames() {
         ]
     );
 }
+
+#[test]
+fn a_claim_that_left_without_signature_is_a_finding() {
+    let found = graph(PROOF).expect("the fixture folder exists");
+    let gone = arbiter::judge::proof::vanished(&found);
+    assert_eq!(gone.len(), 1);
+    assert!(gone[0].reason.contains("snapped to the rim that left"));
+    assert!(gone[0]
+        .reason
+        .contains("leaves only with the user's signature"));
+}

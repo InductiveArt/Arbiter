@@ -1,0 +1,13 @@
+{
+  "suppressions": [],
+  "packages": [],
+  "claims": [
+    ". |  | a bare claim stands outside any suite",
+    ". |  | an empty lattice spans nothing",
+    ". |  | doubling two gives four",
+    ". | TestLattice | holds a point per cell",
+    ". | docking | snapped to the rim that left",
+    ". | docking / a crowded rim | spreads the arrows a pitch apart",
+    ". | docking | snaps the arrow to the nearest rim"
+  ]
+}

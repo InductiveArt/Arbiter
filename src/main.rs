@@ -95,6 +95,14 @@ fn main() -> ExitCode {
                 run.third
             ),
         }
+        match run.claims_removed {
+            None => println!("  proof      {} claims, no reference recorded", run.claims),
+            Some(0) => println!("  proof      {} claims, none removed", run.claims),
+            Some(removed) => println!(
+                "  proof      {} claims, {removed} removed since accept",
+                run.claims
+            ),
+        }
         for note in &run.notes {
             println!("{command}: {note}");
         }
@@ -159,6 +167,7 @@ fn main() -> ExitCode {
         let mut all = winnow(&found.defs, &found.edges, &found.repo);
         all.extend(integrity(&found));
         all.extend(ledger::blanket_findings(&found));
+        all.extend(proof::vanished(&found));
         all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
         emit(&all, &arguments[2.min(arguments.len())..]);
         return ExitCode::SUCCESS;
@@ -368,12 +377,14 @@ fn main() -> ExitCode {
         }
         let counted = ledger::counted(&found);
         let packages = ledger::packages(&found);
-        match ledger::record(&found.root, &counted, &packages) {
+        let claims = proof::spoken(&found);
+        match ledger::record(&found.root, &counted, &packages, &claims) {
             Ok(path) => {
                 println!(
-                    "accept: {} suppressions and {} third parties recorded in {}",
+                    "accept: {} suppressions, {} third parties and {} claims recorded in {}",
                     counted.len(),
                     packages.len(),
+                    claims.len(),
                     path.to_string_lossy()
                 );
                 for pack in &found.packs {

@@ -40,6 +40,7 @@ pub struct TypeScript {
     crowded: Vec<(PathBuf, usize, usize)>,
     // The lines holding a type-only import, which erases at build time.
     typed: std::collections::HashSet<(PathBuf, usize)>,
+    tautologies: Vec<(PathBuf, usize, String)>,
 }
 
 impl TypeScript {
@@ -68,6 +69,7 @@ impl Pack for TypeScript {
             ("wiring", "held"),
             ("tools", "held"),
             ("no-warnings", "held"),
+            ("tautology", "held"),
             ("container", "held"),
             ("generated", "held"),
             (
@@ -180,6 +182,17 @@ impl Pack for TypeScript {
                     });
                 }
             }
+        }
+        for (text, line) in marked(tree.root_node(), source) {
+            self.suppressions.push(Suppression {
+                file: file.to_path_buf(),
+                line,
+                text,
+                blanket: false,
+            });
+        }
+        for (text, line) in tautologies(tree.root_node(), source) {
+            self.tautologies.push((file.to_path_buf(), line, text));
         }
         if !surface {
             return Vec::new();
@@ -302,6 +315,25 @@ impl Pack for TypeScript {
                     .to_string(),
             }
         }));
+        // A fixture's tautologies are some test's data, never judged.
+        let fixture = |file: &PathBuf| {
+            let unit = repo.unit_of(file);
+            repo.is_test(unit, &repo.units[unit].path.clone())
+        };
+        findings.extend(
+            self.tautologies
+                .iter()
+                .filter(|(file, _, _)| !fixture(file))
+                .map(|(file, line, text)| Finding {
+                    check: "integrity",
+                    file: file.clone(),
+                    line: *line,
+                    name: "tautology".to_string(),
+                    reason: format!(
+                "asserts {text} equals itself; an assertion compares the system to an expectation"
+            ),
+                }),
+        );
         findings.extend(self.crowded.iter().map(|(file, line, names)| Finding {
             check: "integrity",
             file: file.clone(),
@@ -1258,6 +1290,15 @@ fn claimed(node: tree_sitter::Node, source: &str, path: &mut Vec<String>, found:
             _ => "",
         });
         if matches!(name, "describe" | "it" | "test") {
+            // A skipped or todo claim proves nothing, so it never enters the tree.
+            let mark = callee
+                .filter(|callee| callee.kind() == "member_expression")
+                .and_then(|callee| callee.child_by_field_name("property"))
+                .and_then(|property| property.utf8_text(source.as_bytes()).ok())
+                .unwrap_or("");
+            if matches!(mark, "skip" | "todo") {
+                return;
+            }
             if let Some(sentence) = first_sentence(node, source) {
                 if name == "describe" {
                     path.push(sentence);
@@ -1293,6 +1334,106 @@ fn first_sentence(call: tree_sitter::Node, source: &str) -> Option<String> {
         }
     }
     None
+}
+
+// A skipped, focused or postponed test is a suppression the ledger counts:
+// skip and todo silence the claim, only silences every sibling.
+fn marked(node: tree_sitter::Node, source: &str) -> Vec<(String, usize)> {
+    let mut found = Vec::new();
+    let mut stack = vec![node];
+    while let Some(node) = stack.pop() {
+        if node.kind() == "member_expression" {
+            let object = node
+                .child_by_field_name("object")
+                .filter(|object| object.kind() == "identifier")
+                .and_then(|object| object.utf8_text(source.as_bytes()).ok())
+                .unwrap_or("");
+            let property = node
+                .child_by_field_name("property")
+                .and_then(|property| property.utf8_text(source.as_bytes()).ok())
+                .unwrap_or("");
+            if matches!(object, "describe" | "it" | "test")
+                && matches!(property, "skip" | "todo" | "only")
+            {
+                found.push((
+                    format!("{object}.{property}"),
+                    node.start_position().row + 1,
+                ));
+            }
+        }
+        let mut walker = node.walk();
+        for child in node.children(&mut walker) {
+            stack.push(child);
+        }
+    }
+    found.sort_by_key(|(_, line)| *line);
+    found
+}
+
+// expect(a).toBe(a) with both sides one literal or one name: always true,
+// asserting nothing. NaN is the lone exception and no test leans on it.
+fn tautologies(node: tree_sitter::Node, source: &str) -> Vec<(String, usize)> {
+    let mut found = Vec::new();
+    let mut stack = vec![node];
+    while let Some(node) = stack.pop() {
+        if node.kind() == "call_expression" {
+            if let Some((left, right)) = asserted_pair(node, source) {
+                if left == right {
+                    found.push((left, node.start_position().row + 1));
+                }
+            }
+        }
+        let mut walker = node.walk();
+        for child in node.children(&mut walker) {
+            stack.push(child);
+        }
+    }
+    found.sort_by_key(|(_, line)| *line);
+    found
+}
+
+fn asserted_pair(call: tree_sitter::Node, source: &str) -> Option<(String, String)> {
+    let callee = call.child_by_field_name("function")?;
+    if callee.kind() != "member_expression" {
+        return None;
+    }
+    let property = callee
+        .child_by_field_name("property")?
+        .utf8_text(source.as_bytes())
+        .ok()?;
+    if !matches!(property, "toBe" | "toEqual" | "toStrictEqual") {
+        return None;
+    }
+    let object = callee.child_by_field_name("object")?;
+    if object.kind() != "call_expression"
+        || object
+            .child_by_field_name("function")?
+            .utf8_text(source.as_bytes())
+            .ok()?
+            != "expect"
+    {
+        return None;
+    }
+    let expected = simple_argument(object, source)?;
+    let compared = simple_argument(call, source)?;
+    Some((expected, compared))
+}
+
+// The sole argument when it is a bare literal or name; anything built is not judged.
+fn simple_argument(call: tree_sitter::Node, source: &str) -> Option<String> {
+    let arguments = call.child_by_field_name("arguments")?;
+    let mut walker = arguments.walk();
+    let named: Vec<tree_sitter::Node> = arguments.named_children(&mut walker).collect();
+    let [argument] = named[..] else {
+        return None;
+    };
+    if !matches!(
+        argument.kind(),
+        "identifier" | "number" | "string" | "true" | "false"
+    ) {
+        return None;
+    }
+    Some(argument.utf8_text(source.as_bytes()).ok()?.to_string())
 }
 
 #[cfg(test)]

@@ -8,6 +8,7 @@ use crate::judge::findings;
 use crate::judge::ledger;
 use crate::judge::outcomes;
 use crate::judge::outcomes::Outcome;
+use crate::judge::proof;
 use crate::packs;
 
 // One whole judgment of a repository: both planes, with the ledger's footer.
@@ -21,6 +22,8 @@ pub struct Run {
     pub counted: usize,
     // Suppressions added since the reference; None when none was recorded yet.
     pub added: Option<usize>,
+    pub claims: usize,
+    pub claims_removed: Option<usize>,
     pub third: usize,
     // Third parties added since the reference; None when none was recorded yet.
     pub third_added: Option<usize>,
@@ -65,6 +68,10 @@ pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
     let mut all = findings::winnow(&found.defs, &found.edges, &found.repo);
     all.extend(findings::integrity(&found));
     all.extend(ledger::blanket_findings(&found));
+    let removed = proof::vanished(&found);
+    let claims = proof::spoken(&found).len();
+    let claims_removed = proof::recorded_claims(&found.root).map(|_| removed.len());
+    all.extend(removed);
     all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     let counted = ledger::counted(&found);
     let added =
@@ -85,6 +92,8 @@ pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
         outcomes,
         notes,
         findings: all,
+        claims,
+        claims_removed,
         counted,
         added,
         third,

@@ -112,7 +112,12 @@ pub fn reference(root: &Path) -> Option<Vec<(String, String)>> {
     )
 }
 
-pub fn record(root: &Path, current: &[&Suppression], packages: &[String]) -> io::Result<PathBuf> {
+pub fn record(
+    root: &Path,
+    current: &[&Suppression],
+    packages: &[String],
+    claims: &[String],
+) -> io::Result<PathBuf> {
     let entries: Vec<serde_json::Value> = current
         .iter()
         .map(|suppression| {
@@ -125,6 +130,7 @@ pub fn record(root: &Path, current: &[&Suppression], packages: &[String]) -> io:
     let written = serde_json::to_string_pretty(&serde_json::json!({
         "suppressions": entries,
         "packages": packages,
+        "claims": claims,
     }))
     .map_err(io::Error::other)?;
     let path = root.join(REFERENCE);
