@@ -695,7 +695,9 @@ fn blast(name: &str, defs: &[Def], edges: &[Edge]) {
             .collect();
         users.sort();
         users.dedup();
-        if users.is_empty() {
+        if def.self_used {
+            println!("  used by its own file");
+        } else if users.is_empty() {
             println!("  used by nothing");
         }
         for user in users {
