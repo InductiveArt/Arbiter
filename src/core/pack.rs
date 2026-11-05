@@ -162,12 +162,12 @@ pub const CORE: &[(&str, &str)] = &[
         "every suppression and third party is counted against what accept recorded",
     ),
     (
-        "proof",
-        "a proven behavior leaves only with the user's signature",
+        "claims",
+        "a claim once accepted leaves only with the user's signature",
     ),
     (
         "brief",
-        "every need is answered by proof or says why not, and every claim answers a need",
+        "every need is answered by a claim or says why not, and every claim answers a need",
     ),
 ];
 

@@ -17,7 +17,7 @@ what they decide.
 | `arbiter blast <name> .` | Each definition of a name and every resolved use of that one. | no |
 | `arbiter ledger .` | Every suppression, counted against the accepted reference. | no |
 | `arbiter rules` | The rule-by-language matrix - held, never with its why, or open - then each rule's and each core judgment's one-line law. | no |
-| `arbiter brief [case] .` | The brief against the proof tree: each case's needs as held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units proving nothing. A case argument prints that one slice. | no |
+| `arbiter brief [case] .` | The brief against the claims tree: each case's needs as held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. A case argument prints that one slice. | no |
 | `arbiter rhyme .` | Structurally equivalent functions, grouped and largest first: a perfect rhyme reads identically, a slant rhyme is the same shape in different words. A measure to read and judge - never findings, never a gate stage. | no |
 | `arbiter accept .` | Records the suppression, dependency and claim references. **The user's signature - never run it.** | yes |
 
@@ -103,7 +103,7 @@ Each finding has one expected fix. A suppression is never one of them.
 | `licenses` | Ask the user: the allow list is a policy decision. |
 | wiring (option below the bar) | Earn the option: annotate exports, guard index access. Never a non-null assertion, never a cast, never lowering the config. |
 | tool failures (lint, types, test) | Read the unit's section in the report - it holds the whole output - and fix the code. Complexity findings take named extractions, not reshuffling. |
-| `proof` (vanished claim) | Restore the behavior and its test, or ask the user to accept the removal - a proven behavior leaves only with their signature. |
+| `claims` (vanished claim) | Restore the behavior and its test, or ask the user to accept the removal - a claim once accepted leaves only with their signature. |
 | `brief` (unanswered need) | Bind the claims that prove it, or mark it planned or manual - never invent the binding; the need's meaning is the user's. |
 | `brief` (stale binding) | The test moved or was reworded: rebind to the claim's current identity from `arbiter brief`, or ask the user whether the need itself changed. |
 | `brief` (unwired claim) | Wire the claim to the need it serves, or propose the missing need - a behavior worth proving is worth a sentence in the brief. |

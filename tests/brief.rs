@@ -1,11 +1,11 @@
 use arbiter::core::graph::graph;
 use arbiter::judge::brief::{read, State};
 
-const PROOF: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/proof");
+const CLAIMS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/claims");
 
 #[test]
 fn the_brief_states_each_need_and_roars_at_the_unwired() {
-    let found = graph(PROOF).expect("the fixture folder exists");
+    let found = graph(CLAIMS).expect("the fixture folder exists");
     let reading = read(&found).expect("the fixture writes a brief");
     assert_eq!(reading.cases, 3);
     assert_eq!(reading.claims, 8);

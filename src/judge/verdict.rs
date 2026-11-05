@@ -5,11 +5,11 @@ use crate::core::graph;
 use crate::core::pack::Finding;
 use crate::core::units;
 use crate::judge::brief;
+use crate::judge::claims;
 use crate::judge::findings;
 use crate::judge::ledger;
 use crate::judge::outcomes;
 use crate::judge::outcomes::Outcome;
-use crate::judge::proof;
 use crate::packs;
 
 // One whole judgment of a repository: both planes, with the ledger's footer.
@@ -112,9 +112,9 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
     if !briefless {
         all.extend(brief::findings(&found));
     }
-    let removed = proof::vanished(&found);
-    let claims = proof::spoken(&found).len();
-    let claims_removed = proof::recorded_claims(&found.root).map(|_| removed.len());
+    let removed = claims::vanished(&found);
+    let claims = claims::identities(&found).len();
+    let claims_removed = claims::recorded(&found.root).map(|_| removed.len());
     all.extend(removed);
     all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     let counted = ledger::counted(&found);
@@ -168,7 +168,7 @@ pub fn tallied(outcomes: &[Outcome]) -> BTreeMap<String, (usize, usize, usize, f
 }
 
 // The warm store, built from the resolved graph. A cold run reads nothing,
-// yet still records: a full cold proof is the best evidence a store can hold.
+// yet still records: a full cold run is the best evidence a store can hold.
 fn heated(found: &graph::Graph, cold: bool) -> Option<crate::core::warm::Warmth> {
     let defs_units: Vec<usize> = found.defs.iter().map(|def| def.unit).collect();
     let mut warmth = crate::core::warm::warmth(

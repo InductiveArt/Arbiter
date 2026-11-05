@@ -10,5 +10,5 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn a_slow_proof_waits() {}
+    fn a_slow_check_waits() {}
 }

@@ -6,10 +6,10 @@ use std::process::ExitCode;
 use arbiter::core::graph::graph;
 use arbiter::core::pack::{self, Def, Edge, Finding, Suppression};
 use arbiter::judge::brief;
+use arbiter::judge::claims;
 use arbiter::judge::findings::{integrity, winnow};
 use arbiter::judge::ledger;
 use arbiter::judge::outcomes;
-use arbiter::judge::proof;
 use arbiter::judge::rhyme;
 use arbiter::judge::verdict;
 
@@ -97,10 +97,10 @@ fn main() -> ExitCode {
             ),
         }
         match run.claims_removed {
-            None => println!("  proof      {} claims, no reference recorded", run.claims),
-            Some(0) => println!("  proof      {} claims, none removed", run.claims),
+            None => println!("  claims     {} spoken, no reference recorded", run.claims),
+            Some(0) => println!("  claims     {} spoken, none removed", run.claims),
             Some(removed) => println!(
-                "  proof      {} claims, {removed} removed since accept",
+                "  claims     {} spoken, {removed} removed since accept",
                 run.claims
             ),
         }
@@ -183,7 +183,7 @@ fn main() -> ExitCode {
         let mut all = winnow(&found.defs, &found.edges, &found.repo);
         all.extend(integrity(&found));
         all.extend(ledger::blanket_findings(&found));
-        all.extend(proof::vanished(&found));
+        all.extend(claims::vanished(&found));
         all.extend(brief::findings(&found));
         all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
         emit(&all, &arguments[2.min(arguments.len())..]);
@@ -406,14 +406,14 @@ fn main() -> ExitCode {
         }
         let counted = ledger::counted(&found);
         let packages = ledger::packages(&found);
-        let claims = proof::spoken(&found);
-        match ledger::record(&found.root, &counted, &packages, &claims) {
+        let spoken = claims::identities(&found);
+        match ledger::record(&found.root, &counted, &packages, &spoken) {
             Ok(path) => {
                 println!(
                     "accept: {} suppressions, {} third parties and {} claims recorded in {}",
                     counted.len(),
                     packages.len(),
-                    claims.len(),
+                    spoken.len(),
                     path.to_string_lossy()
                 );
                 for pack in &found.packs {
@@ -439,26 +439,26 @@ fn main() -> ExitCode {
 // With no brief written, the whole tree is the unwired world: the claims an
 // agent reads to draft the first cases.
 fn unwritten(found: &arbiter::core::graph::Graph) -> ExitCode {
-    let (claimed, unproven) = proof::proofs(found);
+    let (claimed, silent) = claims::heard(found);
     let behaviors: usize = claimed.values().map(Vec::len).sum();
     println!("brief: no brief written; {behaviors} claims unwired");
-    for (unit, proofs) in &claimed {
+    for (unit, list) in &claimed {
         let shown = if unit.as_os_str().is_empty() {
             ".".to_string()
         } else {
             unit.to_string_lossy().to_string()
         };
         println!();
-        println!("{shown} - {}", proofs.len());
-        let mut file = None;
+        println!("{shown} - {}", list.len());
+        let mut last = None;
         let mut told: Vec<String> = Vec::new();
-        for proof in proofs {
-            if file != Some(&proof.file) {
-                println!("  {}", proof.file.to_string_lossy());
-                file = Some(&proof.file);
+        for one in list {
+            if last != Some(&one.file) {
+                println!("  {}", one.file.to_string_lossy());
+                last = Some(&one.file);
                 told.clear();
             }
-            for (depth, frame) in proof.path.iter().enumerate() {
+            for (depth, frame) in one.claim.path.iter().enumerate() {
                 if told.len() > depth && told[depth] == *frame {
                     continue;
                 }
@@ -466,12 +466,16 @@ fn unwritten(found: &arbiter::core::graph::Graph) -> ExitCode {
                 told.push(frame.clone());
                 println!("{}{frame}", "  ".repeat(depth + 2));
             }
-            told.truncate(proof.path.len());
-            println!("{}{}", "  ".repeat(proof.path.len() + 2), proof.sentence);
+            told.truncate(one.claim.path.len());
+            println!(
+                "{}{}",
+                "  ".repeat(one.claim.path.len() + 2),
+                one.claim.sentence
+            );
         }
     }
-    if !unproven.is_empty() {
-        let names: Vec<String> = unproven
+    if !silent.is_empty() {
+        let names: Vec<String> = silent
             .iter()
             .map(|unit| {
                 if unit.as_os_str().is_empty() {
@@ -482,7 +486,7 @@ fn unwritten(found: &arbiter::core::graph::Graph) -> ExitCode {
             })
             .collect();
         println!();
-        println!("proves nothing: {}", names.join(", "));
+        println!("claims nothing: {}", names.join(", "));
     }
     ExitCode::SUCCESS
 }

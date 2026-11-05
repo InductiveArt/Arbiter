@@ -142,7 +142,7 @@ story = "every suppression is counted against the user's signature"
   ]
 
 [[case]]
-name = "proof"
+name = "claims"
 story = "behavior is claimed by tests and commissioned by the brief"
 
   [[case.need]]
@@ -150,7 +150,7 @@ story = "behavior is claimed by tests and commissioned by the brief"
   claims = [". |  | each language claims its sentences under their frames"]
 
   [[case.need]]
-  need = "a proven behavior leaves only with the user's signature"
+  need = "a claim once accepted leaves only with the user's signature"
   claims = [". |  | a claim that left without signature is a finding"]
 
   [[case.need]]

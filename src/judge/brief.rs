@@ -3,13 +3,13 @@ use std::path::PathBuf;
 
 use crate::core::graph::Graph;
 use crate::core::pack::Finding;
-use crate::judge::proof;
+use crate::judge::claims;
 
 const BRIEF: &str = ".arbiter/brief.toml";
 
 // One need of one case, with the state the tree gives it: held by wired
-// claims, planned before the code exists, manual where proof lives outside
-// the repository, or unanswered.
+// claims, planned before the code exists, manual where the evidence lives
+// outside the repository, or unanswered.
 pub struct Need {
     pub case: String,
     pub need: String,
@@ -70,15 +70,15 @@ pub fn read(found: &Graph) -> Option<Reading> {
         return None;
     }
 
-    let (claimed, _) = proof::proofs(found);
+    let (claimed, _) = claims::heard(found);
     let mut spoken: Vec<(String, PathBuf, usize, String)> = Vec::new();
-    for (unit, proofs) in &claimed {
-        for one in proofs {
+    for (unit, list) in &claimed {
+        for one in list {
             spoken.push((
-                proof::identity(unit, one),
+                claims::identity(unit, &one.claim),
                 one.file.clone(),
-                one.line,
-                one.sentence.clone(),
+                one.claim.line,
+                one.claim.sentence.clone(),
             ));
         }
     }

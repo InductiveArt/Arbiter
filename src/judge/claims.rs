@@ -1,22 +1,21 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::core::graph::Graph;
-use crate::core::pack::Finding;
+use crate::core::pack::{Claim, Finding};
 
-pub struct Proof {
+// One claim at the file speaking it.
+pub struct Spoken {
     pub file: PathBuf,
-    pub path: Vec<String>,
-    pub sentence: String,
-    pub line: usize,
+    pub claim: Claim,
 }
 
-// Every behavior the tests claim, by unit, with the units claiming nothing:
-// what the repository proves about itself, and where it proves nothing.
-pub fn proofs(found: &Graph) -> (BTreeMap<PathBuf, Vec<Proof>>, Vec<PathBuf>) {
-    let mut claimed: BTreeMap<PathBuf, Vec<Proof>> = BTreeMap::new();
-    let mut coded: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
+// Every claim the tests speak, by unit, plus the units claiming nothing:
+// what the repository claims about itself, and where it stays silent.
+pub fn heard(found: &Graph) -> (BTreeMap<PathBuf, Vec<Spoken>>, Vec<PathBuf>) {
+    let mut claimed: BTreeMap<PathBuf, Vec<Spoken>> = BTreeMap::new();
+    let mut coded: BTreeSet<PathBuf> = BTreeSet::new();
     for file in &found.repo.files {
         let name = file
             .file_name()
@@ -39,42 +38,40 @@ pub fn proofs(found: &Graph) -> (BTreeMap<PathBuf, Vec<Proof>>, Vec<PathBuf>) {
             continue;
         };
         for claim in found.packs[index].claims(&source) {
-            claimed.entry(home.clone()).or_default().push(Proof {
+            claimed.entry(home.clone()).or_default().push(Spoken {
                 file: file.clone(),
-                path: claim.path,
-                sentence: claim.sentence,
-                line: claim.line,
+                claim,
             });
         }
     }
-    for proofs in claimed.values_mut() {
-        proofs.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
+    for claims in claimed.values_mut() {
+        claims.sort_by(|a, b| (&a.file, a.claim.line).cmp(&(&b.file, b.claim.line)));
     }
-    let unproven = coded
+    let silent = coded
         .into_iter()
         .filter(|unit| !claimed.contains_key(unit))
         .collect();
-    (claimed, unproven)
+    (claimed, silent)
 }
 
 // One claim's identity across runs: where it lives at unit grain and what it
 // says, so a moved test file keeps its claim and a reworded one trades it.
-pub fn identity(unit: &Path, proof: &Proof) -> String {
+pub fn identity(unit: &Path, claim: &Claim) -> String {
     let shown = if unit.as_os_str().is_empty() {
         "."
     } else {
         &unit.to_string_lossy()
     };
-    format!("{shown} | {} | {}", proof.path.join(" / "), proof.sentence)
+    format!("{shown} | {} | {}", claim.path.join(" / "), claim.sentence)
 }
 
 // Every claim's identity, duplicates kept: two tests speaking the same
-// sentence are two proofs, and losing one still counts.
-pub fn spoken(found: &Graph) -> Vec<String> {
-    let (claimed, _) = proofs(found);
+// sentence are two claims, and losing one still counts.
+pub fn identities(found: &Graph) -> Vec<String> {
+    let (claimed, _) = heard(found);
     let mut all: Vec<String> = claimed
         .iter()
-        .flat_map(|(unit, proofs)| proofs.iter().map(|proof| identity(unit, proof)))
+        .flat_map(|(unit, claims)| claims.iter().map(|one| identity(unit, &one.claim)))
         .collect();
     all.sort();
     all
@@ -82,7 +79,7 @@ pub fn spoken(found: &Graph) -> Vec<String> {
 
 const REFERENCE: &str = ".arbiter/reference.json";
 
-pub fn recorded_claims(root: &Path) -> Option<Vec<String>> {
+pub fn recorded(root: &Path) -> Option<Vec<String>> {
     let text = fs::read_to_string(root.join(REFERENCE)).ok()?;
     let parsed: serde_json::Value = serde_json::from_str(&text).ok()?;
     let entries = parsed.get("claims")?.as_array()?;
@@ -97,11 +94,11 @@ pub fn recorded_claims(root: &Path) -> Option<Vec<String>> {
 // Each accepted claim the tree no longer speaks: a behavior that left without
 // the user's signature. No recorded claims is no reference yet, not a pass.
 pub fn vanished(found: &Graph) -> Vec<Finding> {
-    let Some(recorded) = recorded_claims(&found.root) else {
+    let Some(recorded) = recorded(&found.root) else {
         return Vec::new();
     };
     let mut remaining: BTreeMap<String, usize> = BTreeMap::new();
-    for claim in spoken(found) {
+    for claim in identities(found) {
         *remaining.entry(claim).or_insert(0) += 1;
     }
     let mut findings = Vec::new();
@@ -114,12 +111,12 @@ pub fn vanished(found: &Graph) -> Vec<Finding> {
         }
         let unit = claim.split(" | ").next().unwrap_or(".").to_string();
         findings.push(Finding {
-            check: "proof",
+            check: "claims",
             file: PathBuf::from(unit),
             line: 0,
             name: "vanished-claim".to_string(),
             reason: format!(
-                "the claim '{claim}' left; a proven behavior leaves only with the user's signature"
+                "the claim '{claim}' left; a claim once accepted leaves only with the user's signature"
             ),
         });
     }
