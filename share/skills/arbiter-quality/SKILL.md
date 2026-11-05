@@ -68,6 +68,10 @@ these rules hold the thinking:
   shared has one writer, enforced by the structure.
 - A failure is reproduced, then its cause is fixed: a guard that only hides
   a crash is not a fix.
+- An implementation names the door it walks through: a python provider
+  subclasses its Protocol, a TypeScript class writes `implements`.
+  Conformance stays structural; the edge becomes a name the graph resolves,
+  so blast answers "who implements this".
 - A test calls the code as its user does and checks what that user would
   see; a test that would pass if every function returned nothing is thrown
   out.
