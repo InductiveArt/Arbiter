@@ -69,6 +69,13 @@ story = "the graph plane finds what breaks the laws and names it"
   ]
 
   [[case.need]]
+  need = "a protocol satisfied by shape is still named"
+  claims = [
+    ". |  | a class standing where a protocol is asked names it",
+    ". |  | a class standing where an interface is asked names it",
+  ]
+
+  [[case.need]]
   need = "a symbol reached only by tests of a planned case is nascent, never dead"
   claims = [". |  | a symbol reached only by commissioned tests is nascent not dead"]
 

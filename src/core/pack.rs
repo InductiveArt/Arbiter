@@ -107,6 +107,10 @@ pub const RULES: &[(&str, &str)] = &[
         "a third party a manifest declares and nothing reaches is named for deletion",
     ),
     (
+        "protocol-shape-named",
+        "a class standing where a protocol is asked names it among its bases",
+    ),
+    (
         "suppressions",
         "every suppression is counted against the reference; a blanket form is a finding",
     ),

@@ -50,6 +50,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
             ".arbiter/units.toml app declares libs/facade and never uses it",
             "app/pyproject.toml rich is declared, and nothing in the unit reaches it",
             "app/src/app/alias.py imported as v; a symbol keeps its own name",
+            "app/src/app/doors.py Satellite stands where Port is asked and names no \
+             such base; a protocol satisfied by shape is still named",
             "app/src/app/ghost_rpc.py app.gen.phantom_pb2 names no contract; \
              a generated import answers for the contract it was generated from",
             "app/src/app/web.py requests is imported, \
@@ -104,6 +106,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
             "web/src/boot.ts effectpkg is imported, and the unit's manifest does not declare it",
             "web/src/deep.ts reaches ui/src/parts/button.ts inside ui; \
              a unit is entered through the routes its manifest declares",
+            "web/src/doorway.ts Dish stands where Beam is asked and names no such \
+             base; a protocol satisfied by shape is still named",
             "web/src/lazy.ts imports a module through a computed value; \
              a module is named by a literal",
             "web/src/panel.ts names 3 symbols in one import; \

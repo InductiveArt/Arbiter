@@ -45,6 +45,10 @@ impl Pack for Infra {
                 "never: a manifest carries no directive that silences a judge",
             ),
             (
+                "protocol-shape-named",
+                "never: a manifest declares state; it names no classes",
+            ),
+            (
                 "resolve",
                 "never: a manifest declares state; it imports nothing",
             ),

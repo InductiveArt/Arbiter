@@ -59,6 +59,10 @@ impl Pack for Proto {
                 "never: an import names one file by syntax",
             ),
             ("no-comment-overreach", "held"),
+            (
+                "protocol-shape-named",
+                "never: a contract declares shapes, never classes",
+            ),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
             ("suppressions", "held"),

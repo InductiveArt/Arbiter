@@ -5,6 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use tree_sitter::Language;
+use tree_sitter::Node;
 use tree_sitter::Tree;
 
 use crate::core::pack::pinned;
@@ -42,6 +43,14 @@ pub struct Python {
     aliases: Vec<(PathBuf, String, usize)>,
     overreaches: Vec<(PathBuf, String, usize)>,
     tautologies: Vec<(PathBuf, usize, String)>,
+    protocols: Vec<String>,
+    classes: Vec<(PathBuf, usize, String, Vec<String>)>,
+    // One annotated parameter: function name, position, keyword, type names.
+    askings: Vec<(String, usize, Option<String>, Vec<String>)>,
+    // A constructor standing at an annotated site: direct types for an
+    // assignment, or the callee and argument place for a call.
+    assigns: Vec<(PathBuf, usize, Vec<String>, String)>,
+    callargs: Vec<(PathBuf, usize, String, usize, Option<String>, String)>,
 }
 
 impl Python {
@@ -71,6 +80,7 @@ impl Pack for Python {
             ("one-import-per-line", "held"),
             ("no-comment-overreach", "held"),
             ("dynamic-import", "held"),
+            ("protocol-shape-named", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
             ("suppressions", "held"),
@@ -207,6 +217,7 @@ impl Pack for Python {
         for (text, line) in tautologies(tree.root_node(), source) {
             self.tautologies.push((file.to_path_buf(), line, text));
         }
+        doors(tree.root_node(), source, file, self);
         if !surface {
             return Vec::new();
         }
@@ -539,6 +550,86 @@ impl Pack for Python {
                         "{distribution} is declared, and nothing in the unit reaches it"
                     ),
                 });
+            }
+        }
+        // A class standing where a protocol is asked names the protocol:
+        // a shape satisfied silently is an edge the graph cannot see.
+        let doors: HashSet<&String> = self.protocols.iter().collect();
+        let places: HashMap<&str, (&PathBuf, usize, &Vec<String>)> = self
+            .classes
+            .iter()
+            .map(|(file, line, name, bases)| (name.as_str(), (file, *line, bases)))
+            .collect();
+        let reaches = |class: &str, asked: &str| -> bool {
+            let mut stack = vec![class];
+            let mut seen = HashSet::new();
+            while let Some(name) = stack.pop() {
+                if !seen.insert(name.to_string()) {
+                    continue;
+                }
+                let Some((_, _, bases)) = places.get(name) else {
+                    continue;
+                };
+                for base in bases.iter() {
+                    if base == asked {
+                        return true;
+                    }
+                    stack.push(base);
+                }
+            }
+            false
+        };
+        let mut unnamed = std::collections::BTreeSet::new();
+        let fixture = |file: &PathBuf| {
+            let unit = repo.unit_of(file);
+            repo.is_test(unit, &repo.units[unit].path.clone()) || repo.is_test(unit, file)
+        };
+        let mut judge = |types: &Vec<String>, constructor: &String, findings: &mut Vec<Finding>| {
+            for asked in types {
+                if !doors.contains(asked) || asked == constructor {
+                    continue;
+                }
+                let Some((place_file, place_line, _)) = places.get(constructor.as_str()) else {
+                    continue;
+                };
+                if reaches(constructor, asked) {
+                    continue;
+                }
+                if unnamed.insert((constructor.clone(), asked.clone())) {
+                    findings.push(Finding {
+                        check: "integrity",
+                        file: (*place_file).clone(),
+                        line: *place_line,
+                        name: "protocol-shape-named".to_string(),
+                        reason: format!(
+                            "{constructor} stands where {asked} is asked and names no such \
+                             base; a protocol satisfied by shape is still named"
+                        ),
+                    });
+                }
+            }
+        };
+        for (file, _, types, constructor) in &self.assigns {
+            if fixture(file) {
+                continue;
+            }
+            judge(types, constructor, &mut findings);
+        }
+        for (file, _, callee, place, keyword, constructor) in &self.callargs {
+            if fixture(file) {
+                continue;
+            }
+            for (name, at, key, types) in &self.askings {
+                if name != callee {
+                    continue;
+                }
+                let fits = match keyword {
+                    Some(keyword) => key.as_ref() == Some(keyword),
+                    None => at == place,
+                };
+                if fits {
+                    judge(types, constructor, &mut findings);
+                }
             }
         }
         findings
@@ -1155,6 +1246,165 @@ fn tautologies(node: tree_sitter::Node, source: &str) -> Vec<(String, usize)> {
     }
     found.sort_by_key(|(_, line)| *line);
     found
+}
+
+// Collects the door shapes: protocol classes, each class's bases, annotated
+// parameters, and the constructors standing at annotated sites.
+fn doors(node: Node, source: &str, file: &Path, pack: &mut Python) {
+    let text = |at: Node| source[at.byte_range()].to_string();
+    match node.kind() {
+        "class_definition" => {
+            let Some(name) = node.child_by_field_name("name") else {
+                return;
+            };
+            let mut bases = Vec::new();
+            if let Some(supers) = node.child_by_field_name("superclasses") {
+                for index in 0..supers.named_child_count() {
+                    if let Some(base) = supers.named_child(index) {
+                        let whole = text(base);
+                        let last = whole.rsplit('.').next().unwrap_or(&whole);
+                        bases.push(last.split('[').next().unwrap_or(last).to_string());
+                    }
+                }
+            }
+            if bases.iter().any(|base| base == "Protocol") {
+                pack.protocols.push(text(name));
+            }
+            pack.classes.push((
+                file.to_path_buf(),
+                node.start_position().row + 1,
+                text(name),
+                bases,
+            ));
+        }
+        "function_definition" => {
+            let Some(name) = node.child_by_field_name("name") else {
+                return;
+            };
+            if let Some(parameters) = node.child_by_field_name("parameters") {
+                let mut place = 0;
+                for index in 0..parameters.named_child_count() {
+                    let Some(parameter) = parameters.named_child(index) else {
+                        continue;
+                    };
+                    let kind = parameter.kind();
+                    if kind == "typed_parameter" || kind == "typed_default_parameter" {
+                        let keyword = parameter
+                            .named_child(0)
+                            .filter(|child| child.kind() == "identifier")
+                            .map(text);
+                        if let Some(annotation) = parameter.child_by_field_name("type") {
+                            let names = type_names(annotation, source);
+                            if !names.is_empty() {
+                                pack.askings.push((text(name), place, keyword, names));
+                            }
+                        }
+                    }
+                    place += 1;
+                }
+            }
+        }
+        "assignment" => {
+            if let (Some(annotation), Some(right)) = (
+                node.child_by_field_name("type"),
+                node.child_by_field_name("right"),
+            ) {
+                if let Some(constructor) = constructed(right, source) {
+                    pack.assigns.push((
+                        file.to_path_buf(),
+                        node.start_position().row + 1,
+                        type_names(annotation, source),
+                        constructor,
+                    ));
+                }
+            }
+        }
+        "call" => {
+            if let (Some(function), Some(arguments)) = (
+                node.child_by_field_name("function"),
+                node.child_by_field_name("arguments"),
+            ) {
+                if function.kind() == "identifier" {
+                    let callee = text(function);
+                    let mut place = 0;
+                    for index in 0..arguments.named_child_count() {
+                        let Some(argument) = arguments.named_child(index) else {
+                            continue;
+                        };
+                        if argument.kind() == "keyword_argument" {
+                            if let (Some(key), Some(value)) = (
+                                argument.child_by_field_name("name"),
+                                argument.child_by_field_name("value"),
+                            ) {
+                                if let Some(constructor) = constructed(value, source) {
+                                    pack.callargs.push((
+                                        file.to_path_buf(),
+                                        argument.start_position().row + 1,
+                                        callee.clone(),
+                                        usize::MAX,
+                                        Some(text(key)),
+                                        constructor,
+                                    ));
+                                }
+                            }
+                            continue;
+                        }
+                        if let Some(constructor) = constructed(argument, source) {
+                            pack.callargs.push((
+                                file.to_path_buf(),
+                                argument.start_position().row + 1,
+                                callee.clone(),
+                                place,
+                                None,
+                                constructor,
+                            ));
+                        }
+                        place += 1;
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    for index in 0..node.named_child_count() {
+        if let Some(child) = node.named_child(index) {
+            doors(child, source, file, pack);
+        }
+    }
+}
+
+// A direct constructor: a call whose function is a bare capitalized name.
+fn constructed(node: Node, source: &str) -> Option<String> {
+    if node.kind() != "call" {
+        return None;
+    }
+    let function = node.child_by_field_name("function")?;
+    if function.kind() != "identifier" {
+        return None;
+    }
+    let name = source[function.byte_range()].to_string();
+    name.chars()
+        .next()
+        .is_some_and(char::is_uppercase)
+        .then_some(name)
+}
+
+// Every identifier a type annotation names, so a union or an Optional still
+// speaks each of its doors.
+fn type_names(node: Node, source: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut stack = vec![node];
+    while let Some(at) = stack.pop() {
+        if at.kind() == "identifier" {
+            names.push(source[at.byte_range()].to_string());
+        }
+        for index in 0..at.named_child_count() {
+            if let Some(child) = at.named_child(index) {
+                stack.push(child);
+            }
+        }
+    }
+    names
 }
 
 #[cfg(test)]

@@ -477,3 +477,79 @@ fn a_symbol_reached_only_by_commissioned_tests_is_nascent_not_dead() {
 
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_class_standing_where_a_protocol_is_asked_names_it() {
+    let root = std::env::temp_dir().join(format!("arbiter-doors-py-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src/demo")).expect("the folder is writable");
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("src/demo/core.py"),
+        "from typing import Protocol\n\n\nclass Completer(Protocol):\n    def complete(self, prompt: str) -> str: ...\n\n\nclass Anthropic:\n    def complete(self, prompt: str) -> str:\n        return prompt\n\n\nclass Named(Completer):\n    def complete(self, prompt: str) -> str:\n        return prompt\n\n\ndef asked(prompt: str, completer: Completer) -> str:\n    return completer.complete(prompt)\n\n\nprint(asked(\"hi\", Anthropic()))\nprint(asked(\"hi\", Named()))\n",
+    )
+    .expect("the folder is writable");
+
+    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let shown: Vec<String> = judged
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "python")
+        .expect("the python pack exists")
+        .integrity(&judged.root, &judged.repo)
+        .iter()
+        .filter(|finding| finding.name == "protocol-shape-named")
+        .map(|finding| finding.reason.clone())
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            "Anthropic stands where Completer is asked and names no such base; \
+          a protocol satisfied by shape is still named"
+        ]
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_class_standing_where_an_interface_is_asked_names_it() {
+    let root = std::env::temp_dir().join(format!("arbiter-doors-ts-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src")).expect("the folder is writable");
+    fs::write(
+        root.join("package.json"),
+        "{\n  \"name\": \"demo\",\n  \"version\": \"0.0.0\"\n}\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("src/core.ts"),
+        "interface Completer {\n  complete(prompt: string): string;\n}\n\nclass Anthropic {\n  complete(prompt: string): string {\n    return prompt;\n  }\n}\n\nclass Named implements Completer {\n  complete(prompt: string): string {\n    return prompt;\n  }\n}\n\nfunction asked(prompt: string, completer: Completer): string {\n  return completer.complete(prompt);\n}\n\nasked(\"hi\", new Anthropic());\nasked(\"hi\", new Named());\n",
+    )
+    .expect("the folder is writable");
+
+    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let shown: Vec<String> = judged
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "typescript")
+        .expect("the typescript pack exists")
+        .integrity(&judged.root, &judged.repo)
+        .iter()
+        .filter(|finding| finding.name == "protocol-shape-named")
+        .map(|finding| finding.reason.clone())
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            "Anthropic stands where Completer is asked and names no such base; \
+          a protocol satisfied by shape is still named"
+        ]
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}

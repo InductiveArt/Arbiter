@@ -66,6 +66,10 @@ impl Pack for Rust {
                 "never: pub already walls a crate's interior",
             ),
             ("no-hidden-names", "held"),
+            (
+                "protocol-shape-named",
+                "never: a trait is nominal; nothing implements invisibly",
+            ),
             ("one-import-per-line", "held"),
             ("no-comment-overreach", "held"),
             ("undeclared-dependency", "held"),

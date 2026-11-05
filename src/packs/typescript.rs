@@ -53,6 +53,14 @@ pub struct TypeScript {
     tautologies: Vec<(PathBuf, usize, String)>,
     // Test calls whose sentence no literal provides: claims the tree cannot speak.
     strays: Vec<(PathBuf, usize)>,
+    interfaces: Vec<String>,
+    classes: Vec<(PathBuf, usize, String, Vec<String>)>,
+    // One annotated parameter: function name, position, and its type names.
+    askings: Vec<(String, usize, Vec<String>)>,
+    // A construction standing at an annotated site: direct types for a
+    // declarator, or the callee and argument place for a call.
+    assigns: Vec<(PathBuf, usize, Vec<String>, String)>,
+    callargs: Vec<(PathBuf, usize, String, usize, String)>,
 }
 
 impl TypeScript {
@@ -83,6 +91,7 @@ impl Pack for TypeScript {
             ("tools", "held"),
             ("no-warnings", "held"),
             ("tautology", "held"),
+            ("protocol-shape-named", "held"),
             ("container", "held"),
             ("generated", "held"),
             (
@@ -212,6 +221,7 @@ impl Pack for TypeScript {
                 self.strays.push((file.to_path_buf(), line));
             }
         }
+        doors(tree.root_node(), source, file, self);
         if !surface {
             return Vec::new();
         }
@@ -513,6 +523,77 @@ impl Pack for TypeScript {
                     name: "unused-dependency".to_string(),
                     reason: format!("{package} is declared, and nothing in the unit reaches it"),
                 });
+            }
+        }
+        // A class standing where an interface is asked names the interface:
+        // a shape satisfied silently is an edge the graph cannot see.
+        let doors: std::collections::HashSet<&String> = self.interfaces.iter().collect();
+        let places: std::collections::HashMap<&str, (&PathBuf, usize, &Vec<String>)> = self
+            .classes
+            .iter()
+            .map(|(file, line, name, bases)| (name.as_str(), (file, *line, bases)))
+            .collect();
+        let reaches = |class: &str, asked: &str| -> bool {
+            let mut stack = vec![class];
+            let mut walked = std::collections::HashSet::new();
+            while let Some(name) = stack.pop() {
+                if !walked.insert(name.to_string()) {
+                    continue;
+                }
+                let Some((_, _, bases)) = places.get(name) else {
+                    continue;
+                };
+                for base in bases.iter() {
+                    if base == asked {
+                        return true;
+                    }
+                    stack.push(base);
+                }
+            }
+            false
+        };
+        let mut unnamed = std::collections::BTreeSet::new();
+        let mut judge = |types: &Vec<String>,
+                         construction: &String,
+                         findings: &mut Vec<Finding>| {
+            for asked in types {
+                if !doors.contains(asked) || asked == construction {
+                    continue;
+                }
+                let Some((place_file, place_line, _)) = places.get(construction.as_str()) else {
+                    continue;
+                };
+                if reaches(construction, asked) {
+                    continue;
+                }
+                if unnamed.insert((construction.clone(), asked.clone())) {
+                    findings.push(Finding {
+                        check: "integrity",
+                        file: (*place_file).clone(),
+                        line: *place_line,
+                        name: "protocol-shape-named".to_string(),
+                        reason: format!(
+                            "{construction} stands where {asked} is asked and names no \
+                                 such base; a protocol satisfied by shape is still named"
+                        ),
+                    });
+                }
+            }
+        };
+        for (file, _, types, construction) in &self.assigns {
+            if fixture(file) || repo.is_test(repo.unit_of(file), file) {
+                continue;
+            }
+            judge(types, construction, &mut findings);
+        }
+        for (file, _, callee, place, construction) in &self.callargs {
+            if fixture(file) || repo.is_test(repo.unit_of(file), file) {
+                continue;
+            }
+            for (name, at, types) in &self.askings {
+                if name == callee && at == place {
+                    judge(types, construction, &mut findings);
+                }
             }
         }
         // An import crossing into another unit anywhere but a declared route bypasses
@@ -1693,6 +1774,153 @@ fn strays(node: tree_sitter::Node, source: &str) -> Vec<usize> {
     }
     found.sort_unstable();
     found
+}
+
+// Collects the door shapes: interfaces, each class's named heritage,
+// annotated parameters, and the constructions standing at annotated sites.
+fn doors(node: tree_sitter::Node, source: &str, file: &Path, pack: &mut TypeScript) {
+    let text = |at: tree_sitter::Node| source[at.byte_range()].to_string();
+    match node.kind() {
+        "interface_declaration" => {
+            if let Some(name) = node.child_by_field_name("name") {
+                pack.interfaces.push(text(name));
+            }
+        }
+        "class_declaration" => {
+            if let Some(name) = node.child_by_field_name("name") {
+                let mut bases = Vec::new();
+                let mut stack = vec![node];
+                while let Some(at) = stack.pop() {
+                    match at.kind() {
+                        "extends_clause" | "implements_clause" => {
+                            for index in 0..at.named_child_count() {
+                                if let Some(base) = at.named_child(index) {
+                                    let whole = text(base);
+                                    let first = whole.split('<').next().unwrap_or(&whole);
+                                    bases.push(
+                                        first.rsplit('.').next().unwrap_or(first).to_string(),
+                                    );
+                                }
+                            }
+                        }
+                        "class_body" => {}
+                        _ => {
+                            for index in 0..at.named_child_count() {
+                                if let Some(child) = at.named_child(index) {
+                                    if child.kind() != "class_body" {
+                                        stack.push(child);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                pack.classes.push((
+                    file.to_path_buf(),
+                    node.start_position().row + 1,
+                    text(name),
+                    bases,
+                ));
+            }
+        }
+        "function_declaration" => {
+            if let (Some(name), Some(parameters)) = (
+                node.child_by_field_name("name"),
+                node.child_by_field_name("parameters"),
+            ) {
+                let mut place = 0;
+                for index in 0..parameters.named_child_count() {
+                    let Some(parameter) = parameters.named_child(index) else {
+                        continue;
+                    };
+                    if let Some(annotation) = parameter.child_by_field_name("type") {
+                        let names = annotation_names(annotation, source);
+                        if !names.is_empty() {
+                            pack.askings.push((text(name), place, names));
+                        }
+                    }
+                    place += 1;
+                }
+            }
+        }
+        "variable_declarator" => {
+            if let (Some(annotation), Some(value)) = (
+                node.child_by_field_name("type"),
+                node.child_by_field_name("value"),
+            ) {
+                if let Some(construction) = constructed_ts(value, source) {
+                    pack.assigns.push((
+                        file.to_path_buf(),
+                        node.start_position().row + 1,
+                        annotation_names(annotation, source),
+                        construction,
+                    ));
+                }
+            }
+        }
+        "call_expression" => {
+            if let (Some(function), Some(arguments)) = (
+                node.child_by_field_name("function"),
+                node.child_by_field_name("arguments"),
+            ) {
+                if function.kind() == "identifier" {
+                    let callee = text(function);
+                    let mut place = 0;
+                    for index in 0..arguments.named_child_count() {
+                        let Some(argument) = arguments.named_child(index) else {
+                            continue;
+                        };
+                        if let Some(construction) = constructed_ts(argument, source) {
+                            pack.callargs.push((
+                                file.to_path_buf(),
+                                argument.start_position().row + 1,
+                                callee.clone(),
+                                place,
+                                construction,
+                            ));
+                        }
+                        place += 1;
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    for index in 0..node.named_child_count() {
+        if let Some(child) = node.named_child(index) {
+            doors(child, source, file, pack);
+        }
+    }
+}
+
+// A direct construction: a new expression over a bare name.
+fn constructed_ts(node: tree_sitter::Node, source: &str) -> Option<String> {
+    if node.kind() != "new_expression" {
+        return None;
+    }
+    let constructor = node.child_by_field_name("constructor")?;
+    if constructor.kind() != "identifier" {
+        return None;
+    }
+    Some(source[constructor.byte_range()].to_string())
+}
+
+// Every type identifier an annotation names, so a union or an array element
+// still speaks each of its doors.
+fn annotation_names(node: tree_sitter::Node, source: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut stack = vec![node];
+    while let Some(at) = stack.pop() {
+        if at.kind() == "type_identifier" {
+            names.push(source[at.byte_range()].to_string());
+        }
+        for index in 0..at.named_child_count() {
+            if let Some(child) = at.named_child(index) {
+                stack.push(child);
+            }
+        }
+    }
+    names
 }
 
 #[cfg(test)]
