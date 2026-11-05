@@ -95,7 +95,7 @@ fn licenses(found: &Graph) -> Vec<Finding> {
     let mut seen = BTreeSet::new();
     for pack in &found.packs {
         for (place, package, license) in pack.licenses(&found.root, &found.repo) {
-            if allowed.contains(&license.as_str()) {
+            if permitted(&license, &allowed) {
                 continue;
             }
             if !seen.insert((package.clone(), license.clone())) {
@@ -113,6 +113,43 @@ fn licenses(found: &Graph) -> Vec<Finding> {
         }
     }
     findings
+}
+
+// An SPDX expression passes when one OR branch does and every AND side does;
+// a common spelling folds to its SPDX name before the match.
+fn permitted(license: &str, allowed: &[&str]) -> bool {
+    let text = license.trim();
+    if text.contains(" OR ") {
+        return text.split(" OR ").any(|part| permitted(part, allowed));
+    }
+    if text.contains(" AND ") {
+        return text.split(" AND ").all(|part| permitted(part, allowed));
+    }
+    let name = folded(text);
+    allowed.iter().any(|allow| folded(allow) == name)
+}
+
+fn folded(name: &str) -> String {
+    let trimmed = name
+        .trim()
+        .trim_matches(|part: char| part == '(' || part == ')')
+        .trim();
+    let lower = trimmed.to_ascii_lowercase();
+    match lower.as_str() {
+        "mit license" | "the mit license" => "mit".to_string(),
+        "apache 2.0"
+        | "apache license 2.0"
+        | "apache license, version 2.0"
+        | "apache software license" => "apache-2.0".to_string(),
+        "3-clause bsd license" | "bsd 3-clause" | "new bsd license" | "bsd license" => {
+            "bsd-3-clause".to_string()
+        }
+        "2-clause bsd license" | "bsd 2-clause" | "simplified bsd license" => {
+            "bsd-2-clause".to_string()
+        }
+        "isc license" => "isc".to_string(),
+        _ => lower,
+    }
 }
 
 // Bazel's one-version rule as a judgment: a third party resolved at two versions

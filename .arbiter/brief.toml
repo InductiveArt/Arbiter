@@ -142,6 +142,8 @@ story = "dependencies come from the locked registry, at one version, licensed"
   claims = [
     ". |  | a license comes from the expression the field or the classifier",
     ". |  | a license is the string or the object form or unstated",
+    ". |  | one allowed branch of an or passes",
+    ". |  | a common spelling folds to its spdx name",
   ]
 
 [[case]]
