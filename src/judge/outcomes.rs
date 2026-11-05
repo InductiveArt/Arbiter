@@ -68,6 +68,7 @@ pub(crate) fn judged(
     repo: &Repo,
     packs: &[Box<dyn Pack>],
     fixing: bool,
+    cold: bool,
     warmth: Option<&crate::core::warm::Warmth>,
 ) -> (Vec<Outcome>, Vec<String>) {
     let mut outcomes = Vec::new();
@@ -168,7 +169,7 @@ pub(crate) fn judged(
             }
         }
         for pack in packs {
-            for drift in pack.drift(root, &folder, fixing, &mut notes) {
+            for drift in pack.drift(root, &folder, fixing, cold, &mut notes) {
                 outcomes.push(Outcome {
                     unit: shown.clone(),
                     pack: pack.label(),

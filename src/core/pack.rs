@@ -281,9 +281,10 @@ pub trait Pack {
         root: &Path,
         folder: &Path,
         fixing: bool,
+        cold: bool,
         notes: &mut Vec<String>,
     ) -> Vec<Drift> {
-        let _ = (root, folder, fixing, notes);
+        let _ = (root, folder, fixing, cold, notes);
         Vec::new()
     }
 

@@ -66,6 +66,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
             &found.repo,
             &found.packs,
             true,
+            cold,
             warmth.as_ref(),
         );
         notes.extend(mended);
@@ -78,6 +79,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
             &found.repo,
             &found.packs,
             false,
+            cold,
             warmth.as_ref(),
         );
         (outcomes, notes, found)

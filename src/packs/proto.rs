@@ -266,17 +266,41 @@ impl Pack for Proto {
         root: &Path,
         folder: &Path,
         fixing: bool,
+        cold: bool,
         notes: &mut Vec<String>,
     ) -> Vec<Drift> {
         let mut found = Vec::new();
         if folder.join("buf.gen.yaml").is_file() {
-            let started = Instant::now();
-            let problems = regenerated(folder, fixing);
-            found.push(Drift {
-                check: "drift".to_string(),
-                problems,
-                seconds: started.elapsed().as_secs_f64(),
-            });
+            // Regeneration reaches plugins over the network, so an unchanged
+            // cone of contracts skips it the way warm skips a green tool.
+            let digest = generation_digest(folder);
+            let kept = digest_path(root, folder);
+            let warm = !cold
+                && std::fs::read_to_string(&kept)
+                    .is_ok_and(|stored| stored.trim() == digest.to_string());
+            if warm {
+                found.push(Drift {
+                    check: "drift".to_string(),
+                    problems: Vec::new(),
+                    seconds: 0.0,
+                });
+            } else {
+                let started = Instant::now();
+                let problems = regenerated(folder, fixing);
+                if problems.is_empty() {
+                    if let Some(parent) = kept.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::write(&kept, format!("{digest}\n"));
+                } else {
+                    let _ = std::fs::remove_file(&kept);
+                }
+                found.push(Drift {
+                    check: "drift".to_string(),
+                    problems,
+                    seconds: started.elapsed().as_secs_f64(),
+                });
+            }
         }
         if folder.join("buf.yaml").is_file() {
             let image = image_path(root, folder);
@@ -334,6 +358,65 @@ impl Pack for Proto {
         }
         lines
     }
+}
+
+// One number over the generation's whole input cone: every contract, the
+// generation config and the module config, in a stable order.
+fn generation_digest(folder: &Path) -> u64 {
+    let mut names: Vec<PathBuf> = Vec::new();
+    for file in ["buf.yaml", "buf.gen.yaml"] {
+        names.push(folder.join(file));
+    }
+    let mut contracts: Vec<PathBuf> = Vec::new();
+    let mut stack = vec![folder.to_path_buf()];
+    while let Some(place) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&place) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            let name = entry.file_name().to_string_lossy().to_string();
+            if kind.is_dir() {
+                if !name.starts_with('.') && name != "node_modules" {
+                    stack.push(entry.path());
+                }
+            } else if name.ends_with(".proto") {
+                contracts.push(entry.path());
+            }
+        }
+    }
+    contracts.sort();
+    names.extend(contracts);
+    let mut digest: u64 = 0xcbf2_9ce4_8422_2325;
+    for name in names {
+        for byte in name.to_string_lossy().as_bytes() {
+            digest ^= u64::from(*byte);
+            digest = digest.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        let Ok(bytes) = std::fs::read(&name) else {
+            continue;
+        };
+        for byte in bytes {
+            digest ^= u64::from(byte);
+            digest = digest.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    digest
+}
+
+// Where the last clean generation's digest rests, beside the warm store.
+fn digest_path(root: &Path, folder: &Path) -> PathBuf {
+    let unit = folder.strip_prefix(root).unwrap_or(folder);
+    let flat = if unit.as_os_str().is_empty() {
+        "root".to_string()
+    } else {
+        unit.to_string_lossy().replace(['/', '\\'], "-")
+    };
+    root.join(".arbiter")
+        .join("warm")
+        .join(format!("generated-{flat}.fnv"))
 }
 
 // The deps a buf.yaml names, one per "- " line under the deps key.
