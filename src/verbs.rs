@@ -43,3 +43,49 @@ pub const VERBS: &[(&str, &str)] = &[
         "install the agent layer; arbiter-owned files refresh with the binary",
     ),
 ];
+
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+// An adopted file's last line names its writer, in the comment form the
+// file's own syntax reads.
+pub fn stamped(place: &str, body: &str) -> String {
+    let mark = if place.ends_with(".sh") {
+        format!("# arbiter {VERSION}")
+    } else {
+        format!("<!-- arbiter {VERSION} -->")
+    };
+    format!("{}\n{mark}\n", body.trim_end())
+}
+
+pub fn written_by(text: &str) -> Option<(u64, u64, u64)> {
+    let line = text.lines().rev().find(|line| !line.trim().is_empty())?;
+    let line = line
+        .trim()
+        .trim_start_matches("<!--")
+        .trim_end_matches("-->")
+        .trim_start_matches('#')
+        .trim();
+    triple(line.strip_prefix("arbiter ")?)
+}
+
+// Whether a file's stamp names a newer arbiter than this binary: writing
+// over it would move the law backwards.
+pub fn ahead(text: &str) -> bool {
+    match (written_by(text), triple(VERSION)) {
+        (Some(theirs), Some(mine)) => theirs > mine,
+        _ => false,
+    }
+}
+
+fn triple(version: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = version.split('.');
+    let numbers = (
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse().ok()?,
+    );
+    if parts.next().is_some() {
+        return None;
+    }
+    Some(numbers)
+}

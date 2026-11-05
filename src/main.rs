@@ -12,6 +12,7 @@ use arbiter::judge::ledger;
 use arbiter::judge::outcomes;
 use arbiter::judge::rhyme;
 use arbiter::judge::verdict;
+use arbiter::verbs;
 
 fn main() -> ExitCode {
     // A closed pipe ends the read, not the program: piping a report into
@@ -378,8 +379,13 @@ fn main() -> ExitCode {
             eprintln!("adopt: no folder at {asked}");
             return ExitCode::from(2);
         }
-        for line in adopted(&root) {
+        let (told, stale) = adopted(&root);
+        for line in told {
             println!("adopt: {line}");
+        }
+        if stale {
+            eprintln!("adopt: a stale binary is a machine gap; update arbiter, then adopt again");
+            return ExitCode::from(2);
         }
         return ExitCode::SUCCESS;
     }
@@ -444,15 +450,16 @@ fn main() -> ExitCode {
 // The bare call teaches: the whole grammar, each verb with its one line.
 fn taught() {
     println!(
-        "arbiter judges a repository: the resolved graph, each unit's pinned tools, the brief."
+        "arbiter {} judges a repository: the resolved graph, each unit's pinned tools, the brief.",
+        verbs::VERSION
     );
     println!();
-    let width = arbiter::verbs::VERBS
+    let width = verbs::VERBS
         .iter()
         .map(|(call, _)| call.len())
         .max()
         .unwrap_or(0);
-    for (call, line) in arbiter::verbs::VERBS {
+    for (call, line) in verbs::VERBS {
         println!("  {call:width$}  {line}");
     }
     println!();
@@ -779,10 +786,12 @@ fn ruled(asked: &str) -> ExitCode {
 }
 
 // The agent layer, installed where agents will look. The judge's own files
-// (rules, skill, hook) follow the binary and are refreshed when they drift;
-// settings.json is the repository's and is written once, never overwritten.
-fn adopted(root: &Path) -> Vec<String> {
+// (rules, skill, hook) follow the binary and are refreshed when they drift,
+// never backwards: a file stamped by a newer arbiter is left, and the caller
+// is told to update. settings.json is the repository's and is written once.
+fn adopted(root: &Path) -> (Vec<String>, bool) {
     let mut told = Vec::new();
+    let mut stale = false;
     let owned: [(&str, &str); 3] = [
         (
             ".claude/agent-rules.md",
@@ -799,13 +808,24 @@ fn adopted(root: &Path) -> Vec<String> {
     ];
     for (place, content) in owned {
         let path = root.join(place);
+        let expected = verbs::stamped(place, content);
         match fs::read_to_string(&path) {
-            Ok(present) if present == content => {
+            Ok(present) if present == expected => {
                 told.push(format!("kept {place}"));
                 continue;
             }
+            Ok(present) if verbs::ahead(&present) => {
+                let (major, minor, patch) = verbs::written_by(&present).unwrap_or((0, 0, 0));
+                told.push(format!(
+                    "left {place}: written by arbiter {major}.{minor}.{patch}, and this \
+                     binary is {} — update the binary, not the file",
+                    verbs::VERSION
+                ));
+                stale = true;
+                continue;
+            }
             Ok(_) => {
-                if fs::write(&path, content).is_ok() {
+                if fs::write(&path, &expected).is_ok() {
                     told.push(format!("refreshed {place}"));
                 }
                 continue;
@@ -815,7 +835,7 @@ fn adopted(root: &Path) -> Vec<String> {
         if let Some(parent) = path.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        if fs::write(&path, content).is_ok() {
+        if fs::write(&path, &expected).is_ok() {
             told.push(format!("adopted {place}"));
         }
     }
@@ -850,5 +870,5 @@ fn adopted(root: &Path) -> Vec<String> {
             told.push("wrote CLAUDE.md pointing at the rules".to_string());
         }
     }
-    told
+    (told, stale)
 }

@@ -8,10 +8,16 @@ what it may not decide.
 ## Start
 
 ```
+cargo install --git https://github.com/InductiveArt/Arbiter --tag v0.1.0 arbiter
+
 arbiter adopt .   # install the agent layer under .claude/
 arbiter gate .    # judge; the first run seeds .arbiter/'s decision files
 arbiter           # the verbs, one line each
 ```
+
+The binary is self-contained; the machine still needs the toolchains the
+repository's languages demand, and the gate names a missing one. Updating is
+installing the next tag: the judge is pinned like everything it pins.
 
 ## The shape
 
@@ -33,5 +39,7 @@ arbiter           # the verbs, one line each
 
 `adopt` installs the rules file, the arbiter-quality skill and a stop hook:
 the entry protocol, each finding's expected fix, and what only the user
-decides. The skill is arbiter-owned and refreshes with the binary; a test
-holds it to each verb's own line, so the taught word cannot drift.
+decides. The skill is arbiter-owned and refreshes with the binary, never
+backwards: each adopted file's last line names the arbiter that wrote it,
+and a stale binary is told to update instead of writing. A test holds the
+skill to each verb's own line, so the taught word cannot drift.

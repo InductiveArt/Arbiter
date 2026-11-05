@@ -21,7 +21,7 @@ what they decide.
 | `arbiter rules [rule]` | the matrix and each law; one rule prints its whys. | no |
 | `arbiter warm .` | heat the store so the next gate skips what nothing moved. | the store only |
 | `arbiter accept .` | record suppressions, dependencies and claims: the user's signature. **Never run it.** | yes |
-| `arbiter adopt .` | install the agent layer; arbiter-owned files refresh with the binary. `settings.json` and the `CLAUDE.md` pointer are written once. | yes |
+| `arbiter adopt .` | install the agent layer; arbiter-owned files refresh with the binary, never backwards: a file written by a newer arbiter is left, and the binary updates. `settings.json` and the `CLAUDE.md` pointer are written once. | yes |
 
 Exit codes: 0 clean, 1 findings or failures, 2 nothing to judge or a broken
 machine. A preflight gap ("X is not on this machine") is a broken machine,

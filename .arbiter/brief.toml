@@ -214,3 +214,11 @@ story = "the tool teaches its own use, and the taught word cannot drift"
   [[case.need]]
   need = "the bare call prints the whole grammar"
   manual = "run arbiter with no verb and read the table"
+
+  [[case.need]]
+  need = "every adopted file names the arbiter that wrote it"
+  claims = [". |  | a stamp names the arbiter that wrote the file"]
+
+  [[case.need]]
+  need = "adopt never writes the law backwards"
+  claims = [". |  | a file from a newer arbiter is never written backwards"]
