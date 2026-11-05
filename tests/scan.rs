@@ -396,3 +396,15 @@ fn a_buf_workspace_bounds_its_modules_without_being_judged() {
     assert!(pack.container("version: v2\nmodules:\n  - path: billing\n"));
     assert!(!pack.container("version: v2\nlint:\n  use:\n    - STANDARD\n"));
 }
+
+#[test]
+fn a_cargo_workspace_without_a_package_is_a_container() {
+    let packs = arbiter::packs::all();
+    let pack = packs
+        .iter()
+        .find(|pack| pack.label() == "rust")
+        .expect("the rust pack exists");
+    assert!(pack.container("[workspace]\nmembers = [\"a\", \"b\"]\n"));
+    assert!(!pack.container("[package]\nname = \"solo\"\nversion = \"0.0.1\"\n"));
+    assert!(!pack.container("[workspace]\nmembers = [\"a\"]\n\n[package]\nname = \"rooted\"\n"));
+}

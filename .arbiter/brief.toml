@@ -19,6 +19,7 @@ story = "manifests carve a repository into units before anything is judged"
     ". |  | a git ignored folder is not the repository",
     ". |  | a workspace manifest with no entry is a container",
     ". |  | a buf workspace bounds its modules without being judged",
+    ". |  | a cargo workspace without a package is a container",
   ]
 
 [[case]]

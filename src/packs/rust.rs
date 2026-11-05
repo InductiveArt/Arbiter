@@ -74,6 +74,7 @@ impl Pack for Rust {
             ("wiring", "held"),
             ("tools", "held"),
             ("no-warnings", "held"),
+            ("container", "held"),
             ("tautology", "held"),
             (
                 "drift",
@@ -96,6 +97,14 @@ impl Pack for Rust {
 
     fn adapter(&self) -> Option<&'static str> {
         Some(include_str!("../../packs/rust/tools.toml"))
+    }
+
+    // A Cargo.toml declaring a workspace and no package bounds its members.
+    fn container(&self, manifest: &str) -> bool {
+        let Ok(parsed) = manifest.parse::<toml::Value>() else {
+            return false;
+        };
+        parsed.get("workspace").is_some() && parsed.get("package").is_none()
     }
 
     fn wiring(&self, folder: &Path) -> Option<Vec<String>> {
