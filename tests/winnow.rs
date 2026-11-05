@@ -51,6 +51,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
             "app/src/app/alias.py imported as v; a symbol keeps its own name",
             "app/src/app/web.py requests is imported, \
              and the unit's manifest does not declare it",
+            "app/src/app/web.py imports a module through a computed value; \
+             a module is named by a literal",
             "infra/deploy.yaml registry.local/app:1.2.3 is pulled by tag; \
              an image is named by digest, never by a tag alone",
             "infra/deploy.yaml registry.local/cache:latest is pulled by tag; \

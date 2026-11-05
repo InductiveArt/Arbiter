@@ -37,6 +37,7 @@ pub struct Python {
     init_imports: Vec<(PathBuf, String, usize)>,
     plains: Vec<(PathBuf, String, usize)>,
     chains: Vec<(PathBuf, String, usize)>,
+    computed: Vec<(PathBuf, usize)>,
     suppressions: Vec<Suppression>,
     aliases: Vec<(PathBuf, String, usize)>,
     overreaches: Vec<(PathBuf, String, usize)>,
@@ -69,6 +70,7 @@ impl Pack for Python {
             ("no-hidden-names", "held"),
             ("one-import-per-line", "held"),
             ("no-comment-overreach", "held"),
+            ("dynamic-import", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
             ("suppressions", "held"),
@@ -171,6 +173,13 @@ impl Pack for Python {
         }
         for (name, line) in captured(&tree, source, "plain") {
             self.plains.push((file.to_path_buf(), name, line));
+        }
+        for (module, line) in loaded(&tree, source) {
+            match module {
+                Some(module) => self.plains.push((file.to_path_buf(), module, line)),
+                None if surface => self.computed.push((file.to_path_buf(), line)),
+                None => {}
+            }
         }
         for (chain, line) in captured(&tree, source, "chain") {
             self.chains.push((file.to_path_buf(), chain, line));
@@ -321,6 +330,16 @@ impl Pack for Python {
             line: *line,
             name: "no-hidden-names".to_string(),
             reason: format!("imported as {alias}; a symbol keeps its own name"),
+        }));
+        findings.extend(self.computed.iter().map(|(file, line)| {
+            Finding {
+                check: "integrity",
+                file: file.clone(),
+                line: *line,
+                name: "no-hidden-names".to_string(),
+                reason: "imports a module through a computed value; a module is named by a literal"
+                    .to_string(),
+            }
         }));
         // A fixture's tautologies are some test's data, never judged.
         let fixture = |file: &PathBuf| {
@@ -706,6 +725,43 @@ fn imports(tree: &Tree, source: &str) -> Vec<(String, String, usize)> {
             Some((module.text.clone(), name.text.clone(), name.line))
         })
         .collect()
+}
+
+// Run-time imports: Some(module) when the call names a literal, None when
+// the value only run time resolves.
+fn loaded(tree: &Tree, source: &str) -> Vec<(Option<String>, usize)> {
+    trees::matches(&language(), USES, tree, source)
+        .into_iter()
+        .filter_map(|captures| {
+            let loader = captures.iter().find(|capture| capture.name == "loader")?;
+            let importer = matches!(
+                loader.text.as_str(),
+                "__import__" | "import_module" | "importlib.import_module"
+            );
+            if !importer {
+                return None;
+            }
+            if let Some(dynamic) = captures.iter().find(|capture| capture.name == "dynamic") {
+                return Some((literal_module(&dynamic.text), dynamic.line));
+            }
+            captures
+                .iter()
+                .find(|capture| capture.name == "computed")
+                .map(|computed| (None, computed.line))
+        })
+        .collect()
+}
+
+// A plain or raw literal names its module; an f-string resolves at run time.
+fn literal_module(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    let at = trimmed.find(['"', '\''])?;
+    let (prefix, quoted) = trimmed.split_at(at);
+    if prefix.to_ascii_lowercase().contains('f') {
+        return None;
+    }
+    let inner = quoted.trim_matches(['"', '\'']);
+    (!inner.is_empty()).then(|| inner.to_string())
 }
 
 fn is_module_file(module: &str, file: &Path) -> bool {

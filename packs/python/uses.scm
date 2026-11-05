@@ -15,3 +15,12 @@
 
 ; A name taken under another: readable only by whoever knows the alias.
 ((aliased_import) @alias)
+
+; A run-time import: a literal module reaches like an import written out,
+; a computed one is named, since no reader can resolve it.
+(call
+  function: [(identifier) (attribute)] @loader
+  arguments: (argument_list . (string) @dynamic))
+(call
+  function: [(identifier) (attribute)] @loader
+  arguments: (argument_list . [(identifier) (attribute) (binary_operator) (call) (subscript) (conditional_expression)] @computed))

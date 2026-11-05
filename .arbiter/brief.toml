@@ -39,6 +39,10 @@ story = "an import reaches the file its module path names, in every language"
   claims = [". |  | a namespace import keeps the whole surface"]
 
   [[case.need]]
+  need = "a run-time import is judged: a literal reaches, a computed one is named"
+  claims = [". |  | a computed python import is named and a literal reaches"]
+
+  [[case.need]]
   need = "python and rust module paths reach their files and no lookalike"
   claims = [
     ". |  | a module path reaches its file or its package",

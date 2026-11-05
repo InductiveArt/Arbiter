@@ -308,3 +308,45 @@ fn fix_splits_a_use_to_one_per_line() {
 
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_computed_python_import_is_named_and_a_literal_reaches() {
+    let root = std::env::temp_dir().join(format!("arbiter-load-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src/demo")).expect("the folder is writable");
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("src/demo/load.py"),
+        "import importlib\n\nimportlib.import_module(\"requests\")\nimportlib.import_module(\"demo.\" + \"kind\")\n",
+    )
+    .expect("the folder is writable");
+
+    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let shown: Vec<String> = judged
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "python")
+        .expect("the python pack exists")
+        .integrity(&judged.root, &judged.repo)
+        .iter()
+        .map(|finding| finding.reason.clone())
+        .collect();
+    assert!(
+        shown
+            .iter()
+            .any(|reason| reason
+                == "requests is imported, and the unit's manifest does not declare it"),
+        "a literal run-time import reaches the dependency law: {shown:?}"
+    );
+    assert!(
+        shown.iter().any(|reason| reason
+            == "imports a module through a computed value; a module is named by a literal"),
+        "a computed run-time import is named: {shown:?}"
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}
