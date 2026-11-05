@@ -5,3 +5,5 @@ message Ghost { string id = 1; }
 service Billing {
   rpc GetInvoice(Invoice) returns (Invoice);
 }
+// buf:lint:ignore ENUM_VALUE_PREFIX
+// buf:lint:ignore

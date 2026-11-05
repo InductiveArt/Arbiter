@@ -350,3 +350,49 @@ fn a_computed_python_import_is_named_and_a_literal_reaches() {
 
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_contracts_import_outside_its_module_needs_a_declared_dependency() {
+    let root = std::env::temp_dir().join(format!("arbiter-buf-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("the folder is writable");
+    fs::write(
+        root.join("buf.yaml"),
+        "version: v2\nlint:\n  use:\n    - STANDARD\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("ping.proto"),
+        "syntax = \"proto3\";\npackage acme;\nimport \"vendor/thing.proto\";\nmessage Pinger { string id = 1; }\n",
+    )
+    .expect("the folder is writable");
+
+    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let shown: Vec<String> = judged
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "proto")
+        .expect("the proto pack exists")
+        .integrity(&judged.root, &judged.repo)
+        .iter()
+        .map(|finding| finding.reason.clone())
+        .collect();
+    assert!(
+        shown.iter().any(|reason| reason
+            == "vendor/thing.proto is imported, and the unit's manifest does not declare it"),
+        "an external import without a dep is named: {shown:?}"
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_buf_workspace_bounds_its_modules_without_being_judged() {
+    let packs = arbiter::packs::all();
+    let pack = packs
+        .iter()
+        .find(|pack| pack.label() == "proto")
+        .expect("the proto pack exists");
+    assert!(pack.container("version: v2\nmodules:\n  - path: billing\n"));
+    assert!(!pack.container("version: v2\nlint:\n  use:\n    - STANDARD\n"));
+}

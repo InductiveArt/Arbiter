@@ -68,6 +68,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
              which nothing in the file defines, uses or quotes",
             "libs/testy/tests/test_calc.py asserts True; \
              an assertion compares the system to an expectation",
+            "proto/buf.yaml buf.build/demo/never is declared, \
+             and nothing in the unit reaches it",
             "rlib/Cargo.toml itoa is declared, and nothing in the unit reaches it",
             "rlib/src/lib.rs names 2 symbols in one import; \
              an import line names one symbol and the module it comes from",
@@ -121,6 +123,8 @@ fn a_third_party_declared_and_never_reached_is_named() {
         shown,
         [
             "app/pyproject.toml rich is declared, and nothing in the unit reaches it",
+            "proto/buf.yaml buf.build/demo/never is declared, \
+             and nothing in the unit reaches it",
             "rlib/Cargo.toml itoa is declared, and nothing in the unit reaches it",
             "ui/package.json lodash is declared, and nothing in the unit reaches it",
         ]
@@ -213,14 +217,20 @@ fn the_ledger_counts_a_named_suppression_and_refuses_a_blanket() {
         .iter()
         .map(|suppression| suppression.text.as_str())
         .collect();
-    assert_eq!(counted.len(), 4);
+    assert_eq!(counted.len(), 5);
     assert!(texts.iter().any(|text| text.contains("noqa: PLR2004")));
     assert!(texts.contains(&"@pytest.mark.skip(reason=\"a rogue skip\")"));
     assert!(texts.contains(&"#[ignore]"));
     assert!(texts.contains(&"it.skip"));
+    assert!(texts.contains(&"buf:lint:ignore ENUM_VALUE_PREFIX"));
     let blankets = arbiter::judge::ledger::blankets(&found);
-    assert_eq!(blankets.len(), 1);
-    assert!(blankets[0].text.contains("type: ignore"));
+    assert_eq!(blankets.len(), 2);
+    assert!(blankets
+        .iter()
+        .any(|suppression| suppression.text.contains("type: ignore")));
+    assert!(blankets
+        .iter()
+        .any(|suppression| suppression.text == "buf:lint:ignore"));
 }
 
 #[test]

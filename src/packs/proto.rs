@@ -9,6 +9,7 @@ use crate::core::pack::Def;
 use crate::core::pack::Definition;
 use crate::core::pack::Drift;
 use crate::core::pack::Edge;
+use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::pack::Suppression;
 use crate::core::trees;
@@ -20,6 +21,7 @@ const BUF: [&str; 3] = ["npx", "--yes", "@bufbuild/buf@1.74.0"];
 const GENERATED: [&str; 5] = ["_pb2.py", "_pb2.pyi", "_pb2_grpc.py", "_pb.ts", ".pb.ts"];
 
 const DEFINITIONS: &str = include_str!("../../packs/proto/definitions.scm");
+const SUPPRESSIONS: &str = include_str!("../../packs/proto/suppressions.scm");
 const USES: &str = include_str!("../../packs/proto/uses.scm");
 const MENTIONS: &str = include_str!("../../packs/proto/mentions.scm");
 
@@ -27,6 +29,7 @@ const MENTIONS: &str = include_str!("../../packs/proto/mentions.scm");
 pub struct Proto {
     typerefs: Vec<(PathBuf, String, usize)>,
     imports: Vec<(PathBuf, String)>,
+    suppressions: Vec<Suppression>,
 }
 
 impl Proto {
@@ -56,6 +59,10 @@ impl Pack for Proto {
                 "never: an import names one file by syntax",
             ),
             ("no-comment-overreach", "held"),
+            ("undeclared-dependency", "held"),
+            ("unused-dependency", "held"),
+            ("suppressions", "held"),
+            ("container", "held"),
             ("tools", "held"),
             ("no-warnings", "held"),
             (
@@ -91,6 +98,13 @@ impl Pack for Proto {
         Some(include_str!("../../packs/proto/tools.toml"))
     }
 
+    // A v2 buf.yaml listing modules is a workspace: it bounds, and each module judges.
+    fn container(&self, manifest: &str) -> bool {
+        manifest
+            .lines()
+            .any(|line| !line.starts_with([' ', '\t']) && line.trim_end() == "modules:")
+    }
+
     fn roots(&self, _root: &Path, _repo: &Repo) -> Vec<PathBuf> {
         Vec::new()
     }
@@ -105,6 +119,20 @@ impl Pack for Proto {
         for (path, _) in trees::texts(&language(), USES, &tree, source, "import") {
             self.imports
                 .push((file.to_path_buf(), path.trim_matches('"').to_string()));
+        }
+        for captures in trees::matches(&language(), SUPPRESSIONS, &tree, source) {
+            for capture in captures {
+                let told = capture.text.trim_start_matches('/').trim().to_string();
+                let Some(rest) = told.strip_prefix("buf:lint:ignore") else {
+                    continue;
+                };
+                self.suppressions.push(Suppression {
+                    file: file.to_path_buf(),
+                    line: capture.line,
+                    blanket: rest.trim().is_empty(),
+                    text: told,
+                });
+            }
         }
         if !surface {
             return Vec::new();
@@ -149,7 +177,88 @@ impl Pack for Proto {
     }
 
     fn suppressions(&self) -> &[Suppression] {
-        &[]
+        &self.suppressions
+    }
+
+    fn integrity(&self, root: &Path, repo: &Repo) -> Vec<Finding> {
+        let mut findings = Vec::new();
+        let mut declared: std::collections::HashMap<usize, (PathBuf, Vec<String>)> =
+            std::collections::HashMap::new();
+        for manifest in &repo.manifests {
+            if manifest.file_name().is_none_or(|name| name != "buf.yaml") {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(root.join(manifest)) else {
+                continue;
+            };
+            declared.insert(repo.unit_of(manifest), (manifest.clone(), buf_deps(&text)));
+        }
+        // An import reaching no local file and no well-known contract leans on
+        // a declared dependency; which one, only the registry could say.
+        let mut externals: std::collections::HashMap<usize, Vec<(PathBuf, String)>> =
+            std::collections::HashMap::new();
+        for (file, path) in &self.imports {
+            if path.starts_with("google/protobuf/") {
+                continue;
+            }
+            let local = repo.files.iter().any(|candidate| {
+                let shown = candidate.to_string_lossy();
+                shown == *path || shown.ends_with(&format!("/{path}"))
+            });
+            if local {
+                continue;
+            }
+            externals
+                .entry(repo.unit_of(file))
+                .or_default()
+                .push((file.clone(), path.clone()));
+        }
+        let mut named = std::collections::BTreeSet::new();
+        for (unit, paths) in &externals {
+            let home = repo.units[*unit].path.clone();
+            if repo.is_test(*unit, &home) {
+                continue;
+            }
+            let empty = declared
+                .get(unit)
+                .map(|(_, deps)| deps.is_empty())
+                .unwrap_or(true);
+            if !empty {
+                continue;
+            }
+            for (file, path) in paths {
+                if named.insert((*unit, path.clone())) {
+                    findings.push(Finding {
+                        check: "integrity",
+                        file: file.clone(),
+                        line: 0,
+                        name: "undeclared-dependency".to_string(),
+                        reason: format!(
+                            "{path} is imported, and the unit's manifest does not declare it"
+                        ),
+                    });
+                }
+            }
+        }
+        for (unit, (manifest, deps)) in &declared {
+            let home = repo.units[*unit].path.clone();
+            if repo.is_test(*unit, &home) || deps.is_empty() {
+                continue;
+            }
+            if externals.get(unit).is_some_and(|paths| !paths.is_empty()) {
+                continue;
+            }
+            for dep in deps.iter().collect::<std::collections::BTreeSet<_>>() {
+                findings.push(Finding {
+                    check: "integrity",
+                    file: manifest.clone(),
+                    line: 0,
+                    name: "unused-dependency".to_string(),
+                    reason: format!("{dep} is declared, and nothing in the unit reaches it"),
+                });
+            }
+        }
+        findings
     }
 
     fn drift(
@@ -225,6 +334,24 @@ impl Pack for Proto {
         }
         lines
     }
+}
+
+// The deps a buf.yaml names, one per "- " line under the deps key.
+fn buf_deps(text: &str) -> Vec<String> {
+    let mut deps = Vec::new();
+    let mut inside = false;
+    for line in text.lines() {
+        if !line.starts_with([' ', '\t']) {
+            inside = line.trim_end() == "deps:";
+            continue;
+        }
+        if inside {
+            if let Some(rest) = line.trim_start().strip_prefix("- ") {
+                deps.push(rest.trim().trim_matches('"').to_string());
+            }
+        }
+    }
+    deps
 }
 
 // Where the accepted contracts of the unit live, named by the unit's own path.

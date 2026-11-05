@@ -18,6 +18,7 @@ story = "manifests carve a repository into units before anything is judged"
     ". |  | a test is told by its name or its folder",
     ". |  | a git ignored folder is not the repository",
     ". |  | a workspace manifest with no entry is a container",
+    ". |  | a buf workspace bounds its modules without being judged",
   ]
 
 [[case]]
@@ -115,6 +116,10 @@ story = "dependencies come from the locked registry, at one version, licensed"
   [[case.need]]
   need = "a third party declared and never reached is named for deletion"
   claims = [". |  | a third party declared and never reached is named"]
+
+  [[case.need]]
+  need = "a contract's import outside its module needs a declared dependency"
+  claims = [". |  | a contracts import outside its module needs a declared dependency"]
 
   [[case.need]]
   need = "a dependency outside the registry or the workspace is named"
