@@ -301,9 +301,9 @@ fn main() -> ExitCode {
         }
         if !reading.unwired.is_empty() {
             println!();
-            println!("unwired claims:");
-            for (file, line, sentence) in &reading.unwired {
-                println!("  {}:{line} {sentence}", file.to_string_lossy());
+            println!("unwired claims, each with the binding to paste:");
+            for (file, line, identity) in &reading.unwired {
+                println!("  {}:{line} \"{identity}\"", file.to_string_lossy());
             }
         }
         return ExitCode::SUCCESS;

@@ -184,16 +184,16 @@ pub fn read(found: &Graph) -> Option<Reading> {
         }
     }
     let mut unwired = Vec::new();
-    for (at, (_, file, line, sentence)) in spoken.iter().enumerate() {
+    for (at, (identity, file, line, _)) in spoken.iter().enumerate() {
         if !covered[at] {
             findings.push(Finding {
                 check: "brief",
                 file: file.clone(),
                 line: *line,
                 name: "unwired-claim".to_string(),
-                reason: format!("the claim '{sentence}' answers no need in the brief"),
+                reason: format!("the claim '{identity}' answers no need in the brief"),
             });
-            unwired.push((file.clone(), *line, sentence.clone()));
+            unwired.push((file.clone(), *line, identity.clone()));
         }
     }
     Some(Reading {
