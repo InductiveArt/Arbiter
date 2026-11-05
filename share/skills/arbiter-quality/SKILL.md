@@ -138,3 +138,6 @@ list), `reference.json` and `contracts/` (what `accept` recorded) - all
 committed. `last/` is the newest run, overwritten every time, never
 committed. The first gate seeds the three toml files as comments; writing the
 first real entry in either is the user's ruling.
+
+A unit being born follows the arbiter-genesis skill; arbiter newly arrived
+on an existing codebase follows arbiter-arrival.
