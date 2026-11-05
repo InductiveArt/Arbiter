@@ -49,6 +49,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
             ".arbiter/units.toml app declares libs/facade and never uses it",
             "app/pyproject.toml rich is declared, and nothing in the unit reaches it",
             "app/src/app/alias.py imported as v; a symbol keeps its own name",
+            "app/src/app/ghost_rpc.py app.gen.phantom_pb2 names no contract; \
+             a generated import answers for the contract it was generated from",
             "app/src/app/web.py requests is imported, \
              and the unit's manifest does not declare it",
             "app/src/app/web.py imports a module through a computed value; \
@@ -243,7 +245,11 @@ fn a_contract_is_reached_through_generated_code_in_both_languages() {
         .iter()
         .position(|def| def.name == "Invoice" && def.file.to_string_lossy().ends_with(".proto"))
         .expect("the fixture declares Invoice");
-    for user in ["app/src/app/rpc.py", "web/src/rpc.ts"] {
+    for user in [
+        "app/src/app/rpc.py",
+        "app/src/app/deep_rpc.py",
+        "web/src/rpc.ts",
+    ] {
         assert!(
             found
                 .edges

@@ -428,6 +428,59 @@ impl Pack for Python {
                 });
             }
         }
+        // A generated import that names no contract is a resolver truth told
+        // at the import site, never a dead contract somewhere else.
+        let mut phantom = std::collections::BTreeSet::new();
+        let spoken = self
+            .imports
+            .iter()
+            .map(|(file, module, _, line)| (file, module, *line))
+            .chain(
+                self.plains
+                    .iter()
+                    .map(|(file, name, line)| (file, name, *line)),
+            );
+        for (file, module, line) in spoken {
+            let unit = repo.unit_of(file);
+            let home = repo.units[unit].path.clone();
+            if repo.is_test(unit, &home) {
+                continue;
+            }
+            let leaf = file
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if self.generated(&leaf) {
+                continue;
+            }
+            let Some(contract) = module.rsplit('.').next().and_then(|last| {
+                last.strip_suffix("_pb2")
+                    .or_else(|| last.strip_suffix("_pb2_grpc"))
+            }) else {
+                continue;
+            };
+            let ending = format!("/{contract}.proto");
+            let flat = format!("{contract}.proto");
+            let matched = repo.files.iter().any(|candidate| {
+                let shown = candidate.to_string_lossy();
+                shown.ends_with(&ending) || shown == flat
+            });
+            if matched {
+                continue;
+            }
+            if phantom.insert((unit, module.clone())) {
+                findings.push(Finding {
+                    check: "integrity",
+                    file: file.clone(),
+                    line,
+                    name: "generated-unresolved".to_string(),
+                    reason: format!(
+                        "{module} names no contract; a generated import answers for \
+                         the contract it was generated from"
+                    ),
+                });
+            }
+        }
         // The mirror: a distribution a manifest declares and no file of the
         // unit reaches is pulled and trusted for nothing.
         let mut reached: HashMap<usize, HashSet<String>> = HashMap::new();
@@ -495,11 +548,18 @@ impl Pack for Python {
         let mut edges = Vec::new();
         for (file, module, name, line) in &self.imports {
             // A generated module answers for the contract it was generated from, so a
-            // name taken from one reaches the matching definition in the proto file.
-            if let Some(contract) = module.strip_suffix("_pb2") {
-                let ending = format!("{}.proto", contract.replace('.', "/"));
+            // name taken from one reaches the matching definition in the proto
+            // file by its last segment, wherever the generated code sits.
+            if let Some(contract) = module
+                .rsplit('.')
+                .next()
+                .and_then(|last| last.strip_suffix("_pb2"))
+            {
+                let ending = format!("/{contract}.proto");
+                let flat = format!("{contract}.proto");
                 for (index, def) in defs.iter().enumerate() {
-                    if def.name == *name && def.file.to_string_lossy().ends_with(&ending) {
+                    let shown = def.file.to_string_lossy();
+                    if def.name == *name && (shown.ends_with(&ending) || shown == flat) {
                         edges.push(Edge {
                             def: index,
                             file: file.clone(),
