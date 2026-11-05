@@ -57,6 +57,8 @@ fn integrity_names_the_cycle_and_each_reexport() {
              an image is named by digest, never by a tag alone",
             "infra/deploy.yaml registry.local/cache:latest is pulled by tag; \
              an image is named by digest, never by a tag alone",
+            "infra/deploy.yaml a comment names billing_gateway, \
+             which nothing in the file defines, uses or quotes",
             "libs/cyc_a units import each other: libs/cyc_a, libs/cyc_b",
             "libs/cyc_a/src/cyc_a/calc.py libs/cyc_a uses libs/cyc_b, \
              which only nothing/* may",

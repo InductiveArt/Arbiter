@@ -10,3 +10,4 @@ spec:
           image: registry.local/side:1.0.0@sha256:0a1b2c
         - name: floating
           image: "registry.local/cache:latest"
+# fed by billing_gateway nightly

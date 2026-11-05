@@ -6,6 +6,7 @@ use crate::core::pack::Definition;
 use crate::core::pack::Edge;
 use crate::core::pack::Finding;
 use crate::core::pack::Pack;
+use crate::core::prose;
 use crate::core::units::Repo;
 
 // Deployment manifests as judged text: the pack defines no symbols and runs
@@ -13,6 +14,7 @@ use crate::core::units::Repo;
 #[derive(Default)]
 pub struct Infra {
     floating: Vec<(PathBuf, usize, String)>,
+    overreaches: Vec<(PathBuf, String, usize)>,
 }
 
 impl Infra {
@@ -25,6 +27,23 @@ impl Pack for Infra {
     fn rules(&self) -> &'static [(&'static str, &'static str)] {
         &[
             ("pinned-image", "held"),
+            ("no-comment-overreach", "held"),
+            (
+                "no-hidden-names",
+                "never: a manifest declares state; it names no symbols",
+            ),
+            (
+                "undeclared-dependency",
+                "never: a manifest's third parties are images, judged by digest",
+            ),
+            (
+                "unused-dependency",
+                "never: a manifest's third parties are images, judged by digest",
+            ),
+            (
+                "suppressions",
+                "never: a manifest carries no directive that silences a judge",
+            ),
             (
                 "resolve",
                 "never: a manifest declares state; it imports nothing",
@@ -77,8 +96,32 @@ impl Pack for Infra {
     }
 
     fn scan(&mut self, file: &Path, source: &str, surface: bool) -> Vec<Definition> {
+        if !surface {
+            return Vec::new();
+        }
+        // A comment is judged in any YAML; everything outside comments is the
+        // body a named thing may stand in.
+        let mut comments: Vec<(String, usize)> = Vec::new();
+        let mut body = String::new();
+        for (at, line) in source.lines().enumerate() {
+            let split = line.char_indices().find(|(index, part)| {
+                *part == '#' && (*index == 0 || line[..*index].ends_with([' ', '\t']))
+            });
+            match split {
+                Some((index, _)) => {
+                    body.push_str(&line[..index]);
+                    comments.push((line[index..].to_string(), at + 1));
+                }
+                None => body.push_str(line),
+            }
+            body.push('\n');
+        }
+        let idents = std::collections::HashSet::new();
+        for (token, line) in prose::overreaches(&comments, &idents, &body) {
+            self.overreaches.push((file.to_path_buf(), token, line));
+        }
         // Only a Kubernetes document names images; other YAML passes untouched.
-        if !surface || !source.contains("apiVersion:") {
+        if !source.contains("apiVersion:") {
             return Vec::new();
         }
         for (at, line) in source.lines().enumerate() {
@@ -100,7 +143,8 @@ impl Pack for Infra {
     }
 
     fn integrity(&self, _root: &Path, _repo: &Repo) -> Vec<Finding> {
-        self.floating
+        let mut findings: Vec<Finding> = self
+            .floating
             .iter()
             .map(|(file, line, image)| Finding {
                 check: "integrity",
@@ -111,7 +155,17 @@ impl Pack for Infra {
                     "{image} is pulled by tag; an image is named by digest, never by a tag alone"
                 ),
             })
-            .collect()
+            .collect();
+        findings.extend(self.overreaches.iter().map(|(file, token, line)| Finding {
+            check: "integrity",
+            file: file.clone(),
+            line: *line,
+            name: "no-comment-overreach".to_string(),
+            reason: format!(
+                "a comment names {token}, which nothing in the file defines, uses or quotes"
+            ),
+        }));
+        findings
     }
 
     fn resolve(&self, _mine: usize, _defs: &[Def], _root: &Path, _repo: &Repo) -> Vec<Edge> {
