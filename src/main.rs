@@ -4,10 +4,15 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use arbiter::core::graph::graph;
-use arbiter::core::pack::{self, Def, Edge, Finding, Suppression};
+use arbiter::core::pack;
+use arbiter::core::pack::Def;
+use arbiter::core::pack::Edge;
+use arbiter::core::pack::Finding;
+use arbiter::core::pack::Suppression;
 use arbiter::judge::brief;
 use arbiter::judge::claims;
-use arbiter::judge::findings::{integrity, winnow};
+use arbiter::judge::findings::integrity;
+use arbiter::judge::findings::winnow;
 use arbiter::judge::ledger;
 use arbiter::judge::outcomes;
 use arbiter::judge::rhyme;

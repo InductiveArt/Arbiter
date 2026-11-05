@@ -1,9 +1,13 @@
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
 use crate::core::graph::Graph;
-use crate::core::pack::{Def, Edge, Finding, Pack};
+use crate::core::pack::Def;
+use crate::core::pack::Edge;
+use crate::core::pack::Finding;
+use crate::core::pack::Pack;
 use crate::core::units::Repo;
 
 const DECLARATIONS: &str = ".arbiter/units.toml";

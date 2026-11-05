@@ -1,8 +1,10 @@
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
-use crate::core::pack::{Edge, Pack};
+use crate::core::pack::Edge;
+use crate::core::pack::Pack;
 use crate::core::units::Repo;
 
 // 128-bit FNV-1a: stable across runs and platforms, fast, and wide enough for

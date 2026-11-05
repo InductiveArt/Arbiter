@@ -1,5 +1,9 @@
 use streaming_iterator::StreamingIterator;
-use tree_sitter::{Language, Parser, Query, QueryCursor, Tree};
+use tree_sitter::Language;
+use tree_sitter::Parser;
+use tree_sitter::Query;
+use tree_sitter::QueryCursor;
+use tree_sitter::Tree;
 
 pub struct Capture {
     pub name: String,

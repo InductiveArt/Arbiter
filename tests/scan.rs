@@ -260,3 +260,51 @@ fn the_store_answers_the_key_and_forgets_a_failure() {
 
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn fix_splits_a_use_to_one_per_line() {
+    let root = std::env::temp_dir().join(format!("arbiter-mend-rs-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src")).expect("the folder is writable");
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"mendy\"\nversion = \"0.0.1\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("src/lib.rs"),
+        "use std::collections::{BTreeMap, BTreeSet};\nuse std::fmt::{self, Write as _};\n\npub fn hinge() {}\n",
+    )
+    .expect("the folder is writable");
+
+    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let pack = judged
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "rust")
+        .expect("the rust pack exists");
+    let notes = pack.mend(&judged.root, &judged.repo);
+    assert_eq!(notes.len(), 1, "one file is rewritten");
+
+    let mended = fs::read_to_string(root.join("src/lib.rs")).expect("the file stays readable");
+    assert_eq!(
+        mended,
+        "use std::collections::BTreeMap;\nuse std::collections::BTreeSet;\nuse std::fmt;\nuse std::fmt::Write as _;\n\npub fn hinge() {}\n"
+    );
+
+    let again = graph(&root.to_string_lossy()).expect("the folder exists");
+    let quiet = again
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "rust")
+        .expect("the rust pack exists")
+        .integrity(&again.root, &again.repo);
+    assert!(
+        quiet
+            .iter()
+            .all(|finding| finding.name != "one-import-per-line"),
+        "the split leaves no crowded use"
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}

@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
 use crate::core::graph::Graph;
-use crate::core::pack::{Finding, Suppression};
+use crate::core::pack::Finding;
+use crate::core::pack::Suppression;
 
 const REFERENCE: &str = ".arbiter/reference.json";
 

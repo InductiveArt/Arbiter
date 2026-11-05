@@ -1,8 +1,17 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
-use tree_sitter::{Language, Tree};
+use tree_sitter::Language;
+use tree_sitter::Node;
+use tree_sitter::Tree;
 
-use crate::core::pack::{Claim, Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::core::pack::Claim;
+use crate::core::pack::Def;
+use crate::core::pack::Definition;
+use crate::core::pack::Edge;
+use crate::core::pack::Finding;
+use crate::core::pack::Pack;
+use crate::core::pack::Suppression;
 use crate::core::prose;
 use crate::core::trees;
 use crate::core::units::Repo;
@@ -24,6 +33,7 @@ pub struct Rust {
     reexports: Vec<(PathBuf, String, usize)>,
     overreaches: Vec<(PathBuf, String, usize)>,
     tautologies: Vec<(PathBuf, usize, String)>,
+    crowded: Vec<(PathBuf, usize, usize)>,
 }
 
 const BUILTIN_CRATES: [&str; 5] = ["std", "core", "alloc", "proc_macro", "test"];
@@ -56,6 +66,7 @@ impl Pack for Rust {
                 "never: pub already walls a crate's interior",
             ),
             ("no-hidden-names", "held"),
+            ("one-import-per-line", "held"),
             ("no-comment-overreach", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
@@ -103,6 +114,38 @@ impl Pack for Rust {
         let mut found = Vec::new();
         claimed(tree.root_node(), source, &mut Vec::new(), &mut found);
         found
+    }
+
+    fn mend(&self, root: &Path, repo: &Repo) -> Vec<String> {
+        let mut notes = Vec::new();
+        for file in &repo.files {
+            let name = file
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if !self.handles(&name) || self.generated(&name) {
+                continue;
+            }
+            // A unit on a test path is a fixture: data for some test, never repaired.
+            let unit = repo.unit_of(file);
+            let home = repo.units[unit].path.clone();
+            if repo.is_test(unit, &home) {
+                continue;
+            }
+            let path = root.join(file);
+            let Ok(source) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let Some(tree) = trees::parse(&language(), &source) else {
+                continue;
+            };
+            if let Some(mended) = split_uses(tree.root_node(), &source) {
+                if std::fs::write(&path, mended).is_ok() {
+                    notes.push(format!("{} split to one use per line", file.display()));
+                }
+            }
+        }
+        notes
     }
 
     fn shapes(&self, source: &str) -> Vec<trees::Shape> {
@@ -190,6 +233,9 @@ impl Pack for Rust {
                 }
             }
         }
+        for (line, names) in crowded_uses(tree.root_node()) {
+            self.crowded.push((file.to_path_buf(), line, names));
+        }
         let mentions = mentions(&tree, source);
         let idents: std::collections::HashSet<String> =
             mentions.iter().map(|(name, _)| name.clone()).collect();
@@ -254,6 +300,16 @@ impl Pack for Rust {
                     reason: format!("{text}; an assertion compares the system to an expectation"),
                 }),
         );
+        findings.extend(self.crowded.iter().map(|(file, line, names)| Finding {
+            check: "integrity",
+            file: file.clone(),
+            line: *line,
+            name: "one-import-per-line".to_string(),
+            reason: format!(
+                "names {names} symbols in one import; \
+                 an import line names one symbol and the module it comes from"
+            ),
+        }));
         findings.extend(self.aliases.iter().map(|(file, alias, line)| Finding {
             check: "integrity",
             file: file.clone(),
@@ -699,11 +755,157 @@ fn paired(tokens: &str) -> Option<(String, String)> {
     ))
 }
 
+// Counts the leaf names each use binds: more than one on a line hides a
+// symbol from a whole-word search pairing it with its module.
+fn crowded_uses(node: Node) -> Vec<(usize, usize)> {
+    let mut found = Vec::new();
+    if node.kind() == "use_declaration" {
+        let mut names = 0;
+        for index in 0..node.named_child_count() {
+            if let Some(child) = node.named_child(index) {
+                if child.kind() != "visibility_modifier" {
+                    names += use_leaves(child);
+                }
+            }
+        }
+        if names > 1 {
+            found.push((node.start_position().row + 1, names));
+        }
+        return found;
+    }
+    for index in 0..node.named_child_count() {
+        if let Some(child) = node.named_child(index) {
+            found.extend(crowded_uses(child));
+        }
+    }
+    found
+}
+
+fn use_leaves(node: Node) -> usize {
+    match node.kind() {
+        "use_list" => {
+            let mut sum = 0;
+            for index in 0..node.named_child_count() {
+                if let Some(child) = node.named_child(index) {
+                    sum += use_leaves(child);
+                }
+            }
+            sum
+        }
+        "scoped_use_list" => node
+            .child_by_field_name("list")
+            .map(use_leaves)
+            .unwrap_or(0),
+        _ => 1,
+    }
+}
+
+// Splits each crowded use where it stands. An attributed use is left for the
+// hand: the attribute would govern only the first line a split writes.
+fn split_uses(root: Node, source: &str) -> Option<String> {
+    let mut spots: Vec<(usize, usize, String)> = Vec::new();
+    collect_splits(root, source, &mut spots);
+    if spots.is_empty() {
+        return None;
+    }
+    let mut text = source.to_string();
+    for (start, end, replacement) in spots.into_iter().rev() {
+        text.replace_range(start..end, &replacement);
+    }
+    Some(text)
+}
+
+fn collect_splits(node: Node, source: &str, spots: &mut Vec<(usize, usize, String)>) {
+    if node.kind() == "use_declaration" {
+        let mut names = 0;
+        let mut visibility = String::new();
+        let mut argument = None;
+        for index in 0..node.named_child_count() {
+            if let Some(child) = node.named_child(index) {
+                if child.kind() == "visibility_modifier" {
+                    visibility = format!("{} ", &source[child.byte_range()]);
+                } else {
+                    names += use_leaves(child);
+                    argument = Some(child);
+                }
+            }
+        }
+        let Some(argument) = argument else {
+            return;
+        };
+        if names <= 1
+            || node
+                .prev_named_sibling()
+                .is_some_and(|previous| previous.kind() == "attribute_item")
+        {
+            return;
+        }
+        let start = node.start_byte();
+        let line_start = source[..start].rfind('\n').map(|at| at + 1).unwrap_or(0);
+        let indent = &source[line_start..start];
+        let lines: Vec<String> = flattened("", argument, source)
+            .iter()
+            .map(|path| format!("{visibility}use {path};"))
+            .collect();
+        spots.push((start, node.end_byte(), lines.join(&format!("\n{indent}"))));
+        return;
+    }
+    for index in 0..node.named_child_count() {
+        if let Some(child) = node.named_child(index) {
+            collect_splits(child, source, spots);
+        }
+    }
+}
+
+fn flattened(prefix: &str, node: Node, source: &str) -> Vec<String> {
+    let glue = |tail: &str| {
+        if prefix.is_empty() {
+            tail.to_string()
+        } else {
+            format!("{prefix}::{tail}")
+        }
+    };
+    match node.kind() {
+        "use_list" => {
+            let mut all = Vec::new();
+            for index in 0..node.named_child_count() {
+                if let Some(child) = node.named_child(index) {
+                    all.extend(flattened(prefix, child, source));
+                }
+            }
+            all
+        }
+        "scoped_use_list" => {
+            let deeper = node
+                .child_by_field_name("path")
+                .map(|path| glue(&source[path.byte_range()]))
+                .unwrap_or_else(|| prefix.to_string());
+            node.child_by_field_name("list")
+                .map(|list| flattened(&deeper, list, source))
+                .unwrap_or_default()
+        }
+        "use_as_clause" => {
+            let path = node
+                .child_by_field_name("path")
+                .map(|path| glue(&source[path.byte_range()]))
+                .unwrap_or_default();
+            let alias = node
+                .child_by_field_name("alias")
+                .map(|alias| source[alias.byte_range()].to_string())
+                .unwrap_or_default();
+            vec![format!("{path} as {alias}")]
+        }
+        "self" => vec![prefix.to_string()],
+        _ => vec![glue(&source[node.byte_range()])],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
 
-    use super::{is_module_file, manifest_findings};
+    use super::is_module_file;
+    use super::manifest_findings;
 
     #[test]
     fn a_git_or_absolute_path_dependency_is_named() {

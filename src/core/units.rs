@@ -1,9 +1,11 @@
 use std::collections::HashSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 
-use tree_sitter::{Language, Node};
+use tree_sitter::Language;
+use tree_sitter::Node;
 
 use crate::core::pack::Pack;
 use crate::core::trees;
@@ -301,9 +303,11 @@ fn text(node: Node, source: &str) -> String {
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
+    use std::path::PathBuf;
 
-    use super::{Repo, Unit};
+    use super::Repo;
+    use super::Unit;
 
     fn repo(paths: &[&str]) -> Repo {
         Repo {

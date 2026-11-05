@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::core::pack::{Def, Edge, Pack};
+use crate::core::pack::Def;
+use crate::core::pack::Edge;
+use crate::core::pack::Pack;
 use crate::core::units;
 use crate::core::units::Repo;
 use crate::packs;

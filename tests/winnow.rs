@@ -1,5 +1,6 @@
 use arbiter::core::graph::graph;
-use arbiter::judge::findings::{integrity, winnow};
+use arbiter::judge::findings::integrity;
+use arbiter::judge::findings::winnow;
 
 const DEMO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/demo");
 
@@ -66,6 +67,9 @@ fn integrity_names_the_cycle_and_each_reexport() {
             "libs/testy/tests/test_calc.py asserts True; \
              an assertion compares the system to an expectation",
             "rlib/Cargo.toml itoa is declared, and nothing in the unit reaches it",
+            "rlib/src/lib.rs names 2 symbols in one import; \
+             an import line names one symbol and the module it comes from",
+            "rlib/src/lib.rs imported as measured; a symbol keeps its own name",
             "rlib/src/lib.rs re-exports shapes::area; a module offers only its own names",
             "rlib/src/lib.rs asserts 4 equals itself; \
              an assertion compares the system to an expectation",

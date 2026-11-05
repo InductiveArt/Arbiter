@@ -1,10 +1,20 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
-use tree_sitter::{Language, Tree};
+use tree_sitter::Language;
+use tree_sitter::Tree;
 
-use crate::core::pack::{pinned, Claim, Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::core::pack::pinned;
+use crate::core::pack::Claim;
+use crate::core::pack::Def;
+use crate::core::pack::Definition;
+use crate::core::pack::Edge;
+use crate::core::pack::Finding;
+use crate::core::pack::Pack;
+use crate::core::pack::Suppression;
 use crate::core::prose;
 use crate::core::trees;
 use crate::core::units::Repo;
@@ -1035,7 +1045,9 @@ fn tautologies(node: tree_sitter::Node, source: &str) -> Vec<(String, usize)> {
 mod tests {
     use std::path::Path;
 
-    use super::{is_module_file, manifest_findings, metadata_license};
+    use super::is_module_file;
+    use super::manifest_findings;
+    use super::metadata_license;
 
     #[test]
     fn an_exclude_may_name_generated_code_and_nothing_else() {

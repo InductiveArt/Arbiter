@@ -1,3 +1,5 @@
+use shapes::{area as measured, area};
+
 pub mod shapes;
 pub use shapes::area;
 

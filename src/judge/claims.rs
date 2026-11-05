@@ -1,9 +1,12 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
 use crate::core::graph::Graph;
-use crate::core::pack::{Claim, Finding};
+use crate::core::pack::Claim;
+use crate::core::pack::Finding;
 
 // One claim at the file speaking it.
 pub struct Spoken {

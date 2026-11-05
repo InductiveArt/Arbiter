@@ -189,7 +189,10 @@ story = "a gate runs pinned tools, warm where nothing moved, repairing first whe
 
   [[case.need]]
   need = "a fixing run mends the packs' own findings in place"
-  claims = [". |  | fix splits an import to one per line"]
+  claims = [
+    ". |  | fix splits an import to one per line",
+    ". |  | fix splits a use to one per line",
+  ]
 
   [[case.need]]
   need = "the first gate seeds the decision files and never overwrites them"

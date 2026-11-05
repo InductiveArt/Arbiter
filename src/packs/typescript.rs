@@ -1,9 +1,19 @@
 use std::ffi::OsStr;
-use std::path::{Component, Path, PathBuf};
+use std::path::Component;
+use std::path::Path;
+use std::path::PathBuf;
 
-use tree_sitter::{Language, Tree};
+use tree_sitter::Language;
+use tree_sitter::Tree;
 
-use crate::core::pack::{pinned, Claim, Def, Definition, Edge, Finding, Pack, Suppression};
+use crate::core::pack::pinned;
+use crate::core::pack::Claim;
+use crate::core::pack::Def;
+use crate::core::pack::Definition;
+use crate::core::pack::Edge;
+use crate::core::pack::Finding;
+use crate::core::pack::Pack;
+use crate::core::pack::Suppression;
 use crate::core::prose;
 use crate::core::trees;
 use crate::core::units::Repo;
@@ -1687,9 +1697,14 @@ fn strays(node: tree_sitter::Node, source: &str) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
+    use std::path::PathBuf;
 
-    use super::{dependency_findings, manifest_license, normalized, option_findings, routed};
+    use super::dependency_findings;
+    use super::manifest_license;
+    use super::normalized;
+    use super::option_findings;
+    use super::routed;
 
     #[test]
     fn a_license_is_the_string_or_the_object_form_or_unstated() {

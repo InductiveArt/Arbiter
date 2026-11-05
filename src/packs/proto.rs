@@ -1,9 +1,16 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 use std::time::Instant;
 
-use tree_sitter::{Language, Tree};
+use tree_sitter::Language;
+use tree_sitter::Tree;
 
-use crate::core::pack::{Def, Definition, Drift, Edge, Pack, Suppression};
+use crate::core::pack::Def;
+use crate::core::pack::Definition;
+use crate::core::pack::Drift;
+use crate::core::pack::Edge;
+use crate::core::pack::Pack;
+use crate::core::pack::Suppression;
 use crate::core::trees;
 use crate::core::units::Repo;
 

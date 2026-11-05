@@ -1,5 +1,6 @@
 use arbiter::core::graph::graph;
-use arbiter::judge::brief::{read, State};
+use arbiter::judge::brief::read;
+use arbiter::judge::brief::State;
 
 const CLAIMS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/claims");
 
