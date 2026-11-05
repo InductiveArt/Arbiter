@@ -91,7 +91,7 @@ Each finding has one expected fix. A suppression is never one of them.
 | Finding | Fix |
 |---|---|
 | `winnow` (no user anywhere) | Verify with `blast` plus a grep, then delete the symbol, its surface line, its doc comment and its tests. Deletions cascade: loop until dry. |
-| `winnow` (no user but tests) | Tests exist for the symbol itself: delete both. The symbol is scaffolding for tests of other live code: move it into `src/__tests__/` and off the surface. |
+| `winnow` (no user but tests) | Tests exist for the symbol itself: delete both. The symbol is scaffolding for tests of other live code: move it into `src/__tests__/` and off the surface. When those tests wire to a case the brief still plans, the symbol is nascent - a note, never a finding - until the commissioned consumer lands. |
 | `self-entry` | Import the defining module, not the unit's own surface. |
 | `no-reexport` | A surface names each symbol and defines none; any other module offers only its own. Move the re-export to the surface, move a surface's own definitions behind it, or import the defining file. |
 | `interior-import` | Enter the unit through a route its manifest declares, or declare the route. |

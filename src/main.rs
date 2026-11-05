@@ -186,7 +186,9 @@ fn main() -> ExitCode {
             eprintln!("findings: no folder at {asked}");
             return ExitCode::from(2);
         };
-        let mut all = winnow(&found.defs, &found.edges, &found.repo);
+        let commissioned = brief::commissioned(&found);
+        let (winnowed, _) = winnow(&found.defs, &found.edges, &found.repo, &commissioned);
+        let mut all = winnowed;
         all.extend(integrity(&found));
         all.extend(ledger::blanket_findings(&found));
         all.extend(claims::vanished(&found));

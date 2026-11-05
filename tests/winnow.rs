@@ -7,7 +7,8 @@ const DEMO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/demo");
 #[test]
 fn the_fixture_yields_its_known_findings() {
     let found = graph(DEMO).expect("the fixture folder exists");
-    let shown: Vec<String> = winnow(&found.defs, &found.edges, &found.repo)
+    let shown: Vec<String> = winnow(&found.defs, &found.edges, &found.repo, &Default::default())
+        .0
         .iter()
         .map(|finding| {
             format!(

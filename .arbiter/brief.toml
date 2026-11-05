@@ -69,6 +69,10 @@ story = "the graph plane finds what breaks the laws and names it"
   ]
 
   [[case.need]]
+  need = "a symbol reached only by tests of a planned case is nascent, never dead"
+  claims = [". |  | a symbol reached only by commissioned tests is nascent not dead"]
+
+  [[case.need]]
   need = "a published unit keeps its unused surface"
   claims = [". |  | a published unit keeps its unused surface"]
 

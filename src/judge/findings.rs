@@ -14,8 +14,14 @@ const DECLARATIONS: &str = ".arbiter/units.toml";
 const LICENSES: &str = ".arbiter/licenses.toml";
 
 // A public symbol no file but its own uses is named, inviting deletion.
-pub fn winnow(defs: &[Def], edges: &[Edge], repo: &Repo) -> Vec<Finding> {
+pub fn winnow(
+    defs: &[Def],
+    edges: &[Edge],
+    repo: &Repo,
+    commissioned: &std::collections::HashSet<PathBuf>,
+) -> (Vec<Finding>, Vec<String>) {
     let mut findings = Vec::new();
+    let mut nascent = Vec::new();
     for (index, def) in defs.iter().enumerate() {
         if def.self_used {
             continue;
@@ -35,6 +41,17 @@ pub fn winnow(defs: &[Def], edges: &[Edge], repo: &Repo) -> Vec<Finding> {
         {
             continue;
         }
+        // Tests of a case the brief still plans are building toward a consumer:
+        // the symbol is nascent, and the commission is the user's signature.
+        if !users.is_empty() && users.iter().all(|edge| commissioned.contains(&edge.file)) {
+            nascent.push(format!(
+                "nascent: {} at {}:{} is reached only by tests of a case still planned",
+                def.name,
+                def.file.to_string_lossy(),
+                def.line
+            ));
+            continue;
+        }
         findings.push(Finding {
             check: "winnow",
             file: def.file.clone(),
@@ -48,7 +65,8 @@ pub fn winnow(defs: &[Def], edges: &[Edge], repo: &Repo) -> Vec<Finding> {
         });
     }
     findings.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
-    findings
+    nascent.sort();
+    (findings, nascent)
 }
 
 pub fn integrity(found: &Graph) -> Vec<Finding> {
@@ -420,6 +438,26 @@ fn fits(pattern: &str, unit: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::fits;
+    use super::permitted;
+
+    #[test]
+    fn one_allowed_branch_of_an_or_passes() {
+        let allowed = ["Apache-2.0", "MIT"];
+        assert!(permitted("Apache-2.0 OR BSD-2-Clause", &allowed));
+        assert!(permitted("(MIT OR GPL-3.0-only)", &allowed));
+        assert!(!permitted("GPL-3.0-only OR AGPL-3.0-only", &allowed));
+        assert!(!permitted("Apache-2.0 AND GPL-3.0-only", &allowed));
+        assert!(permitted("Apache-2.0 AND MIT", &allowed));
+    }
+
+    #[test]
+    fn a_common_spelling_folds_to_its_spdx_name() {
+        let allowed = ["BSD-3-Clause", "Apache-2.0"];
+        assert!(permitted("3-Clause BSD License", &allowed));
+        assert!(permitted("Apache Software License", &allowed));
+        assert!(permitted("apache-2.0", &allowed));
+        assert!(!permitted("WTFPL", &allowed));
+    }
 
     #[test]
     fn a_star_covers_the_folder_and_everything_below() {

@@ -49,7 +49,7 @@ pub struct Run {
 // Judges everything: the units' tools, then the graph. A fixing run repairs first,
 // so the graph is read only after the repairs have settled.
 pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run> {
-    let (outcomes, notes, found) = if fixing {
+    let (outcomes, mut notes, found) = if fixing {
         let root = PathBuf::from(asked).canonicalize().ok()?;
         let packs = packs::all();
         let repo = units::scan(&root, &packs);
@@ -84,7 +84,11 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         );
         (outcomes, notes, found)
     };
-    let mut all = findings::winnow(&found.defs, &found.edges, &found.repo);
+    let commissioned = brief::commissioned(&found);
+    let (winnowed, nascent) =
+        findings::winnow(&found.defs, &found.edges, &found.repo, &commissioned);
+    notes.extend(nascent);
+    let mut all = winnowed;
     all.extend(findings::integrity(&found));
     all.extend(ledger::blanket_findings(&found));
     let brief = if briefless {

@@ -66,12 +66,22 @@ fn a_published_unit_keeps_its_unused_surface() {
     let path = root.to_string_lossy();
 
     let judged = graph(&path).expect("the folder exists");
-    let flagged = arbiter::judge::findings::winnow(&judged.defs, &judged.edges, &judged.repo);
+    let (flagged, _) = arbiter::judge::findings::winnow(
+        &judged.defs,
+        &judged.edges,
+        &judged.repo,
+        &Default::default(),
+    );
     assert_eq!(flagged.len(), 1, "an unused symbol is a finding");
 
     fs::write(root.join("PUBLISHED"), "").expect("the folder is writable");
     let declared = graph(&path).expect("the folder exists");
-    let kept = arbiter::judge::findings::winnow(&declared.defs, &declared.edges, &declared.repo);
+    let (kept, _) = arbiter::judge::findings::winnow(
+        &declared.defs,
+        &declared.edges,
+        &declared.repo,
+        &Default::default(),
+    );
     assert!(kept.is_empty(), "a published surface rests unjudged");
 
     let _ = fs::remove_dir_all(&root);
@@ -407,4 +417,63 @@ fn a_cargo_workspace_without_a_package_is_a_container() {
     assert!(pack.container("[workspace]\nmembers = [\"a\", \"b\"]\n"));
     assert!(!pack.container("[package]\nname = \"solo\"\nversion = \"0.0.1\"\n"));
     assert!(!pack.container("[workspace]\nmembers = [\"a\"]\n\n[package]\nname = \"rooted\"\n"));
+}
+
+#[test]
+fn a_symbol_reached_only_by_commissioned_tests_is_nascent_not_dead() {
+    let root = std::env::temp_dir().join(format!("arbiter-nascent-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src/demo")).expect("the folder is writable");
+    fs::create_dir_all(root.join("tests")).expect("the folder is writable");
+    fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("src/demo/forge.py"),
+        "def forged() -> int:\n    return 9\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("tests/test_forge.py"),
+        "from demo.forge import forged\n\n\ndef test_forged_turns_metal() -> None:\n    assert forged() == 9\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join(".arbiter/brief.toml"),
+        "[[case]]\nname = \"forging\"\nstory = \"metal is forged and poured\"\n\n  [[case.need]]\n  need = \"forged turns metal\"\n  claims = [\". |  | forged turns metal\"]\n\n  [[case.need]]\n  need = \"a consumer pours the metal\"\n  planned = true\n",
+    )
+    .expect("the folder is writable");
+
+    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let commissioned = arbiter::judge::brief::commissioned(&judged);
+    let (findings, nascent) =
+        arbiter::judge::findings::winnow(&judged.defs, &judged.edges, &judged.repo, &commissioned);
+    assert!(
+        findings.iter().all(|finding| finding.name != "forged"),
+        "a commissioned symbol is no finding"
+    );
+    assert_eq!(nascent.len(), 1, "the symbol is named nascent: {nascent:?}");
+    assert!(nascent[0].contains("forged"));
+
+    fs::write(
+        root.join(".arbiter/brief.toml"),
+        "[[case]]\nname = \"forging\"\nstory = \"metal is forged\"\n\n  [[case.need]]\n  need = \"forged turns metal\"\n  claims = [\". |  | forged turns metal\"]\n",
+    )
+    .expect("the folder is writable");
+    let again = graph(&root.to_string_lossy()).expect("the folder exists");
+    let commissioned = arbiter::judge::brief::commissioned(&again);
+    let (findings, nascent) =
+        arbiter::judge::findings::winnow(&again.defs, &again.edges, &again.repo, &commissioned);
+    assert!(
+        findings
+            .iter()
+            .any(|finding| finding.name == "forged" && finding.reason == "no user but tests"),
+        "without a planned need the symbol is dead wood again"
+    );
+    assert!(nascent.is_empty());
+
+    let _ = fs::remove_dir_all(&root);
 }

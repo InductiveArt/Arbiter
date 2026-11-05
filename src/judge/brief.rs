@@ -205,6 +205,41 @@ pub fn read(found: &Graph) -> Option<Reading> {
     })
 }
 
+// The files whose claims answer a case that still holds a planned need: the
+// case's consumer is commissioned, so its tests are building, not orphaned.
+pub fn commissioned(found: &Graph) -> std::collections::HashSet<PathBuf> {
+    let mut files = std::collections::HashSet::new();
+    let Some(reading) = read(found) else {
+        return files;
+    };
+    let (claimed, _) = claims::heard(found);
+    let mut spoken: Vec<(String, PathBuf)> = Vec::new();
+    for (unit, list) in &claimed {
+        for one in list {
+            spoken.push((claims::identity(unit, &one.claim), one.file.clone()));
+        }
+    }
+    let planned: std::collections::HashSet<&str> = reading
+        .needs
+        .iter()
+        .filter(|need| need.state == State::Planned)
+        .map(|need| need.case.as_str())
+        .collect();
+    for need in &reading.needs {
+        if !planned.contains(need.case.as_str()) {
+            continue;
+        }
+        for entry in &need.entries {
+            for (identity, file) in &spoken {
+                if wired(entry, identity) {
+                    files.insert(file.clone());
+                }
+            }
+        }
+    }
+    files
+}
+
 pub fn findings(found: &Graph) -> Vec<Finding> {
     read(found)
         .map(|reading| reading.findings)
