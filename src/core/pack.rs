@@ -102,6 +102,10 @@ pub const RULES: &[(&str, &str)] = &[
         "every third party an import names is declared by the importing unit's manifest; a development table carries only what tests import",
     ),
     (
+        "unused-dependency",
+        "a third party a manifest declares and nothing reaches is named for deletion",
+    ),
+    (
         "suppressions",
         "every suppression is counted against the reference; a blanket form is a finding",
     ),

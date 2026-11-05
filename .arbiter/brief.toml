@@ -109,6 +109,10 @@ name = "third-parties"
 story = "dependencies come from the locked registry, at one version, licensed"
 
   [[case.need]]
+  need = "a third party declared and never reached is named for deletion"
+  claims = [". |  | a third party declared and never reached is named"]
+
+  [[case.need]]
   need = "a dependency outside the registry or the workspace is named"
   claims = [
     ". |  | a dependency pulled past the registry is named",

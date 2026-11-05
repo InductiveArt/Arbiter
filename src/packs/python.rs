@@ -60,6 +60,7 @@ impl Pack for Python {
             ("one-import-per-line", "held"),
             ("no-comment-overreach", "held"),
             ("undeclared-dependency", "held"),
+            ("unused-dependency", "held"),
             ("suppressions", "held"),
             ("wiring", "held"),
             ("tools", "held"),
@@ -357,6 +358,15 @@ impl Pack for Python {
             if repo.is_test(unit, &home) {
                 continue;
             }
+            // Generated code is scanned, never judged: its imports reach, and
+            // the contract answers for what they name.
+            let name = file
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if self.generated(&name) {
+                continue;
+            }
             let top = module.split('.').next().unwrap_or(module);
             if stdlib.contains(top) || module_file(module, &repo.files).is_some() {
                 continue;
@@ -386,6 +396,66 @@ impl Pack for Python {
                     line,
                     name: "undeclared-dependency".to_string(),
                     reason,
+                });
+            }
+        }
+        // The mirror: a distribution a manifest declares and no file of the
+        // unit reaches is pulled and trusted for nothing.
+        let mut reached: HashMap<usize, HashSet<String>> = HashMap::new();
+        let spoken = self
+            .imports
+            .iter()
+            .map(|(file, module, _, _)| (file, module))
+            .chain(self.plains.iter().map(|(file, name, _)| (file, name)));
+        for (file, module) in spoken {
+            let top = module.split('.').next().unwrap_or(module);
+            let distribution =
+                normalized(&known.get(top).cloned().unwrap_or_else(|| top.to_string()));
+            reached
+                .entry(repo.unit_of(file))
+                .or_default()
+                .insert(distribution);
+        }
+        let mut coded: HashSet<usize> = HashSet::new();
+        for file in &repo.files {
+            let name = file
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if self.handles(&name) {
+                coded.insert(repo.unit_of(file));
+            }
+        }
+        for (unit, entry) in &declared {
+            let home = repo.units[*unit].path.clone();
+            if repo.is_test(*unit, &home) || !coded.contains(unit) {
+                continue;
+            }
+            let seen = reached.get(unit);
+            let within = |name: &str| seen.is_some_and(|set| set.contains(name));
+            for distribution in entry.dev.iter().collect::<std::collections::BTreeSet<_>>() {
+                if provided.contains(distribution) || within(distribution) {
+                    continue;
+                }
+                // A stub distribution serves the type checker of the library it types,
+                // and a plugin of the pinned runner loads by entry point, not import.
+                let base = distribution
+                    .strip_prefix("types-")
+                    .or_else(|| distribution.strip_suffix("-stubs"));
+                if base.is_some_and(within) {
+                    continue;
+                }
+                if distribution.starts_with("pytest-") && provided.contains("pytest") {
+                    continue;
+                }
+                findings.push(Finding {
+                    check: "integrity",
+                    file: entry.manifest.clone(),
+                    line: 0,
+                    name: "unused-dependency".to_string(),
+                    reason: format!(
+                        "{distribution} is declared, and nothing in the unit reaches it"
+                    ),
                 });
             }
         }
@@ -494,6 +564,7 @@ fn normalized(name: &str) -> String {
 // groups: a test import may lean on either, shipped code on the first alone.
 #[derive(Default)]
 struct Declared {
+    manifest: PathBuf,
     shipped: HashSet<String>,
     dev: HashSet<String>,
 }
@@ -514,6 +585,7 @@ fn declared_distributions(root: &Path, repo: &Repo) -> HashMap<usize, Declared> 
             continue;
         };
         let entry = declared.entry(repo.unit_of(manifest)).or_default();
+        entry.manifest = manifest.clone();
         let mut ships: Vec<&toml::Value> = Vec::new();
         ships.extend(
             parsed

@@ -46,6 +46,7 @@ fn integrity_names_the_cycle_and_each_reexport() {
         [
             ".arbiter/units.toml app grants ghost, which never uses it",
             ".arbiter/units.toml app declares libs/facade and never uses it",
+            "app/pyproject.toml rich is declared, and nothing in the unit reaches it",
             "app/src/app/alias.py imported as v; a symbol keeps its own name",
             "app/src/app/web.py requests is imported, \
              and the unit's manifest does not declare it",
@@ -64,9 +65,11 @@ fn integrity_names_the_cycle_and_each_reexport() {
              which nothing in the file defines, uses or quotes",
             "libs/testy/tests/test_calc.py asserts True; \
              an assertion compares the system to an expectation",
+            "rlib/Cargo.toml itoa is declared, and nothing in the unit reaches it",
             "rlib/src/lib.rs re-exports shapes::area; a module offers only its own names",
             "rlib/src/lib.rs asserts 4 equals itself; \
              an assertion compares the system to an expectation",
+            "ui/package.json lodash is declared, and nothing in the unit reaches it",
             "ui/pnpm-lock.yaml lodash is locked at 4.17.20 in ui/pnpm-lock.yaml \
              and 4.17.21 in web/package-lock.json",
             "ui/src/index.ts re-exports every name from \"./extra\"; \
@@ -96,6 +99,24 @@ fn integrity_names_the_cycle_and_each_reexport() {
              and declared only under devDependencies",
             "web/src/sneak.ts goes into @demo/ui past its routes; \
              a unit is entered through the routes its manifest declares",
+        ]
+    );
+}
+
+#[test]
+fn a_third_party_declared_and_never_reached_is_named() {
+    let found = graph(DEMO).expect("the fixture folder exists");
+    let shown: Vec<String> = integrity(&found)
+        .iter()
+        .filter(|finding| finding.name == "unused-dependency")
+        .map(|finding| format!("{} {}", finding.file.to_string_lossy(), finding.reason))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            "app/pyproject.toml rich is declared, and nothing in the unit reaches it",
+            "rlib/Cargo.toml itoa is declared, and nothing in the unit reaches it",
+            "ui/package.json lodash is declared, and nothing in the unit reaches it",
         ]
     );
 }

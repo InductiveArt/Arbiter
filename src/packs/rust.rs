@@ -58,6 +58,7 @@ impl Pack for Rust {
             ("no-hidden-names", "held"),
             ("no-comment-overreach", "held"),
             ("undeclared-dependency", "held"),
+            ("unused-dependency", "held"),
             ("suppressions", "held"),
             ("wiring", "held"),
             ("tools", "held"),
@@ -291,10 +292,11 @@ impl Pack for Rust {
             {
                 continue;
             }
-            if declared
-                .get(&unit)
-                .is_some_and(|names| names.contains(&first.replace('_', "-")))
-            {
+            let dashed = first.replace('_', "-");
+            // A crate's own name is reached from its binaries as the library half.
+            if declared.get(&unit).is_some_and(|entry| {
+                entry.names.contains(&dashed) || entry.own.as_deref() == Some(dashed.as_str())
+            }) {
                 continue;
             }
             if named.insert((unit, first.clone())) {
@@ -306,6 +308,60 @@ impl Pack for Rust {
                     reason: format!(
                         "{first} is imported, and the unit's manifest does not declare it"
                     ),
+                });
+            }
+        }
+        // The mirror: a crate a manifest declares and no path of the unit
+        // reaches is pulled and trusted for nothing. A use statement and a
+        // qualified path both reach.
+        let mut reached: std::collections::HashMap<usize, std::collections::HashSet<String>> =
+            std::collections::HashMap::new();
+        for (file, module, _, _) in &self.uses {
+            let first = module.split("::").next().unwrap_or(module);
+            reached
+                .entry(repo.unit_of(file))
+                .or_default()
+                .insert(first.replace('_', "-"));
+        }
+        for (file, first, _) in &self.entries {
+            reached
+                .entry(repo.unit_of(file))
+                .or_default()
+                .insert(first.replace('_', "-"));
+        }
+        let mut coded: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        for file in &repo.files {
+            let name = file
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if self.handles(&name) {
+                coded.insert(repo.unit_of(file));
+            }
+        }
+        for (unit, entry) in &declared {
+            let home = repo.units[*unit].path.clone();
+            if repo.is_test(*unit, &home) || !coded.contains(unit) {
+                continue;
+            }
+            let seen = reached.get(unit);
+            for name in entry
+                .names
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+            {
+                if Some(name.as_str()) == entry.own.as_deref() {
+                    continue;
+                }
+                if seen.is_some_and(|set| set.contains(name)) {
+                    continue;
+                }
+                findings.push(Finding {
+                    check: "integrity",
+                    file: entry.manifest.clone(),
+                    line: 0,
+                    name: "unused-dependency".to_string(),
+                    reason: format!("{name} is declared, and nothing in the unit reaches it"),
                 });
             }
         }
@@ -339,14 +395,17 @@ impl Pack for Rust {
     }
 }
 
-// Each unit's dependency-table keys, dashed, which is how crates are published.
-// Cargo already refuses a dev-dependency outside tests, so the tables stay one set.
-fn declared_crates(
-    root: &Path,
-    repo: &Repo,
-) -> std::collections::HashMap<usize, std::collections::HashSet<String>> {
-    let mut declared: std::collections::HashMap<usize, std::collections::HashSet<String>> =
-        std::collections::HashMap::new();
+// Each unit's manifest with its dependency-table keys, dashed, which is how
+// crates are published. Cargo already refuses a dev-dependency outside tests,
+// so the tables stay one set; the crate's own name stays apart.
+struct Crates {
+    manifest: PathBuf,
+    own: Option<String>,
+    names: std::collections::HashSet<String>,
+}
+
+fn declared_crates(root: &Path, repo: &Repo) -> std::collections::HashMap<usize, Crates> {
+    let mut declared: std::collections::HashMap<usize, Crates> = std::collections::HashMap::new();
     for manifest in &repo.manifests {
         if manifest.file_name().is_none_or(|name| name != "Cargo.toml") {
             continue;
@@ -357,11 +416,16 @@ fn declared_crates(
         let Ok(parsed) = text.parse::<toml::Value>() else {
             continue;
         };
-        let entry = declared.entry(repo.unit_of(manifest)).or_default();
-        // A crate's own name: its library half is imported under it from its binaries.
+        let entry = declared
+            .entry(repo.unit_of(manifest))
+            .or_insert_with(|| Crates {
+                manifest: manifest.clone(),
+                own: None,
+                names: std::collections::HashSet::new(),
+            });
         if let Some(own) = table_at(&parsed, "package").and_then(|package| package.get("name")) {
             if let Some(own) = own.as_str() {
-                entry.insert(own.replace('_', "-"));
+                entry.own = Some(own.replace('_', "-"));
             }
         }
         for path in [
@@ -374,7 +438,7 @@ fn declared_crates(
                 continue;
             };
             for name in table.keys() {
-                entry.insert(name.replace('_', "-"));
+                entry.names.insert(name.replace('_', "-"));
             }
         }
     }

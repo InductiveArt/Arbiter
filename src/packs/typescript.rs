@@ -67,6 +67,7 @@ impl Pack for TypeScript {
             ("one-import-per-line", "held"),
             ("no-comment-overreach", "held"),
             ("undeclared-dependency", "held"),
+            ("unused-dependency", "held"),
             ("suppressions", "held"),
             ("wiring", "held"),
             ("tools", "held"),
@@ -379,14 +380,18 @@ impl Pack for TypeScript {
             if repo.is_test(unit, &home) {
                 continue;
             }
+            // Generated code is scanned, never judged: its imports only reach.
+            let leaf = file
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if self.generated(&leaf) {
+                continue;
+            }
             if from.starts_with('.') || from.starts_with('#') || from.starts_with("node:") {
                 continue;
             }
-            let package = if from.starts_with('@') {
-                from.splitn(3, '/').take(2).collect::<Vec<&str>>().join("/")
-            } else {
-                from.split('/').next().unwrap_or(from).to_string()
-            };
+            let package = packaged(from);
             if builtins.contains(package.as_str()) || provided.contains(&package) {
                 continue;
             }
@@ -419,6 +424,84 @@ impl Pack for TypeScript {
                     line: *line,
                     name: "undeclared-dependency".to_string(),
                     reason,
+                });
+            }
+        }
+        // The mirror: a package a manifest declares and no file of the unit
+        // reaches is pulled and trusted for nothing.
+        let mut reached: std::collections::HashMap<usize, std::collections::HashSet<String>> =
+            std::collections::HashMap::new();
+        for (file, from, _, _) in &self.imports {
+            let unit = repo.unit_of(file);
+            if from.starts_with("node:") {
+                reached.entry(unit).or_default().insert("node".to_string());
+                continue;
+            }
+            if from.starts_with('.') || from.starts_with('#') {
+                continue;
+            }
+            reached.entry(unit).or_default().insert(packaged(from));
+        }
+        for file in companions(root) {
+            let Ok(source) = std::fs::read_to_string(root.join(&file)) else {
+                continue;
+            };
+            let Some(tree) = trees::parse(&language(), &source) else {
+                continue;
+            };
+            let unit = repo.unit_of(&file);
+            for (from, _, _, _) in imports(&tree, &source) {
+                if from.starts_with('.') || from.starts_with('#') || from.starts_with("node:") {
+                    continue;
+                }
+                reached.entry(unit).or_default().insert(packaged(&from));
+            }
+        }
+        let mut coded: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        for file in &repo.files {
+            let name = file
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if self.handles(&name) {
+                coded.insert(repo.unit_of(file));
+            }
+        }
+        let owns: std::collections::HashSet<String> = declared
+            .values()
+            .filter_map(|entry| entry.own.clone())
+            .collect();
+        for (unit, entry) in &declared {
+            let home = repo.units[*unit].path.clone();
+            if repo.is_test(*unit, &home) || !coded.contains(unit) {
+                continue;
+            }
+            let seen = reached.get(unit);
+            let within = |package: &str| seen.is_some_and(|set| set.contains(package));
+            for package in entry.dev.iter().collect::<std::collections::BTreeSet<_>>() {
+                if provided.contains(package)
+                    || owns.contains(package)
+                    || within(package)
+                    || entry.peers.contains(package)
+                    || entry.scripts.contains(package)
+                {
+                    continue;
+                }
+                if let Some(base) = package.strip_prefix("@types/") {
+                    if base == "node"
+                        || within(base)
+                        || entry.peers.contains(base)
+                        || within(&format!("@{}", base.replace("__", "/")))
+                    {
+                        continue;
+                    }
+                }
+                findings.push(Finding {
+                    check: "integrity",
+                    file: entry.manifest.clone(),
+                    line: 0,
+                    name: "unused-dependency".to_string(),
+                    reason: format!("{package} is declared, and nothing in the unit reaches it"),
                 });
             }
         }
@@ -925,9 +1008,65 @@ fn option_findings(options: &serde_json::Value) -> Vec<String> {
 // only develops: a test import may lean on either, shipped code on the first alone.
 #[derive(Default)]
 struct Declared {
+    manifest: PathBuf,
     own: Option<String>,
     shipped: std::collections::HashSet<String>,
     dev: std::collections::HashSet<String>,
+    // A peer is the consumer's to provide: a contract, never an own use.
+    peers: std::collections::HashSet<String>,
+    // Every word of every script: a package run as a command is reached.
+    scripts: std::collections::HashSet<String>,
+}
+
+// The package a module specifier names: the first segment, two under a scope.
+fn packaged(from: &str) -> String {
+    if from.starts_with('@') {
+        from.splitn(3, '/').take(2).collect::<Vec<&str>>().join("/")
+    } else {
+        from.split('/').next().unwrap_or(from).to_string()
+    }
+}
+
+// Files the walk never judges whose imports still reach: scripts in .mjs,
+// .cjs and .js, and code under dot folders such as a storybook's.
+fn companions(root: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let mut stack = vec![(root.to_path_buf(), false)];
+    while let Some((folder, hidden)) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&folder) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            let name = entry.file_name().to_string_lossy().to_string();
+            if kind.is_dir() {
+                if name == ".git"
+                    || name == ".arbiter"
+                    || name == "node_modules"
+                    || name == "dist"
+                    || name == "third_party"
+                    || name.starts_with("bazel-")
+                {
+                    continue;
+                }
+                stack.push((entry.path(), hidden || name.starts_with('.')));
+            } else if kind.is_file() {
+                let scripted =
+                    name.ends_with(".mjs") || name.ends_with(".cjs") || name.ends_with(".js");
+                let shaded = hidden
+                    && !name.ends_with(".d.ts")
+                    && (name.ends_with(".ts") || name.ends_with(".tsx"));
+                if scripted || shaded {
+                    if let Ok(relative) = entry.path().strip_prefix(root) {
+                        found.push(relative.to_path_buf());
+                    }
+                }
+            }
+        }
+    }
+    found
 }
 
 fn declared_packages(root: &Path, repo: &Repo) -> std::collections::HashMap<usize, Declared> {
@@ -946,6 +1085,7 @@ fn declared_packages(root: &Path, repo: &Repo) -> std::collections::HashMap<usiz
             continue;
         };
         let entry = declared.entry(repo.unit_of(manifest)).or_default();
+        entry.manifest = manifest.clone();
         if let Some(name) = parsed.get("name").and_then(serde_json::Value::as_str) {
             entry.own = Some(name.to_string());
         }
@@ -956,6 +1096,16 @@ fn declared_packages(root: &Path, repo: &Repo) -> std::collections::HashMap<usiz
             for name in names.keys() {
                 entry.shipped.insert(name.clone());
                 entry.dev.insert(name.clone());
+                if table == "peerDependencies" {
+                    entry.peers.insert(name.clone());
+                }
+            }
+        }
+        if let Some(scripts) = parsed.get("scripts").and_then(serde_json::Value::as_object) {
+            for script in scripts.values().filter_map(serde_json::Value::as_str) {
+                for word in script.split_whitespace() {
+                    entry.scripts.insert(word.to_string());
+                }
             }
         }
         if let Some(names) = parsed

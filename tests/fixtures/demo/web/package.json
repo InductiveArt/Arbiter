@@ -1,6 +1,7 @@
 {
   "name": "web",
   "version": "0.0.0",
+  "scripts": { "build": "vite build" },
   "dependencies": { "@demo/ui": "workspace:*" },
-  "devDependencies": { "mockery": "1.0.0", "typemock": "1.0.0" }
+  "devDependencies": { "mockery": "1.0.0", "typemock": "1.0.0", "vite": "5.0.0" }
 }
