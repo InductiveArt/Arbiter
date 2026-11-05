@@ -11,15 +11,17 @@ what they decide.
 
 | Command | Does | Changes files |
 |---|---|---|
-| `arbiter gate .` | Judges everything: each unit's pinned tools, the resolved graph, and the brief once one is written (`--no-brief` skips that step). Warm by default: a unit green under an unchanged input cone skips its tools, and the dashboard counts it. `--cold` reads no store. | no |
-| `arbiter gate --fix .` | The same judgment, repairs first: packs mend their own findings, tools apply safe fixes. | yes |
-| `arbiter findings .` | The graph plane alone as JSON lines, in seconds. | no |
-| `arbiter blast <name> .` | Each definition of a name and every resolved use of that one. | no |
-| `arbiter ledger .` | Every suppression, counted against the accepted reference. | no |
-| `arbiter rules` | The rule-by-language matrix - held, never with its why, or open - then each rule's and each core judgment's one-line law. | no |
-| `arbiter brief [case] .` | The brief against the claims tree: each case's needs as held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. A case argument prints that one slice. | no |
-| `arbiter rhyme .` | Structurally equivalent functions, grouped and largest first: a perfect rhyme reads identically, a slant rhyme is the same shape in different words. A measure to read and judge - never findings, never a gate stage. | no |
-| `arbiter accept .` | Records the suppression, dependency and claim references. **The user's signature - never run it.** | yes |
+| `arbiter gate .` | judge everything; red names what stands between the code and clean. Warm by default: a unit green under an unchanged input cone skips its tools. `--cold` reads no store; `--no-brief` skips the brief step; `--fix` is the same judgment, repairs first: packs mend their own findings, tools apply safe fixes. | with `--fix` |
+| `arbiter findings .` | the graph plane alone, as JSON lines, in seconds. | no |
+| `arbiter blast <name> .` | every definition of a name and each resolved use. | no |
+| `arbiter deps <unit> .` | what one unit stands on, declared against resolved. | no |
+| `arbiter brief [case] .` | every need's state against the claims tree; a case is one slice. Each need held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. | no |
+| `arbiter rhyme .` | structurally equal functions, largest first; a measure, never findings. A perfect rhyme reads identically, a slant rhyme is the same shape in different words. | no |
+| `arbiter ledger .` | every suppression, counted against the reference. | no |
+| `arbiter rules [rule]` | the matrix and each law; one rule prints its whys. | no |
+| `arbiter warm .` | heat the store so the next gate skips what nothing moved. | the store only |
+| `arbiter accept .` | record suppressions, dependencies and claims: the user's signature. **Never run it.** | yes |
+| `arbiter adopt .` | install the agent layer; arbiter-owned files refresh with the binary. `settings.json` and the `CLAUDE.md` pointer are written once. | yes |
 
 Exit codes: 0 clean, 1 findings or failures, 2 nothing to judge or a broken
 machine. A preflight gap ("X is not on this machine") is a broken machine,

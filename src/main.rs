@@ -384,8 +384,13 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     if arguments.first().map(String::as_str) == Some("rules") {
-        matrix();
-        return ExitCode::SUCCESS;
+        return match arguments.get(1) {
+            None => {
+                matrix();
+                ExitCode::SUCCESS
+            }
+            Some(rule) => ruled(rule),
+        };
     }
     if arguments.first().map(String::as_str) == Some("accept") {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
@@ -429,11 +434,32 @@ fn main() -> ExitCode {
             }
         }
     }
-    eprintln!(
-        "arbiter <verb> [folder] — gate [--fix] [--cold] [--no-brief], findings, \
-         blast <name>, deps <unit>, brief [case], rhyme, ledger, warm, rules, accept, adopt"
-    );
+    if let Some(verb) = arguments.first() {
+        eprintln!("arbiter: no verb named {verb}");
+    }
+    taught();
     ExitCode::from(2)
+}
+
+// The bare call teaches: the whole grammar, each verb with its one line.
+fn taught() {
+    println!(
+        "arbiter judges a repository: the resolved graph, each unit's pinned tools, the brief."
+    );
+    println!();
+    let width = arbiter::verbs::VERBS
+        .iter()
+        .map(|(call, _)| call.len())
+        .max()
+        .unwrap_or(0);
+    for (call, line) in arbiter::verbs::VERBS {
+        println!("  {call:width$}  {line}");
+    }
+    println!();
+    println!(
+        "A verb takes the folder last; missing, it judges here. \
+         Exit: 0 clean, 1 findings, 2 broken machine."
+    );
 }
 
 // With no brief written, the whole tree is the unwired world: the claims an
@@ -685,7 +711,6 @@ fn matrix() {
         print!("  {:10}", pack.label());
     }
     println!();
-    let mut nevers: Vec<(&str, &str, Vec<&str>)> = Vec::new();
     for (rule, _) in pack::RULES {
         print!("{rule:width$}");
         for pack in &packs {
@@ -699,15 +724,6 @@ fn matrix() {
                 Some(_) => "never",
                 None => "open",
             };
-            if let Some(why) = answer.and_then(|answer| answer.strip_prefix("never: ")) {
-                match nevers
-                    .iter_mut()
-                    .find(|(named, told, _)| named == rule && *told == why)
-                {
-                    Some((_, _, labels)) => labels.push(pack.label()),
-                    None => nevers.push((rule, why, vec![pack.label()])),
-                }
-            }
             print!("  {cell:10}");
         }
         println!();
@@ -722,13 +738,44 @@ fn matrix() {
     for (name, law) in pack::CORE {
         println!("  {name}: {law}");
     }
-    if !nevers.is_empty() {
+    println!();
+    println!(
+        "arbiter rules <rule> prints one rule's stance in every language, with each never's why."
+    );
+}
+
+// One rule whole: its law, then each pack's stance - held, open, or never
+// with its why. A core judgment has no stances; its law is the answer.
+fn ruled(asked: &str) -> ExitCode {
+    if let Some((rule, law)) = pack::RULES.iter().find(|(rule, _)| *rule == asked) {
+        println!("{rule}: {law}");
         println!();
-        println!("never, and why:");
-        for (rule, why, labels) in nevers {
-            println!("  {rule} ({}): {why}", labels.join(", "));
+        for pack in arbiter::packs::all() {
+            let answer = pack
+                .rules()
+                .iter()
+                .find(|(name, _)| name == rule)
+                .map(|(_, answer)| *answer);
+            match answer {
+                Some("held") => println!("  {:10} held", pack.label()),
+                Some(told) => println!(
+                    "  {:10} never — {}",
+                    pack.label(),
+                    told.strip_prefix("never: ").unwrap_or(told)
+                ),
+                None => println!("  {:10} open", pack.label()),
+            }
         }
+        return ExitCode::SUCCESS;
     }
+    if let Some((name, law)) = pack::CORE.iter().find(|(name, _)| *name == asked) {
+        println!("{name}: {law}");
+        println!();
+        println!("  core: judged through the one graph, every language at once");
+        return ExitCode::SUCCESS;
+    }
+    eprintln!("rules: no rule named {asked}; arbiter rules prints the matrix");
+    ExitCode::from(2)
 }
 
 // The agent layer, installed where agents will look. The judge's own files

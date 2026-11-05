@@ -202,3 +202,15 @@ story = "generated code matches its contract, and a break is a finding"
   [[case.need]]
   need = "a missing, a drifted and an orphaned generated file are each named"
   claims = [". |  | a missing a drifted and an orphaned file are each named"]
+
+[[case]]
+name = "teaching"
+story = "the tool teaches its own use, and the taught word cannot drift"
+
+  [[case.need]]
+  need = "the skill speaks each verb with its own line"
+  claims = [". |  | the skill speaks each verb with its own line"]
+
+  [[case.need]]
+  need = "the bare call prints the whole grammar"
+  manual = "run arbiter with no verb and read the table"
