@@ -181,7 +181,7 @@ story = "behavior is claimed by tests and commissioned by the brief"
   claims = [". |  | each language claims its sentences under their frames"]
 
   [[case.need]]
-  need = "a claim once accepted leaves only with the user's signature"
+  need = "a claim once signed leaves only with the user's signature"
   claims = [". |  | a claim that vanished without signature is a finding"]
 
   [[case.need]]

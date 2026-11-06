@@ -84,35 +84,38 @@ fn main() -> ExitCode {
         }
         match run.added {
             None => println!(
-                "  ledger     {} suppressions, no reference recorded",
-                run.counted
+                "  {:14} {} counted, no reference recorded",
+                "suppressions", run.counted
             ),
             Some(added) => println!(
-                "  ledger     {} suppressions, {added} added since accept",
-                run.counted
+                "  {:14} {} counted, {added} added since the signature",
+                "suppressions", run.counted
             ),
         }
         match run.third_added {
             None => println!(
-                "  deps       {} third parties, no reference recorded",
-                run.third
+                "  {:14} {} locked, no reference recorded",
+                "third parties", run.third
             ),
             Some(added) => println!(
-                "  deps       {} third parties, {added} added since accept",
-                run.third
+                "  {:14} {} locked, {added} added since the signature",
+                "third parties", run.third
             ),
         }
         match run.claims_vanished {
-            None => println!("  claims     {} spoken, no reference recorded", run.claims),
-            Some(0) => println!("  claims     {} spoken, none vanished", run.claims),
+            None => println!(
+                "  {:14} {} spoken, no reference recorded",
+                "claims", run.claims
+            ),
+            Some(0) => println!("  {:14} {} spoken, none vanished", "claims", run.claims),
             Some(vanished) => println!(
-                "  claims     {} spoken, {vanished} vanished since accept",
-                run.claims
+                "  {:14} {} spoken, {vanished} vanished since the signature",
+                "claims", run.claims
             ),
         }
         match run.brief {
-            verdict::BriefLine::Skipped => println!("  brief      skipped"),
-            verdict::BriefLine::Unwritten => println!("  brief      no brief written"),
+            verdict::BriefLine::Skipped => println!("  {:14} skipped", "brief"),
+            verdict::BriefLine::Unwritten => println!("  {:14} no brief written", "brief"),
             verdict::BriefLine::Read {
                 cases,
                 held,
@@ -121,8 +124,9 @@ fn main() -> ExitCode {
                 unanswered,
                 unwired,
             } => println!(
-                "  brief      {cases} cases — {held} held, {planned} planned, \
-                 {manual} manual, {unanswered} unanswered; {unwired} claims unwired"
+                "  {:14} {cases} cases — {held} held, {planned} planned, \
+                 {manual} manual, {unanswered} unanswered; {unwired} claims unwired",
+                "brief"
             ),
         }
         for note in &run.notes {
@@ -253,47 +257,55 @@ fn main() -> ExitCode {
             Some(rule) => ruled(rule),
         };
     }
-    if arguments.first().map(String::as_str) == Some("accept") {
+    if arguments.first().map(String::as_str) == Some("ledger") {
+        if arguments.get(1).map(String::as_str) == Some("sign") {
+            let asked = arguments.get(2).cloned().unwrap_or_else(|| ".".to_string());
+            let Some(found) = graph(&asked) else {
+                eprintln!("sign: no folder at {asked}");
+                return ExitCode::from(2);
+            };
+            let blankets = ledger::blankets(&found);
+            if !blankets.is_empty() {
+                eprintln!(
+                    "sign: {} blanket suppressions are findings, never records",
+                    blankets.len()
+                );
+                for suppression in &blankets {
+                    eprintln!("  {}", shown(suppression));
+                }
+                return ExitCode::FAILURE;
+            }
+            let counted = ledger::counted(&found);
+            let packages = ledger::packages(&found);
+            let spoken = claims::identities(&found);
+            match ledger::record(&found.root, &counted, &packages, &spoken) {
+                Ok(path) => {
+                    println!(
+                        "sign: {} suppressions, {} third parties and {} claims recorded in {}",
+                        counted.len(),
+                        packages.len(),
+                        spoken.len(),
+                        path.to_string_lossy()
+                    );
+                    for pack in &found.packs {
+                        for line in pack.record(&found.root, &found.repo) {
+                            println!("sign: {line}");
+                        }
+                    }
+                    return ExitCode::SUCCESS;
+                }
+                Err(error) => {
+                    eprintln!("sign: the reference could not be written: {error}");
+                    return ExitCode::from(2);
+                }
+            }
+        }
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
         let Some(found) = graph(&asked) else {
-            eprintln!("accept: no folder at {asked}");
+            eprintln!("ledger: no folder at {asked}");
             return ExitCode::from(2);
         };
-        let blankets = ledger::blankets(&found);
-        if !blankets.is_empty() {
-            eprintln!(
-                "accept: {} blanket suppressions are findings, never records",
-                blankets.len()
-            );
-            for suppression in &blankets {
-                eprintln!("  {}", shown(suppression));
-            }
-            return ExitCode::FAILURE;
-        }
-        let counted = ledger::counted(&found);
-        let packages = ledger::packages(&found);
-        let spoken = claims::identities(&found);
-        match ledger::record(&found.root, &counted, &packages, &spoken) {
-            Ok(path) => {
-                println!(
-                    "accept: {} suppressions, {} third parties and {} claims recorded in {}",
-                    counted.len(),
-                    packages.len(),
-                    spoken.len(),
-                    path.to_string_lossy()
-                );
-                for pack in &found.packs {
-                    for line in pack.record(&found.root, &found.repo) {
-                        println!("accept: {line}");
-                    }
-                }
-                return ExitCode::SUCCESS;
-            }
-            Err(error) => {
-                eprintln!("accept: the reference could not be written: {error}");
-                return ExitCode::from(2);
-            }
-        }
+        return ledgered(&found);
     }
     if let Some(verb) = arguments.first() {
         eprintln!("arbiter: no verb named {verb}");
@@ -332,14 +344,6 @@ fn found(rest: &[String]) -> ExitCode {
             };
             deps(name, &found)
         }
-        Some("ledger") => {
-            let asked = folder(1);
-            let Some(found) = graph(&asked) else {
-                eprintln!("find: no folder at {asked}");
-                return ExitCode::from(2);
-            };
-            ledgered(&found)
-        }
         Some("rhymes") => {
             let asked = folder(1);
             let Some(found) = graph(&asked) else {
@@ -356,7 +360,7 @@ fn found(rest: &[String]) -> ExitCode {
                 Some(word) => {
                     eprintln!(
                         "find: nothing named {word}; find takes a rule from arbiter rules, \
-                         fallout <name>, deps <unit>, ledger or rhymes"
+                         fallout <name>, deps <unit> or rhymes"
                     );
                     return ExitCode::from(2);
                 }
@@ -379,7 +383,7 @@ fn found(rest: &[String]) -> ExitCode {
     }
 }
 
-// The signature's account: everything accept records, counted against what
+// The signature's account: everything signing records, counted against what
 // stands today, with each delta listed where one exists.
 fn ledgered(found: &arbiter::core::graph::Graph) -> ExitCode {
     let counted = ledger::counted(found);
@@ -394,7 +398,7 @@ fn ledgered(found: &arbiter::core::graph::Graph) -> ExitCode {
         Some(reference) => {
             let extra = ledger::added(&counted, reference);
             println!(
-                "{:14} {} counted, {} added since accept",
+                "{:14} {} counted, {} added since the signature",
                 "suppressions",
                 counted.len(),
                 extra.len()
@@ -413,7 +417,7 @@ fn ledgered(found: &arbiter::core::graph::Graph) -> ExitCode {
                 .filter(|name| !recorded.contains(*name))
                 .collect();
             println!(
-                "{:14} {} locked, {} added since accept",
+                "{:14} {} locked, {} added since the signature",
                 "third parties",
                 packages.len(),
                 fresh.len()
@@ -429,7 +433,7 @@ fn ledgered(found: &arbiter::core::graph::Graph) -> ExitCode {
         Some(_) => {
             let lost = claims::gone(found);
             println!(
-                "{:14} {} spoken, {} vanished since accept",
+                "{:14} {} spoken, {} vanished since the signature",
                 "claims",
                 spoken,
                 lost.len()
@@ -451,7 +455,7 @@ fn ledgered(found: &arbiter::core::graph::Graph) -> ExitCode {
         }
     }
     if reference.is_none() {
-        println!("no reference recorded; arbiter accept records today's");
+        println!("no reference recorded; arbiter ledger sign records today's");
     }
     ExitCode::SUCCESS
 }
@@ -503,7 +507,9 @@ fn taught() {
         println!("  {call:width$}  {line}");
     }
     println!();
-    println!("gate, accept and adopt act; find, brief and rules read and never write.");
+    println!(
+        "gate, adopt and ledger sign act; find, ledger, brief and rules read and never write."
+    );
     println!(
         "A verb takes the folder last; missing, it judges here. \
          Exit: 0 clean, 1 findings, 2 no judgment — a broken machine, \

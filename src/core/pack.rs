@@ -196,7 +196,7 @@ pub const CORE: &[(&str, &str)] = &[
     ),
     (
         "vanished-claim",
-        "a claim once accepted leaves only with the user's signature",
+        "a claim once signed leaves only with the user's signature",
     ),
     ("unwired-claim", "every claim answers a need in the brief"),
     (
@@ -334,7 +334,7 @@ pub trait Pack {
         Vec::new()
     }
 
-    // Writes the pack's accepted reference, as `arbiter accept` asks; each line
+    // Writes the pack's signed reference, as `arbiter ledger sign` asks; each line
     // reports one record written or refused.
     fn record(&self, root: &Path, repo: &Repo) -> Vec<String> {
         let _ = (root, repo);

@@ -328,7 +328,7 @@ impl Pack for Proto {
             } else {
                 let shown = folder.strip_prefix(root).unwrap_or(folder);
                 notes.push(format!(
-                    "{} has no contracts reference; arbiter accept records today's",
+                    "{} has no contracts reference; arbiter ledger sign records today's",
                     shown.to_string_lossy()
                 ));
             }
@@ -446,7 +446,7 @@ fn buf_deps(text: &str) -> Vec<String> {
     deps
 }
 
-// Where the accepted contracts of the unit live, named by the unit's own path.
+// Where the signed contracts of the unit live, named by the unit's own path.
 fn image_path(root: &Path, folder: &Path) -> PathBuf {
     let unit = folder.strip_prefix(root).unwrap_or(folder);
     let flat = if unit.as_os_str().is_empty() {

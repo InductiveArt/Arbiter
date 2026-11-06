@@ -50,8 +50,8 @@ manifest, always; the lockfile is the ecosystem's.
    judged - their imports reach, their style is the generator's.
 3. The drift stage holds generated code to its contract on every gate, and
    `gate --fix` regenerates after a contract edit.
-4. `arbiter accept .` records the contracts image; breaking is judged
-   against it from then on. The user runs accept, never you.
+4. `arbiter ledger sign .` records the contracts image; breaking is judged
+   against it from then on. The user signs, never you.
 5. A consumer imports the generated name and the graph resolves it to the
    contract, so a message nothing touches invites deletion at the
    contract's own line.

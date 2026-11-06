@@ -18,12 +18,16 @@ pub const VERBS: &[(&str, &str)] = &[
         "what one unit stands on, declared against resolved",
     ),
     (
-        "find ledger",
+        "find rhymes",
+        "structurally equal functions, largest first; a measure, never findings",
+    ),
+    (
+        "ledger",
         "the signature's account: suppressions, third parties and claims against the reference",
     ),
     (
-        "find rhymes",
-        "structurally equal functions, largest first; a measure, never findings",
+        "ledger sign",
+        "record today's account as the reference: the user's signature",
     ),
     (
         "brief [case]",
@@ -32,10 +36,6 @@ pub const VERBS: &[(&str, &str)] = &[
     (
         "rules [rule]",
         "the matrix and each law; one rule prints its whys",
-    ),
-    (
-        "accept",
-        "record suppressions, dependencies and claims: the user's signature",
     ),
     (
         "adopt",

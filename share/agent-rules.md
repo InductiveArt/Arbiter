@@ -8,7 +8,7 @@
   stops matching it is silencing it too. A suppression in any language
   (`biome-ignore`, `@ts-expect-error`, `noqa`, `pyright: ignore`, `#[allow]`,
   a skipped test) is the user's decision: ask before adding one, and say why.
-  `arbiter accept` and a `PUBLISHED` marker are the user's signature: never
+  `arbiter ledger sign` and a `PUBLISHED` marker are the user's signature: never
   run or write them yourself.
 - A whole-word search for a name finds every definition and every use: each
   symbol keeps its own name, an import line names one symbol and the module

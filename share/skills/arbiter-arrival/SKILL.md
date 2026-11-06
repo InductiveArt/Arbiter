@@ -43,7 +43,7 @@ hand.
    prints the whole tree to draft from. Draft cases from the frames and
    wire every claim; the user signs by committing. From the first written
    case the gate holds every need answered and every claim wired.
-6. **The signature.** The user runs `arbiter accept .` and today's
+6. **The signature.** The user runs `arbiter ledger sign .` and today's
    suppressions, dependencies and claims become the reference: the gate
    then names only what moved. That is the ratchet - debt frozen, nothing
    new unsigned.

@@ -94,7 +94,7 @@ pub fn recorded(root: &Path) -> Option<Vec<String>> {
     )
 }
 
-// Each accepted claim identity the tree no longer speaks: behaviors gone
+// Each signed claim identity the tree no longer speaks: behaviors gone
 // without the user's signature. No recorded claims is no reference yet.
 pub fn gone(found: &Graph) -> Vec<String> {
     let Some(recorded) = recorded(&found.root) else {
@@ -128,7 +128,7 @@ pub fn vanished(found: &Graph) -> Vec<Finding> {
                 line: 0,
                 name: "vanished-claim".to_string(),
                 reason: format!(
-                    "the claim '{claim}' vanished; a claim once accepted leaves only with the user's signature"
+                    "the claim '{claim}' vanished; a claim once signed leaves only with the user's signature"
                 ),
             }
         })

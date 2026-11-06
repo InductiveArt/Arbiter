@@ -8,16 +8,16 @@ what it may not decide.
 ## Start
 
 ```
-cargo install --git https://github.com/InductiveArt/Arbiter --tag v0.3.1 arbiter
+cargo install --git https://github.com/InductiveArt/Arbiter --tag v0.4.0 arbiter
 
 arbiter adopt .   # install the agent layer under .claude/
 arbiter gate .    # judge; the first run seeds .arbiter/'s decision files
 arbiter           # the verbs, one line each
 ```
 
-Three verbs act - `gate`, `accept`, `adopt` - and three read and never
-write: `find` (findings, fallout of a name, deps of a unit, the ledger,
-rhymes), `brief`, `rules`. Every finding names the law it breaks,
+The acts are `gate`, `adopt` and `ledger sign`; the reads - `find`
+(findings by rule, fallout of a name, deps of a unit, rhymes), `ledger`,
+`brief`, `rules` - never write. Every finding names the law it breaks,
 and the same word drills it: `arbiter rules <rule>` for the law,
 `arbiter find <rule> .` for the instances.
 
@@ -33,11 +33,11 @@ installing the next tag: the judge is pinned like everything it pins.
   `arbiter rules <rule>` prints one rule's stance in every language, with
   each never's why.
 - Decisions live in `.arbiter/`: `units.toml`, `licenses.toml`,
-  `brief.toml`, and the reference accept records. The first gate seeds the
+  `brief.toml`, and the reference the signature records. The first gate seeds the
   toml files as comments; writing a real entry is the user's ruling, signed
   by committing. `last/` is the newest run's report and `warm/` the store;
   neither commits.
-- `arbiter accept .` is the user's signature: suppressions, third parties
+- `arbiter ledger sign .` is the user's signature: suppressions, third parties
   and claims recorded. What leaves afterwards without a new signature is a
   finding.
 

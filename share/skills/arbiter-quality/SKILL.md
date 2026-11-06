@@ -15,14 +15,14 @@ what they decide.
 | `arbiter find [rule] .` | every tool-free finding, as JSON lines, in seconds; a rule names one law's instances. | no |
 | `arbiter find fallout <name> .` | every definition of a name and each resolved use. | no |
 | `arbiter find deps <unit> .` | what one unit stands on, declared against resolved. | no |
-| `arbiter find ledger .` | the signature's account: suppressions, third parties and claims against the reference. | no |
 | `arbiter find rhymes .` | structurally equal functions, largest first; a measure, never findings. A perfect rhyme reads identically, a slant rhyme is the same shape in different words. | no |
+| `arbiter ledger .` | the signature's account: suppressions, third parties and claims against the reference. | no |
+| `arbiter ledger sign .` | record today's account as the reference: the user's signature. **Never run it.** | yes |
 | `arbiter brief [case] .` | every need's state against the claims tree; a case is one slice. Each need held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. | no |
 | `arbiter rules [rule]` | the matrix and each law; one rule prints its whys. | no |
-| `arbiter accept .` | record suppressions, dependencies and claims: the user's signature. **Never run it.** | yes |
 | `arbiter adopt .` | install the agent layer; arbiter-owned files refresh with the binary, never backwards: a file written by a newer arbiter is left, and the binary updates. `settings.json` and the `CLAUDE.md` pointer are written once. | yes |
 
-gate, accept and adopt act; find, brief and rules read and never write.
+gate, adopt and ledger sign act; find, ledger, brief and rules read and never write.
 A finding's rule name is the same word everywhere: `arbiter rules <rule>` for
 its law, `arbiter find <rule> .` for its instances, this skill for its fix.
 
@@ -36,7 +36,7 @@ Before the first edit of a session, and when asked how the code stands:
 
 1. Run `git status` and `arbiter gate .`. Change nothing yet.
 2. Report from the dashboard: each stage's line as printed, the findings
-   count, and the ledger footer. The detail lives in `.arbiter/last/report.md`
+   count, and the signature footer. The detail lives in `.arbiter/last/report.md`
    (one `##` section per failed check and per file, each tool's whole output)
    and `.arbiter/last/findings.jsonl` (the same material as data).
 3. Clean: say so in one line and go on. Otherwise name what stands between
@@ -120,7 +120,7 @@ Each finding has one expected fix. A suppression is never one of them.
 | `blanket-suppression` | Replace it with the one-rule named form - and that form is still a suppression: the user decides. |
 | wiring (option below the bar) | Earn the option: annotate exports, guard index access. Never a non-null assertion, never a cast, never lowering the config. |
 | tool failures (lint, types, test) | Read the unit's section in the report - it holds the whole output - and fix the code. Complexity findings take named extractions, not reshuffling. |
-| `vanished-claim` | Restore the behavior and its test, or ask the user to accept the removal - a claim once accepted leaves only with their signature. |
+| `vanished-claim` | Restore the behavior and its test, or ask the user to sign the removal - a claim once signed leaves only with their signature. |
 | `unanswered-need` | Bind the claims that prove it, or mark it planned or manual - never invent the binding; the need's meaning is the user's. |
 | `stale-binding` | The test moved or was reworded: rebind to the claim's current identity from `arbiter brief`, or ask the user whether the need itself changed. |
 | `unwired-claim` | Wire the claim to the need it serves, or propose the missing need - a behavior worth proving is worth a sentence in the brief. |
@@ -131,7 +131,7 @@ Each finding has one expected fix. A suppression is never one of them.
 ## What only the user decides
 
 - Any suppression, in any language. Ask, with the why.
-- `arbiter accept .` - recording suppressions and dependency references.
+- `arbiter ledger sign .` - recording suppressions, third parties and claims.
 - A `PUBLISHED` marker (a unit whose unused surface is deliberate).
 - Entries in `.arbiter/units.toml` (visibility, deps), `licenses.toml`, and the meaning of `brief.toml` - agents draft and wire; the user signs by committing.
 - Deleting a test, skipping a test, or mocking away a service a test needs. A skip form (`it.skip`, `it.only`, `test.todo`, `#[ignore]`, `@pytest.mark.skip`) is a counted suppression, and a focused test fails the run.
@@ -149,7 +149,7 @@ Each finding has one expected fix. A suppression is never one of them.
 
 `.arbiter/` holds the written decisions beside the computed facts:
 `units.toml` (the declared unit graph), `licenses.toml` (the license allow
-list), `reference.json` and `contracts/` (what `accept` recorded) - all
+list), `reference.json` and `contracts/` (what `ledger sign` recorded) - all
 committed. `last/` is the newest run, overwritten every time, never
 committed. `warm/` is the store the gate heats by running; `--cold` reads
 none of it, and deleting the folder is the full chill. The first gate seeds the three toml files as comments; writing the
