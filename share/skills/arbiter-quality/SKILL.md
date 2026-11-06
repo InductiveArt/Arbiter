@@ -15,7 +15,7 @@ what they decide.
 | `arbiter find [rule] .` | every tool-free finding, as JSON lines, in seconds; a rule names one law's instances. | no |
 | `arbiter find fallout <name> .` | every definition of a name and each resolved use. | no |
 | `arbiter find deps <unit> .` | what one unit stands on, declared against resolved. | no |
-| `arbiter find ledger .` | every suppression, counted against the reference. | no |
+| `arbiter find ledger .` | the signature's account: suppressions, third parties and claims against the reference. | no |
 | `arbiter find rhymes .` | structurally equal functions, largest first; a measure, never findings. A perfect rhyme reads identically, a slant rhyme is the same shape in different words. | no |
 | `arbiter brief [case] .` | every need's state against the claims tree; a case is one slice. Each need held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. | no |
 | `arbiter rules [rule]` | the matrix and each law; one rule prints its whys. | no |

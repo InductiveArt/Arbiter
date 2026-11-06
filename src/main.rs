@@ -379,41 +379,79 @@ fn found(rest: &[String]) -> ExitCode {
     }
 }
 
+// The signature's account: everything accept records, counted against what
+// stands today, with each delta listed where one exists.
 fn ledgered(found: &arbiter::core::graph::Graph) -> ExitCode {
     let counted = ledger::counted(found);
-    let plural = if counted.len() == 1 { "" } else { "s" };
-    println!("ledger: {} suppression{plural}", counted.len());
-    for suppression in &counted {
-        println!("  {}", shown(suppression));
-    }
-    match ledger::reference(&found.root) {
-        None => println!("ledger: no reference recorded; arbiter accept records today's"),
+    let reference = ledger::reference(&found.root);
+    match &reference {
+        None => {
+            println!("{:14} {} counted", "suppressions", counted.len());
+            for suppression in &counted {
+                println!("  {}", shown(suppression));
+            }
+        }
         Some(reference) => {
-            let extra = ledger::added(&counted, &reference);
-            if extra.is_empty() {
-                println!("ledger: {} recorded, none added", reference.len());
-            } else {
-                println!(
-                    "ledger: {} recorded, {} added:",
-                    reference.len(),
-                    extra.len()
-                );
-                for suppression in &extra {
-                    println!("  {}", shown(suppression));
-                }
+            let extra = ledger::added(&counted, reference);
+            println!(
+                "{:14} {} counted, {} added since accept",
+                "suppressions",
+                counted.len(),
+                extra.len()
+            );
+            for suppression in &extra {
+                println!("  {}", shown(suppression));
+            }
+        }
+    }
+    let packages = ledger::packages(found);
+    match ledger::recorded_packages(&found.root) {
+        None => println!("{:14} {} locked", "third parties", packages.len()),
+        Some(recorded) => {
+            let fresh: Vec<&String> = packages
+                .iter()
+                .filter(|name| !recorded.contains(*name))
+                .collect();
+            println!(
+                "{:14} {} locked, {} added since accept",
+                "third parties",
+                packages.len(),
+                fresh.len()
+            );
+            for name in fresh {
+                println!("  {name}");
+            }
+        }
+    }
+    let spoken = claims::identities(found).len();
+    match claims::recorded(&found.root) {
+        None => println!("{:14} {} spoken", "claims", spoken),
+        Some(_) => {
+            let lost = claims::gone(found);
+            println!(
+                "{:14} {} spoken, {} vanished since accept",
+                "claims",
+                spoken,
+                lost.len()
+            );
+            for claim in &lost {
+                println!("  '{claim}'");
             }
         }
     }
     let blankets = ledger::blankets(found);
     if !blankets.is_empty() {
-        let plural = if blankets.len() == 1 { "" } else { "s" };
         println!(
-            "ledger: {} blanket suppression{plural}, quieting more than one named rule:",
+            "{:14} {} refused, never recorded",
+            "blankets",
             blankets.len()
         );
         for suppression in &blankets {
             println!("  {}", shown(suppression));
         }
+    }
+    if reference.is_none() {
+        println!("no reference recorded; arbiter accept records today's");
     }
     ExitCode::SUCCESS
 }

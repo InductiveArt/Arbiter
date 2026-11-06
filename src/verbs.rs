@@ -19,7 +19,7 @@ pub const VERBS: &[(&str, &str)] = &[
     ),
     (
         "find ledger",
-        "every suppression, counted against the reference",
+        "the signature's account: suppressions, third parties and claims against the reference",
     ),
     (
         "find rhymes",

@@ -8,7 +8,7 @@ what it may not decide.
 ## Start
 
 ```
-cargo install --git https://github.com/InductiveArt/Arbiter --tag v0.3.0 arbiter
+cargo install --git https://github.com/InductiveArt/Arbiter --tag v0.3.1 arbiter
 
 arbiter adopt .   # install the agent layer under .claude/
 arbiter gate .    # judge; the first run seeds .arbiter/'s decision files

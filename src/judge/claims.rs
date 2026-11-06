@@ -94,9 +94,9 @@ pub fn recorded(root: &Path) -> Option<Vec<String>> {
     )
 }
 
-// Each accepted claim the tree no longer speaks: a behavior gone without the
-// user's signature. No recorded claims is no reference yet, not a pass.
-pub fn vanished(found: &Graph) -> Vec<Finding> {
+// Each accepted claim identity the tree no longer speaks: behaviors gone
+// without the user's signature. No recorded claims is no reference yet.
+pub fn gone(found: &Graph) -> Vec<String> {
     let Some(recorded) = recorded(&found.root) else {
         return Vec::new();
     };
@@ -104,7 +104,7 @@ pub fn vanished(found: &Graph) -> Vec<Finding> {
     for claim in identities(found) {
         *remaining.entry(claim).or_insert(0) += 1;
     }
-    let mut findings = Vec::new();
+    let mut lost = Vec::new();
     for claim in recorded {
         if let Some(count) = remaining.get_mut(&claim) {
             if *count > 0 {
@@ -112,16 +112,25 @@ pub fn vanished(found: &Graph) -> Vec<Finding> {
                 continue;
             }
         }
-        let unit = claim.split(" | ").next().unwrap_or(".").to_string();
-        findings.push(Finding {
-            check: "claims",
-            file: PathBuf::from(unit),
-            line: 0,
-            name: "vanished-claim".to_string(),
-            reason: format!(
-                "the claim '{claim}' vanished; a claim once accepted leaves only with the user's signature"
-            ),
-        });
+        lost.push(claim);
     }
-    findings
+    lost
+}
+
+pub fn vanished(found: &Graph) -> Vec<Finding> {
+    gone(found)
+        .into_iter()
+        .map(|claim| {
+            let unit = claim.split(" | ").next().unwrap_or(".").to_string();
+            Finding {
+                check: "claims",
+                file: PathBuf::from(unit),
+                line: 0,
+                name: "vanished-claim".to_string(),
+                reason: format!(
+                    "the claim '{claim}' vanished; a claim once accepted leaves only with the user's signature"
+                ),
+            }
+        })
+        .collect()
 }
