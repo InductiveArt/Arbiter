@@ -19,11 +19,10 @@ what they decide.
 | `arbiter find rhymes .` | structurally equal functions, largest first; a measure, never findings. A perfect rhyme reads identically, a slant rhyme is the same shape in different words. | no |
 | `arbiter brief [case] .` | every need's state against the claims tree; a case is one slice. Each need held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. | no |
 | `arbiter rules [rule]` | the matrix and each law; one rule prints its whys. | no |
-| `arbiter warm .` | heat the store so the next gate skips what nothing moved. | the store only |
 | `arbiter accept .` | record suppressions, dependencies and claims: the user's signature. **Never run it.** | yes |
 | `arbiter adopt .` | install the agent layer; arbiter-owned files refresh with the binary, never backwards: a file written by a newer arbiter is left, and the binary updates. `settings.json` and the `CLAUDE.md` pointer are written once. | yes |
 
-gate, warm, accept and adopt act; find, brief and rules read and never write.
+gate, accept and adopt act; find, brief and rules read and never write.
 A finding's rule name is the same word everywhere: `arbiter rules <rule>` for
 its law, `arbiter find <rule> .` for its instances, this skill for its fix.
 
@@ -152,7 +151,8 @@ Each finding has one expected fix. A suppression is never one of them.
 `units.toml` (the declared unit graph), `licenses.toml` (the license allow
 list), `reference.json` and `contracts/` (what `accept` recorded) - all
 committed. `last/` is the newest run, overwritten every time, never
-committed. The first gate seeds the three toml files as comments; writing the
+committed. `warm/` is the store the gate heats by running; `--cold` reads
+none of it, and deleting the folder is the full chill. The first gate seeds the three toml files as comments; writing the
 first real entry in either is the user's ruling.
 
 A unit being born follows the arbiter-genesis skill; arbiter newly arrived

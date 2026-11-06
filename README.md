@@ -8,16 +8,16 @@ what it may not decide.
 ## Start
 
 ```
-cargo install --git https://github.com/InductiveArt/Arbiter --tag v0.2.1 arbiter
+cargo install --git https://github.com/InductiveArt/Arbiter --tag v0.3.0 arbiter
 
 arbiter adopt .   # install the agent layer under .claude/
 arbiter gate .    # judge; the first run seeds .arbiter/'s decision files
 arbiter           # the verbs, one line each
 ```
 
-Four verbs act - `gate`, `warm`, `accept`, `adopt` - and three read and
-never write: `find` (findings, fallout of a name, deps of a unit, the
-ledger, rhymes), `brief`, `rules`. Every finding names the law it breaks,
+Three verbs act - `gate`, `accept`, `adopt` - and three read and never
+write: `find` (findings, fallout of a name, deps of a unit, the ledger,
+rhymes), `brief`, `rules`. Every finding names the law it breaks,
 and the same word drills it: `arbiter rules <rule>` for the law,
 `arbiter find <rule> .` for the instances.
 

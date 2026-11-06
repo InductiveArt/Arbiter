@@ -227,40 +227,6 @@ fn main() -> ExitCode {
         }
         return ExitCode::SUCCESS;
     }
-    if arguments.first().map(String::as_str) == Some("warm") {
-        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
-        let Some(found) = graph(&asked) else {
-            eprintln!("warm: no folder at {asked}");
-            return ExitCode::from(2);
-        };
-        let defs_units: Vec<usize> = found.defs.iter().map(|def| def.unit).collect();
-        let warmth = arbiter::core::warm::warmth(
-            &found.root,
-            &found.repo,
-            &found.packs,
-            &found.edges,
-            &defs_units,
-        );
-        let mut counted = (0, 0);
-        for (index, unit) in found.repo.units.iter().enumerate() {
-            let Some(Some(key)) = warmth.keys.get(index) else {
-                continue;
-            };
-            let state = if warmth.stored(index, &unit.path).is_some() {
-                counted.0 += 1;
-                "warm"
-            } else {
-                counted.1 += 1;
-                "cold"
-            };
-            println!("  {state}  {:12.12}  {}", key, unit.path.display());
-        }
-        println!(
-            "warm: {} warm, {} cold; the store is .arbiter/warm, cleared by deleting it",
-            counted.0, counted.1
-        );
-        return ExitCode::SUCCESS;
-    }
     if arguments.first().map(String::as_str) == Some("adopt") {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
         let root = std::path::PathBuf::from(&asked);
@@ -499,7 +465,7 @@ fn taught() {
         println!("  {call:width$}  {line}");
     }
     println!();
-    println!("gate, warm, accept and adopt act; find, brief and rules read and never write.");
+    println!("gate, accept and adopt act; find, brief and rules read and never write.");
     println!(
         "A verb takes the folder last; missing, it judges here. \
          Exit: 0 clean, 1 findings, 2 no judgment — a broken machine, \

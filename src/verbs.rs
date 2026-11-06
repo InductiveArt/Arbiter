@@ -34,10 +34,6 @@ pub const VERBS: &[(&str, &str)] = &[
         "the matrix and each law; one rule prints its whys",
     ),
     (
-        "warm",
-        "heat the store so the next gate skips what nothing moved",
-    ),
-    (
         "accept",
         "record suppressions, dependencies and claims: the user's signature",
     ),
