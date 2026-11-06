@@ -14,7 +14,7 @@ what they decide.
 | `arbiter gate .` | judge everything; red names what stands between the code and clean. Warm by default: a unit green under an unchanged input cone skips its tools. `--cold` reads no store; `--no-brief` skips the brief step; `--fix` is the same judgment, repairs first: packs mend their own findings, tools apply safe fixes. | with `--fix` |
 | `arbiter find [rule] .` | every tool-free finding, as JSON lines, in seconds; a rule names one law's instances. | no |
 | `arbiter find fallout <name> .` | every definition of a name and each resolved use. | no |
-| `arbiter find deps <unit> .` | what one unit stands on, declared against resolved. | no |
+| `arbiter find deps <unit|path> .` | what one unit stands on, declared against resolved; a folder or file at its own grain. | no |
 | `arbiter find rhymes .` | structurally equal functions, largest first; a measure, never findings. A perfect rhyme reads identically, a slant rhyme is the same shape in different words. | no |
 | `arbiter ledger .` | the signature's account: suppressions, third parties and claims against the reference. | no |
 | `arbiter ledger sign .` | record today's account as the reference: the user's signature. **Never run it.** | yes |

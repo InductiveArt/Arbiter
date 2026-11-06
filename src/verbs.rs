@@ -14,8 +14,8 @@ pub const VERBS: &[(&str, &str)] = &[
         "every definition of a name and each resolved use",
     ),
     (
-        "find deps <unit>",
-        "what one unit stands on, declared against resolved",
+        "find deps <unit|path>",
+        "what one unit stands on, declared against resolved; a folder or file at its own grain",
     ),
     (
         "find rhymes",

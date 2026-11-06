@@ -640,8 +640,7 @@ fn deps(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
         }
     };
     let Some(unit) = (0..found.repo.units.len()).find(|&unit| shown_unit(unit) == *name) else {
-        eprintln!("deps: no unit named {name}");
-        return ExitCode::from(2);
+        return scoped(name, found);
     };
     let mut uses = std::collections::BTreeSet::new();
     let mut users = std::collections::BTreeSet::new();
@@ -719,6 +718,42 @@ fn deps(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
             for (name, version) in locked {
                 println!("    {name} {version}");
             }
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+// A folder or file inside a unit: the same read at its own grain — each file
+// it reaches beyond itself, and each outside file standing on it.
+fn scoped(asked: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
+    let scope = Path::new(asked.trim_start_matches("./"))
+        .components()
+        .collect::<std::path::PathBuf>();
+    if scope.as_os_str().is_empty() || !found.root.join(&scope).exists() {
+        eprintln!("deps: no unit or path named {asked}");
+        return ExitCode::from(2);
+    }
+    let within = |file: &Path| file.starts_with(&scope);
+    let mut uses = std::collections::BTreeSet::new();
+    let mut users = std::collections::BTreeSet::new();
+    for edge in &found.edges {
+        let owner = &found.defs[edge.def].file;
+        if within(&edge.file) && !within(owner) {
+            uses.insert(owner.to_string_lossy().to_string());
+        }
+        if within(owner) && !within(&edge.file) {
+            users.insert(edge.file.to_string_lossy().to_string());
+        }
+    }
+    println!("deps: {}", scope.display());
+    for (title, set) in [("uses", &uses), ("used by", &users)] {
+        if set.is_empty() {
+            println!("  {title}: nothing");
+            continue;
+        }
+        println!("  {title}:");
+        for file in set {
+            println!("    {file}");
         }
     }
     ExitCode::SUCCESS
