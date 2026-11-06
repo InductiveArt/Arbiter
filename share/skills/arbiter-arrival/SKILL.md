@@ -37,8 +37,8 @@ hand.
    ledger from then on.
 4. **Graph findings.** winnow and integrity name the oldest debt: dead
    symbols, cycles, re-exports, hidden names, undeclared and unused
-   dependencies. One rule at a time; a deletion follows the winnow
-   protocol - blast, an independent grep, then delete until dry.
+   dependencies. One rule at a time; a deletion follows the dead-symbol
+   fix - find fallout, an independent grep, then delete until dry.
 5. **The brief.** The existing tests are already claims; `arbiter brief .`
    prints the whole tree to draft from. Draft cases from the frames and
    wire every claim; the user signs by committing. From the first written

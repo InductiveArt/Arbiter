@@ -6,26 +6,29 @@ pub const VERBS: &[(&str, &str)] = &[
         "judge everything; red names what stands between the code and clean",
     ),
     (
-        "findings [file...]",
-        "the graph plane alone, as JSON lines, in seconds",
+        "find [rule]",
+        "every tool-free finding, as JSON lines, in seconds; a rule names one law's instances",
     ),
     (
-        "blast <name>",
+        "find fallout <name>",
         "every definition of a name and each resolved use",
     ),
     (
-        "deps <unit>",
+        "find deps <unit>",
         "what one unit stands on, declared against resolved",
+    ),
+    (
+        "find ledger",
+        "every suppression, counted against the reference",
+    ),
+    (
+        "find rhymes",
+        "structurally equal functions, largest first; a measure, never findings",
     ),
     (
         "brief [case]",
         "every need's state against the claims tree; a case is one slice",
     ),
-    (
-        "rhyme",
-        "structurally equal functions, largest first; a measure, never findings",
-    ),
-    ("ledger", "every suppression, counted against the reference"),
     (
         "rules [rule]",
         "the matrix and each law; one rule prints its whys",

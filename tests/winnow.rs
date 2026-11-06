@@ -23,17 +23,35 @@ fn the_fixture_yields_its_known_findings() {
     assert_eq!(
         shown,
         [
-            "libs/dead_py/src/dead/calc.py:1 orphan no user anywhere",
-            "libs/testy/src/testy/calc.py:1 helper no user but tests",
-            "native/geo.h:5 Shape no user anywhere",
-            "native/geo.h:10 diameter no user anywhere",
-            "native/geo.h:14 perimeter no user anywhere",
-            "proto/billing/invoice.proto:4 Ghost no user anywhere",
-            "proto/billing/invoice.proto:5 Billing no user anywhere",
-            "proto/billing/invoice.proto:6 GetInvoice no user anywhere",
-            "web/src/index.ts:1 ghost no user anywhere",
+            "libs/dead_py/src/dead/calc.py:1 dead-symbol orphan has no user anywhere",
+            "libs/testy/src/testy/calc.py:1 tests-only-symbol helper has no user but tests",
+            "native/geo.h:5 dead-symbol Shape has no user anywhere",
+            "native/geo.h:10 dead-symbol diameter has no user anywhere",
+            "native/geo.h:14 dead-symbol perimeter has no user anywhere",
+            "proto/billing/invoice.proto:4 dead-symbol Ghost has no user anywhere",
+            "proto/billing/invoice.proto:5 dead-symbol Billing has no user anywhere",
+            "proto/billing/invoice.proto:6 dead-symbol GetInvoice has no user anywhere",
+            "web/src/index.ts:1 dead-symbol ghost has no user anywhere",
         ]
     );
+}
+
+#[test]
+fn every_finding_names_a_law_the_matrix_drills() {
+    let found = graph(DEMO).expect("the fixture folder exists");
+    let mut all = winnow(&found.defs, &found.edges, &found.repo, &Default::default()).0;
+    all.extend(integrity(&found));
+    all.extend(arbiter::judge::ledger::blanket_findings(&found));
+    all.extend(arbiter::judge::claims::vanished(&found));
+    all.extend(arbiter::judge::brief::findings(&found));
+    assert!(!all.is_empty());
+    for finding in &all {
+        assert!(
+            arbiter::core::pack::drillable(&finding.name),
+            "{} is a finding name no rule answers",
+            finding.name
+        );
+    }
 }
 
 #[test]

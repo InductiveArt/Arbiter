@@ -102,11 +102,11 @@ fn main() -> ExitCode {
                 run.third
             ),
         }
-        match run.claims_removed {
+        match run.claims_vanished {
             None => println!("  claims     {} spoken, no reference recorded", run.claims),
-            Some(0) => println!("  claims     {} spoken, none removed", run.claims),
-            Some(removed) => println!(
-                "  claims     {} spoken, {removed} removed since accept",
+            Some(0) => println!("  claims     {} spoken, none vanished", run.claims),
+            Some(vanished) => println!(
+                "  claims     {} spoken, {vanished} vanished since accept",
                 run.claims
             ),
         }
@@ -155,91 +155,8 @@ fn main() -> ExitCode {
         );
         return ExitCode::FAILURE;
     }
-    if arguments.first().map(String::as_str) == Some("blast") {
-        let Some(name) = arguments.get(1) else {
-            eprintln!("blast: name the symbol to look up");
-            return ExitCode::from(2);
-        };
-        let asked = arguments.get(2).cloned().unwrap_or_else(|| ".".to_string());
-        let Some(found) = graph(&asked) else {
-            eprintln!("blast: no folder at {asked}");
-            return ExitCode::from(2);
-        };
-        blast(name, &found.defs, &found.edges);
-        return ExitCode::SUCCESS;
-    }
-    if arguments.first().map(String::as_str) == Some("deps") {
-        let Some(name) = arguments.get(1) else {
-            eprintln!("deps: name the unit to describe");
-            return ExitCode::from(2);
-        };
-        let asked = arguments.get(2).cloned().unwrap_or_else(|| ".".to_string());
-        let Some(found) = graph(&asked) else {
-            eprintln!("deps: no folder at {asked}");
-            return ExitCode::from(2);
-        };
-        return deps(name, &found);
-    }
-    if arguments.first().map(String::as_str) == Some("findings") {
-        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
-        let Some(found) = graph(&asked) else {
-            eprintln!("findings: no folder at {asked}");
-            return ExitCode::from(2);
-        };
-        let commissioned = brief::commissioned(&found);
-        let (winnowed, _) = winnow(&found.defs, &found.edges, &found.repo, &commissioned);
-        let mut all = winnowed;
-        all.extend(integrity(&found));
-        all.extend(ledger::blanket_findings(&found));
-        all.extend(claims::vanished(&found));
-        all.extend(brief::findings(&found));
-        all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
-        emit(&all, &arguments[2.min(arguments.len())..]);
-        return ExitCode::SUCCESS;
-    }
-    if arguments.first().map(String::as_str) == Some("ledger") {
-        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
-        let Some(found) = graph(&asked) else {
-            eprintln!("ledger: no folder at {asked}");
-            return ExitCode::from(2);
-        };
-        let counted = ledger::counted(&found);
-        let plural = if counted.len() == 1 { "" } else { "s" };
-        println!("ledger: {} suppression{plural}", counted.len());
-        for suppression in &counted {
-            println!("  {}", shown(suppression));
-        }
-        match ledger::reference(&found.root) {
-            None => println!("ledger: no reference recorded; arbiter accept records today's"),
-            Some(reference) => {
-                let extra = ledger::added(&counted, &reference);
-                if extra.is_empty() {
-                    println!("ledger: {} recorded, none added", reference.len());
-                } else {
-                    println!(
-                        "ledger: {} recorded, {} added:",
-                        reference.len(),
-                        extra.len()
-                    );
-                    for suppression in &extra {
-                        println!("  {}", shown(suppression));
-                    }
-                }
-            }
-        }
-        let blankets = ledger::blankets(&found);
-        if blankets.is_empty() {
-            return ExitCode::SUCCESS;
-        }
-        let plural = if blankets.len() == 1 { "" } else { "s" };
-        println!(
-            "ledger: {} blanket suppression{plural}, quieting more than one named rule:",
-            blankets.len()
-        );
-        for suppression in &blankets {
-            println!("  {}", shown(suppression));
-        }
-        return ExitCode::FAILURE;
+    if arguments.first().map(String::as_str) == Some("find") {
+        return found(&arguments[1..]);
     }
     if arguments.first().map(String::as_str) == Some("brief") {
         let (case, asked) = match (arguments.get(1), arguments.get(2)) {
@@ -306,41 +223,6 @@ fn main() -> ExitCode {
             println!("unwired claims, each with the binding to paste:");
             for (file, line, identity) in &reading.unwired {
                 println!("  {}:{line} \"{identity}\"", file.to_string_lossy());
-            }
-        }
-        return ExitCode::SUCCESS;
-    }
-    if arguments.first().map(String::as_str) == Some("rhyme") {
-        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
-        let Some(found) = graph(&asked) else {
-            eprintln!("rhyme: no folder at {asked}");
-            return ExitCode::from(2);
-        };
-        let groups = rhyme::rhymes(&found);
-        if groups.is_empty() {
-            println!("rhyme: nothing repeats at function grain");
-            return ExitCode::SUCCESS;
-        }
-        let plural = if groups.len() == 1 { "" } else { "s" };
-        println!(
-            "rhyme: {} shape{plural} sounding in more than one place",
-            groups.len()
-        );
-        for group in groups {
-            let kind = if group.perfect { "perfect" } else { "slant" };
-            println!();
-            println!(
-                "{kind}, {} places, {} leaves:",
-                group.places.len(),
-                group.leaves
-            );
-            for place in group.places {
-                let title = if place.title.is_empty() {
-                    String::new()
-                } else {
-                    format!(" {}", place.title)
-                };
-                println!("  {}:{}{}", place.file.to_string_lossy(), place.line, title);
             }
         }
         return ExitCode::SUCCESS;
@@ -454,6 +336,153 @@ fn main() -> ExitCode {
     ExitCode::from(2)
 }
 
+// The one query door: a noun names a report, a rule names one law's instances,
+// bare is every tool-free finding. A find reads and never writes.
+fn found(rest: &[String]) -> ExitCode {
+    let folder = |at: usize| rest.get(at).cloned().unwrap_or_else(|| ".".to_string());
+    match rest.first().map(String::as_str) {
+        Some("fallout") => {
+            let Some(name) = rest.get(1) else {
+                eprintln!("find fallout: name the symbol to look up");
+                return ExitCode::from(2);
+            };
+            let asked = folder(2);
+            let Some(found) = graph(&asked) else {
+                eprintln!("find: no folder at {asked}");
+                return ExitCode::from(2);
+            };
+            fallout(name, &found.defs, &found.edges);
+            ExitCode::SUCCESS
+        }
+        Some("deps") => {
+            let Some(name) = rest.get(1) else {
+                eprintln!("find deps: name the unit to describe");
+                return ExitCode::from(2);
+            };
+            let asked = folder(2);
+            let Some(found) = graph(&asked) else {
+                eprintln!("find: no folder at {asked}");
+                return ExitCode::from(2);
+            };
+            deps(name, &found)
+        }
+        Some("ledger") => {
+            let asked = folder(1);
+            let Some(found) = graph(&asked) else {
+                eprintln!("find: no folder at {asked}");
+                return ExitCode::from(2);
+            };
+            ledgered(&found)
+        }
+        Some("rhymes") => {
+            let asked = folder(1);
+            let Some(found) = graph(&asked) else {
+                eprintln!("find: no folder at {asked}");
+                return ExitCode::from(2);
+            };
+            rhymed(&found)
+        }
+        first => {
+            let (rule, asked) = match first {
+                None => (None, ".".to_string()),
+                Some(word) if pack::drillable(word) => (Some(word.to_string()), folder(1)),
+                Some(word) if Path::new(word).is_dir() => (None, word.to_string()),
+                Some(word) => {
+                    eprintln!(
+                        "find: nothing named {word}; find takes a rule from arbiter rules, \
+                         fallout <name>, deps <unit>, ledger or rhymes"
+                    );
+                    return ExitCode::from(2);
+                }
+            };
+            let Some(found) = graph(&asked) else {
+                eprintln!("find: no folder at {asked}");
+                return ExitCode::from(2);
+            };
+            let commissioned = brief::commissioned(&found);
+            let (winnowed, _) = winnow(&found.defs, &found.edges, &found.repo, &commissioned);
+            let mut all = winnowed;
+            all.extend(integrity(&found));
+            all.extend(ledger::blanket_findings(&found));
+            all.extend(claims::vanished(&found));
+            all.extend(brief::findings(&found));
+            all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
+            emit(&all, rule.as_deref());
+            ExitCode::SUCCESS
+        }
+    }
+}
+
+fn ledgered(found: &arbiter::core::graph::Graph) -> ExitCode {
+    let counted = ledger::counted(found);
+    let plural = if counted.len() == 1 { "" } else { "s" };
+    println!("ledger: {} suppression{plural}", counted.len());
+    for suppression in &counted {
+        println!("  {}", shown(suppression));
+    }
+    match ledger::reference(&found.root) {
+        None => println!("ledger: no reference recorded; arbiter accept records today's"),
+        Some(reference) => {
+            let extra = ledger::added(&counted, &reference);
+            if extra.is_empty() {
+                println!("ledger: {} recorded, none added", reference.len());
+            } else {
+                println!(
+                    "ledger: {} recorded, {} added:",
+                    reference.len(),
+                    extra.len()
+                );
+                for suppression in &extra {
+                    println!("  {}", shown(suppression));
+                }
+            }
+        }
+    }
+    let blankets = ledger::blankets(found);
+    if !blankets.is_empty() {
+        let plural = if blankets.len() == 1 { "" } else { "s" };
+        println!(
+            "ledger: {} blanket suppression{plural}, quieting more than one named rule:",
+            blankets.len()
+        );
+        for suppression in &blankets {
+            println!("  {}", shown(suppression));
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+fn rhymed(found: &arbiter::core::graph::Graph) -> ExitCode {
+    let groups = rhyme::rhymes(found);
+    if groups.is_empty() {
+        println!("rhymes: nothing repeats at function grain");
+        return ExitCode::SUCCESS;
+    }
+    let plural = if groups.len() == 1 { "" } else { "s" };
+    println!(
+        "rhymes: {} shape{plural} sounding in more than one place",
+        groups.len()
+    );
+    for group in groups {
+        let kind = if group.perfect { "perfect" } else { "slant" };
+        println!();
+        println!(
+            "{kind}, {} places, {} leaves:",
+            group.places.len(),
+            group.leaves
+        );
+        for place in group.places {
+            let title = if place.title.is_empty() {
+                String::new()
+            } else {
+                format!(" {}", place.title)
+            };
+            println!("  {}:{}{}", place.file.to_string_lossy(), place.line, title);
+        }
+    }
+    ExitCode::SUCCESS
+}
+
 // The bare call teaches: the whole grammar, each verb with its one line.
 fn taught() {
     println!(
@@ -470,6 +499,7 @@ fn taught() {
         println!("  {call:width$}  {line}");
     }
     println!();
+    println!("gate, warm, accept and adopt act; find, brief and rules read and never write.");
     println!(
         "A verb takes the folder last; missing, it judges here. \
          Exit: 0 clean, 1 findings, 2 broken machine."
@@ -568,19 +598,19 @@ fn shown(suppression: &Suppression) -> String {
     )
 }
 
-fn emit(findings: &[Finding], files: &[String]) {
+fn emit(findings: &[Finding], rule: Option<&str>) {
     for finding in findings {
-        let shown = finding.file.to_string_lossy();
-        if !files.is_empty() && !files.iter().any(|file| *file == shown) {
+        if rule.is_some_and(|rule| finding.name != rule) {
             continue;
         }
+        let shown = finding.file.to_string_lossy();
         println!(
             "{}",
             serde_json::json!({
                 "check": finding.check,
                 "file": shown,
                 "line": finding.line,
-                "symbol": finding.name,
+                "rule": finding.name,
                 "reason": finding.reason,
             })
         );
@@ -683,14 +713,14 @@ fn deps(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn blast(name: &str, defs: &[Def], edges: &[Edge]) {
+fn fallout(name: &str, defs: &[Def], edges: &[Edge]) {
     let matched: Vec<(usize, &Def)> = defs
         .iter()
         .enumerate()
         .filter(|(_, def)| def.name == name)
         .collect();
     if matched.is_empty() {
-        println!("blast: no public symbol named {name}");
+        println!("fallout: no public symbol named {name}");
         return;
     }
     for (index, def) in matched {

@@ -121,7 +121,7 @@ pub const RULES: &[(&str, &str)] = &[
         "a tool's warning is a finding, never a soft state",
     ),
     (
-        "coverage",
+        "untested-branch",
         "a unit's tests reach every branch of its source",
     ),
     (
@@ -130,12 +130,20 @@ pub const RULES: &[(&str, &str)] = &[
     ),
     ("generated", "generated code is scanned, never judged"),
     (
+        "generated-unresolved",
+        "a generated import resolves to the contract it was generated from; one naming no contract is a finding",
+    ),
+    (
         "drift",
         "generated code matches its contract, and a contract break is a finding",
     ),
     (
         "pinned-image",
         "a container image is named by digest, never by a tag alone",
+    ),
+    (
+        "stray-test",
+        "every test names itself with a literal sentence; one built at run time cannot be heard",
     ),
     (
         "tautology",
@@ -147,11 +155,15 @@ pub const RULES: &[(&str, &str)] = &[
 // every language; a pack only teaches the core to read its ecosystem.
 pub const CORE: &[(&str, &str)] = &[
     (
-        "winnow",
-        "a public symbol no one uses is named for deletion; a test keeps nothing alive",
+        "dead-symbol",
+        "a public symbol no user reaches is named for deletion",
     ),
     (
-        "no-cycles",
+        "tests-only-symbol",
+        "a test keeps nothing alive: a symbol only tests reach is scaffolding or dead",
+    ),
+    (
+        "cycle",
         "units form an order; no two import each other, however long the loop",
     ),
     (
@@ -159,26 +171,56 @@ pub const CORE: &[(&str, &str)] = &[
         "a third party resolves to one version across the repository's lockfiles; a copy nested inside another third party is that party's own",
     ),
     (
-        "boundaries",
-        "the visibility and deps units.toml declares are held against the resolved graph",
+        "uninvited-use",
+        "a unit is used only by the units its declared visibility grants",
     ),
     (
-        "licenses",
+        "stale-grant",
+        "a visibility grant names a unit that uses it; one never used is deleted",
+    ),
+    (
+        "undeclared-unit",
+        "a unit declaring deps names every unit it uses",
+    ),
+    (
+        "stale-declaration",
+        "a declared unit dep is used; one never used is deleted",
+    ),
+    (
+        "unallowed-license",
         "a written allowlist holds every third party's license; no list is no policy yet",
     ),
     (
-        "ledger",
-        "every suppression and third party is counted against what accept recorded",
+        "blanket-suppression",
+        "a suppression names the one rule it quiets; a blanket form is refused, never recorded",
     ),
     (
-        "claims",
+        "vanished-claim",
         "a claim once accepted leaves only with the user's signature",
     ),
+    ("unwired-claim", "every claim answers a need in the brief"),
     (
-        "brief",
-        "every need is answered by a claim or says why not, and every claim answers a need",
+        "unanswered-need",
+        "every need binds claims, or says why not: planned or manual",
+    ),
+    (
+        "stale-binding",
+        "a binding names a claim the tree speaks; a reworded claim is rebound",
+    ),
+    (
+        "empty-case",
+        "a case declares at least one need; a case with no needs proves nothing",
+    ),
+    (
+        "unparsed",
+        "a decision file parses, or the break itself is the finding",
     ),
 ];
+
+// Whether arbiter rules answers the name: every finding carries one it does.
+pub fn drillable(name: &str) -> bool {
+    RULES.iter().chain(CORE).any(|(rule, _)| *rule == name)
+}
 
 // A language. It says what defines a symbol and what uses one; the core knows no language.
 pub trait Pack {

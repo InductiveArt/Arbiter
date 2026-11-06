@@ -452,7 +452,9 @@ fn a_symbol_reached_only_by_commissioned_tests_is_nascent_not_dead() {
     let (findings, nascent) =
         arbiter::judge::findings::winnow(&judged.defs, &judged.edges, &judged.repo, &commissioned);
     assert!(
-        findings.iter().all(|finding| finding.name != "forged"),
+        findings
+            .iter()
+            .all(|finding| !finding.reason.contains("forged")),
         "a commissioned symbol is no finding"
     );
     assert_eq!(nascent.len(), 1, "the symbol is named nascent: {nascent:?}");
@@ -470,7 +472,8 @@ fn a_symbol_reached_only_by_commissioned_tests_is_nascent_not_dead() {
     assert!(
         findings
             .iter()
-            .any(|finding| finding.name == "forged" && finding.reason == "no user but tests"),
+            .any(|finding| finding.name == "tests-only-symbol"
+                && finding.reason == "forged has no user but tests"),
         "without a planned need the symbol is dead wood again"
     );
     assert!(nascent.is_empty());

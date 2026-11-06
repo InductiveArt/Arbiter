@@ -81,6 +81,10 @@ impl Pack for Rust {
             ("container", "held"),
             ("tautology", "held"),
             (
+                "stray-test",
+                "never: a test is a fn, and a fn's name is always literal",
+            ),
+            (
                 "drift",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
             ),

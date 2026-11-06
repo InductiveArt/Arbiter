@@ -80,6 +80,10 @@ story = "the graph plane finds what breaks the laws and names it"
   claims = [". |  | a symbol reached only by commissioned tests is nascent not dead"]
 
   [[case.need]]
+  need = "a finding names the law it breaks, and every printed name drills"
+  claims = [". |  | every finding names a law the matrix drills"]
+
+  [[case.need]]
   need = "a published unit keeps its unused surface"
   claims = [". |  | a published unit keeps its unused surface"]
 
@@ -178,7 +182,7 @@ story = "behavior is claimed by tests and commissioned by the brief"
 
   [[case.need]]
   need = "a claim once accepted leaves only with the user's signature"
-  claims = [". |  | a claim that left without signature is a finding"]
+  claims = [". |  | a claim that vanished without signature is a finding"]
 
   [[case.need]]
   need = "the brief states each need and roars at the unwired"

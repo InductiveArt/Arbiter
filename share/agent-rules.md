@@ -13,10 +13,10 @@
 - A whole-word search for a name finds every definition and every use: each
   symbol keeps its own name, an import line names one symbol and the module
   it comes from, a surface re-exports by name only, a module is imported by a
-  literal. When a question is about one symbol, `arbiter blast <name> .`
+  literal. When a question is about one symbol, `arbiter find fallout <name> .`
   answers it resolved.
-- When a finding looks wrong, prove it: `blast` plus an independent search.
-  A confirmed judge gap is a report to the user, never a workaround and
-  never a deletion.
+- When a finding looks wrong, prove it: `find fallout` plus an independent
+  search. A confirmed judge gap is a report to the user, never a workaround
+  and never a deletion.
 - A comment names only what its file defines, uses or quotes, and says the
   non-obvious why, never the what. Deleting code deletes its comment.

@@ -88,8 +88,13 @@ impl Pack for Python {
             ("tools", "held"),
             ("no-warnings", "held"),
             ("tautology", "held"),
+            (
+                "stray-test",
+                "never: a test is a def, and a def's name is always literal",
+            ),
             ("container", "held"),
             ("generated", "held"),
+            ("generated-unresolved", "held"),
             (
                 "drift",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",

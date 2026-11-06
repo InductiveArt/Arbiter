@@ -52,16 +52,20 @@ pub fn winnow(
             ));
             continue;
         }
+        let (name, reason) = if users.is_empty() {
+            ("dead-symbol", format!("{} has no user anywhere", def.name))
+        } else {
+            (
+                "tests-only-symbol",
+                format!("{} has no user but tests", def.name),
+            )
+        };
         findings.push(Finding {
             check: "winnow",
             file: def.file.clone(),
             line: def.line,
-            name: def.name.clone(),
-            reason: if users.is_empty() {
-                "no user anywhere".to_string()
-            } else {
-                "no user but tests".to_string()
-            },
+            name: name.to_string(),
+            reason,
         });
     }
     findings.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
@@ -92,7 +96,7 @@ fn licenses(found: &Graph) -> Vec<Finding> {
             check: "licenses",
             file: PathBuf::from(LICENSES),
             line: 0,
-            name: "allowlist".to_string(),
+            name: "unparsed".to_string(),
             reason: format!("{LICENSES} does not parse"),
         }];
     };
@@ -123,7 +127,7 @@ fn licenses(found: &Graph) -> Vec<Finding> {
                 check: "licenses",
                 file: place,
                 line: 0,
-                name: package.clone(),
+                name: "unallowed-license".to_string(),
                 reason: format!(
                     "{package} is licensed {license}, which the allowlist does not name"
                 ),
@@ -328,7 +332,7 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
         return vec![Finding::integrity(
             Path::new(DECLARATIONS),
             0,
-            "boundaries",
+            "unparsed",
             format!("{DECLARATIONS} does not parse"),
         )];
     };
@@ -361,7 +365,7 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
                     findings.push(Finding::integrity(
                         file,
                         *line,
-                        "visibility",
+                        "uninvited-use",
                         format!(
                             "{user} uses {owned}, which only {} may",
                             patterns.join(", ")
@@ -381,7 +385,7 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
                     findings.push(Finding::integrity(
                         Path::new(DECLARATIONS),
                         0,
-                        "visibility",
+                        "stale-grant",
                         format!("{name} grants {pattern}, which never uses it"),
                     ));
                 }
@@ -394,7 +398,7 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
                     findings.push(Finding::integrity(
                         file,
                         *line,
-                        "deps",
+                        "undeclared-unit",
                         format!("{user} uses {owned} and does not declare it"),
                     ));
                 }
@@ -405,7 +409,7 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
                     findings.push(Finding::integrity(
                         Path::new(DECLARATIONS),
                         0,
-                        "deps",
+                        "stale-declaration",
                         format!("{name} declares {dependency} and never uses it"),
                     ));
                 }

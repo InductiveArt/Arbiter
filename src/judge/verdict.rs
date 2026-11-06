@@ -40,7 +40,7 @@ pub struct Run {
     pub added: Option<usize>,
     pub brief: BriefLine,
     pub claims: usize,
-    pub claims_removed: Option<usize>,
+    pub claims_vanished: Option<usize>,
     pub third: usize,
     // Third parties added since the reference; None when none was recorded yet.
     pub third_added: Option<usize>,
@@ -118,10 +118,10 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
     if !briefless {
         all.extend(brief::findings(&found));
     }
-    let removed = claims::vanished(&found);
+    let gone = claims::vanished(&found);
     let claims = claims::identities(&found).len();
-    let claims_removed = claims::recorded(&found.root).map(|_| removed.len());
-    all.extend(removed);
+    let claims_vanished = claims::recorded(&found.root).map(|_| gone.len());
+    all.extend(gone);
     all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     let counted = ledger::counted(&found);
     let added =
@@ -144,7 +144,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         findings: all,
         brief,
         claims,
-        claims_removed,
+        claims_vanished,
         counted,
         added,
         third,
@@ -230,7 +230,7 @@ pub fn written(run: &Run) -> Option<PathBuf> {
                 "check": finding.check,
                 "file": finding.file.to_string_lossy(),
                 "line": finding.line,
-                "symbol": finding.name,
+                "rule": finding.name,
                 "reason": finding.reason,
             })
             .to_string(),

@@ -46,7 +46,7 @@ fn the_brief_states_each_need_and_roars_at_the_unwired() {
              which the tree does not speak",
             "unanswered-need the need 'a need with nothing at all' of case 'lattice' binds \
              no claims and is neither planned nor manual",
-            "empty-case the case 'hollow' declares no needs; a parcel with no spec proves nothing",
+            "empty-case the case 'hollow' declares no needs; a case with no needs proves nothing",
             "unwired-claim the claim '. |  | a bare claim stands outside any suite' answers no need \
              in the brief",
             "unwired-claim the claim '. |  | doubles %s into place' answers no need in the brief",

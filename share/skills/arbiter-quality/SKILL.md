@@ -12,16 +12,20 @@ what they decide.
 | Command | Does | Changes files |
 |---|---|---|
 | `arbiter gate .` | judge everything; red names what stands between the code and clean. Warm by default: a unit green under an unchanged input cone skips its tools. `--cold` reads no store; `--no-brief` skips the brief step; `--fix` is the same judgment, repairs first: packs mend their own findings, tools apply safe fixes. | with `--fix` |
-| `arbiter findings .` | the graph plane alone, as JSON lines, in seconds. | no |
-| `arbiter blast <name> .` | every definition of a name and each resolved use. | no |
-| `arbiter deps <unit> .` | what one unit stands on, declared against resolved. | no |
+| `arbiter find [rule] .` | every tool-free finding, as JSON lines, in seconds; a rule names one law's instances. | no |
+| `arbiter find fallout <name> .` | every definition of a name and each resolved use. | no |
+| `arbiter find deps <unit> .` | what one unit stands on, declared against resolved. | no |
+| `arbiter find ledger .` | every suppression, counted against the reference. | no |
+| `arbiter find rhymes .` | structurally equal functions, largest first; a measure, never findings. A perfect rhyme reads identically, a slant rhyme is the same shape in different words. | no |
 | `arbiter brief [case] .` | every need's state against the claims tree; a case is one slice. Each need held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. | no |
-| `arbiter rhyme .` | structurally equal functions, largest first; a measure, never findings. A perfect rhyme reads identically, a slant rhyme is the same shape in different words. | no |
-| `arbiter ledger .` | every suppression, counted against the reference. | no |
 | `arbiter rules [rule]` | the matrix and each law; one rule prints its whys. | no |
 | `arbiter warm .` | heat the store so the next gate skips what nothing moved. | the store only |
 | `arbiter accept .` | record suppressions, dependencies and claims: the user's signature. **Never run it.** | yes |
 | `arbiter adopt .` | install the agent layer; arbiter-owned files refresh with the binary, never backwards: a file written by a newer arbiter is left, and the binary updates. `settings.json` and the `CLAUDE.md` pointer are written once. | yes |
+
+gate, warm, accept and adopt act; find, brief and rules read and never write.
+A finding's rule name is the same word everywhere: `arbiter rules <rule>` for
+its law, `arbiter find <rule> .` for its instances, this skill for its fix.
 
 Exit codes: 0 clean, 1 findings or failures, 2 nothing to judge or a broken
 machine. A preflight gap ("X is not on this machine") is a broken machine,
@@ -71,7 +75,7 @@ these rules hold the thinking:
 - An implementation names the door it walks through: a python provider
   subclasses its Protocol, a TypeScript class writes `implements`.
   Conformance stays structural; the edge becomes a name the graph resolves,
-  so blast answers "who implements this".
+  so find fallout answers "who implements this".
 - A test calls the code as its user does and checks what that user would
   see; a test that would pass if every function returned nothing is thrown
   out.
@@ -94,8 +98,8 @@ Each finding has one expected fix. A suppression is never one of them.
 
 | Finding | Fix |
 |---|---|
-| `winnow` (no user anywhere) | Verify with `blast` plus a grep, then delete the symbol, its surface line, its doc comment and its tests. Deletions cascade: loop until dry. |
-| `winnow` (no user but tests) | Tests exist for the symbol itself: delete both. The symbol is scaffolding for tests of other live code: move it into `src/__tests__/` and off the surface. When those tests wire to a case the brief still plans, the symbol is nascent - a note, never a finding - until the commissioned consumer lands. |
+| `dead-symbol` | Verify with `find fallout` plus a grep, then delete the symbol, its surface line, its doc comment and its tests. Deletions cascade: loop until dry. |
+| `tests-only-symbol` | Tests exist for the symbol itself: delete both. The symbol is scaffolding for tests of other live code: move it into `src/__tests__/` and off the surface. When those tests wire to a case the brief still plans, the symbol is nascent - a note, never a finding - until the commissioned consumer lands. |
 | `self-entry` | Import the defining module, not the unit's own surface. |
 | `no-reexport` | A surface names each symbol and defines none; any other module offers only its own. Move the re-export to the surface, move a surface's own definitions behind it, or import the defining file. |
 | `interior-import` | Enter the unit through a route its manifest declares, or declare the route. |
@@ -105,16 +109,23 @@ Each finding has one expected fix. A suppression is never one of them.
 | `undeclared-dependency` | Declare it in the importing unit's own manifest - another unit's declaration never counts. Shipped code takes a real dependency; development code (a test, a toolchain config file, a type-only import) may rest on a development table. Dynamic, default, namespace and bare side-effect imports all count. |
 | `unused-dependency` | Delete the declaration, or make the use real. A peer contract, a script-run tool, a stub of an imported library, a runner's plugin and the adapter's own packages already count as reached. |
 | `protocol-shape-named` | Name the door: the python class subclasses its Protocol, the TypeScript class writes `implements`. Conformance stays structural; the edge becomes one the graph resolves. |
+| `generated-unresolved` | Point the import at the module its contract generates, or regenerate - and a resolver gap is reported with evidence, never fixed by deleting. |
+| `stray-test` | Name the test with a literal sentence; a title built at run time cannot be heard as a claim. |
 | `one-version` | Converge the lockfiles on one version. |
 | `cycle` | Move what both sides need into a module each imports. |
-| boundaries (`units.toml`) | Invert the dependency or ask the user to amend the declaration - the file is theirs. |
-| `licenses` | Ask the user: the allow list is a policy decision. |
+| `uninvited-use`, `undeclared-unit` | Invert the dependency or ask the user to amend the declaration - `units.toml` is theirs. |
+| `stale-grant`, `stale-declaration` | Delete the stale `units.toml` entry, or ask the user - the file is theirs. |
+| `unallowed-license` | Ask the user: the allow list is a policy decision. |
+| `unparsed` | Repair the decision file's TOML and tell the user what broke - its content is theirs. |
+| `pinned-image` | Pin the image by digest (`name@sha256:...`); a tag may ride beside the digest, never alone. |
+| `blanket-suppression` | Replace it with the one-rule named form - and that form is still a suppression: the user decides. |
 | wiring (option below the bar) | Earn the option: annotate exports, guard index access. Never a non-null assertion, never a cast, never lowering the config. |
 | tool failures (lint, types, test) | Read the unit's section in the report - it holds the whole output - and fix the code. Complexity findings take named extractions, not reshuffling. |
-| `claims` (vanished claim) | Restore the behavior and its test, or ask the user to accept the removal - a claim once accepted leaves only with their signature. |
-| `brief` (unanswered need) | Bind the claims that prove it, or mark it planned or manual - never invent the binding; the need's meaning is the user's. |
-| `brief` (stale binding) | The test moved or was reworded: rebind to the claim's current identity from `arbiter brief`, or ask the user whether the need itself changed. |
-| `brief` (unwired claim) | Wire the claim to the need it serves, or propose the missing need - a behavior worth proving is worth a sentence in the brief. |
+| `vanished-claim` | Restore the behavior and its test, or ask the user to accept the removal - a claim once accepted leaves only with their signature. |
+| `unanswered-need` | Bind the claims that prove it, or mark it planned or manual - never invent the binding; the need's meaning is the user's. |
+| `stale-binding` | The test moved or was reworded: rebind to the claim's current identity from `arbiter brief`, or ask the user whether the need itself changed. |
+| `unwired-claim` | Wire the claim to the need it serves, or propose the missing need - a behavior worth proving is worth a sentence in the brief. |
+| `empty-case` | Draft the case's needs from its story, or ask the user whether the case still stands. |
 | `tautology` | Assert the system's output against an expectation, never a value against itself. |
 | A unit with no tests | Real behavior tests. An entry running `main()` at import time gets its pure seams extracted first - and that refactor is reported. |
 
@@ -129,9 +140,9 @@ Each finding has one expected fix. A suppression is never one of them.
 ## When to stop and tell the user
 
 - A preflight gap or a check that did not finish: the result is unknown.
-- A finding you can prove wrong (`blast` + independent search disagree with
-  the judge): report the resolver gap with the evidence. Never delete on a
-  claim you have refuted.
+- A finding you can prove wrong (`find fallout` + an independent search
+  disagree with the judge): report the resolver gap with the evidence. Never
+  delete on a claim you have refuted.
 - A fix that would change behavior rather than structure.
 - Work outside the task: report it, never fix it unasked.
 

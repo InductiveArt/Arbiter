@@ -73,8 +73,16 @@ impl Pack for Infra {
                 "never: a manifest declares state; it imports nothing",
             ),
             (
-                "coverage",
+                "untested-branch",
                 "never: a manifest declares state; nothing of it executes",
+            ),
+            (
+                "stray-test",
+                "never: a manifest declares state; it tests nothing",
+            ),
+            (
+                "generated-unresolved",
+                "never: a manifest declares state; it imports nothing",
             ),
             (
                 "tautology",

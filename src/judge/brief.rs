@@ -57,7 +57,7 @@ pub fn read(found: &Graph) -> Option<Reading> {
                     check: "brief",
                     file: brief_path,
                     line: 0,
-                    name: "brief".to_string(),
+                    name: "unparsed".to_string(),
                     reason: format!("{BRIEF} does not parse"),
                 }],
                 claims: 0,
@@ -104,7 +104,7 @@ pub fn read(found: &Graph) -> Option<Reading> {
                 line: 0,
                 name: "empty-case".to_string(),
                 reason: format!(
-                    "the case '{name}' declares no needs; a parcel with no spec proves nothing"
+                    "the case '{name}' declares no needs; a case with no needs proves nothing"
                 ),
             });
             continue;

@@ -73,12 +73,17 @@ impl Pack for Proto {
                 "generated",
                 "never: the contract is the source others generate from",
             ),
+            (
+                "generated-unresolved",
+                "never: the contract is the source others generate from",
+            ),
             ("drift", "held"),
             (
-                "coverage",
+                "untested-branch",
                 "never: a contract declares shapes; nothing of it executes",
             ),
             ("tautology", "never: nothing of a contract executes"),
+            ("stray-test", "never: a contract declares no tests"),
         ]
     }
 

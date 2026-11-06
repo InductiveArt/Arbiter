@@ -91,6 +91,7 @@ impl Pack for TypeScript {
             ("tools", "held"),
             ("no-warnings", "held"),
             ("tautology", "held"),
+            ("stray-test", "held"),
             ("protocol-shape-named", "held"),
             ("container", "held"),
             ("generated", "held"),
