@@ -502,7 +502,8 @@ fn taught() {
     println!("gate, warm, accept and adopt act; find, brief and rules read and never write.");
     println!(
         "A verb takes the folder last; missing, it judges here. \
-         Exit: 0 clean, 1 findings, 2 broken machine."
+         Exit: 0 clean, 1 findings, 2 no judgment — a broken machine, \
+         a bad ask, or nothing to judge."
     );
 }
 

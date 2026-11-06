@@ -95,6 +95,7 @@ impl Pack for TypeScript {
             ("protocol-shape-named", "held"),
             ("container", "held"),
             ("generated", "held"),
+            ("generated-unresolved", "held"),
             (
                 "drift",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
@@ -445,6 +446,50 @@ impl Pack for TypeScript {
                     line: *line,
                     name: "undeclared-dependency".to_string(),
                     reason,
+                });
+            }
+        }
+        // A generated import answers for a contract; one resolving to none is
+        // named where it stands, never left to read as dead code.
+        let mut phantom = std::collections::BTreeSet::new();
+        for (file, from, _, line) in &self.imports {
+            let unit = repo.unit_of(file);
+            let home = repo.units[unit].path.clone();
+            if repo.is_test(unit, &home) {
+                continue;
+            }
+            let leaf = file
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if self.generated(&leaf) || !from.starts_with('.') {
+                continue;
+            }
+            let Some(contract) = from.rsplit('/').next().and_then(|last| {
+                last.strip_suffix("_pb")
+                    .or_else(|| last.strip_suffix(".pb"))
+            }) else {
+                continue;
+            };
+            let ending = format!("/{contract}.proto");
+            let flat = format!("{contract}.proto");
+            let matched = repo.files.iter().any(|candidate| {
+                let shown = candidate.to_string_lossy();
+                shown.ends_with(&ending) || shown == flat
+            });
+            if matched {
+                continue;
+            }
+            if phantom.insert((unit, from.clone())) {
+                findings.push(Finding {
+                    check: "integrity",
+                    file: file.clone(),
+                    line: *line,
+                    name: "generated-unresolved".to_string(),
+                    reason: format!(
+                        "{from} names no contract; a generated import answers for \
+                         the contract it was generated from"
+                    ),
                 });
             }
         }

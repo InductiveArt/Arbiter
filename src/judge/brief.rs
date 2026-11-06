@@ -35,11 +35,24 @@ pub struct Reading {
 
 // A binding names a claim exactly, or a frame it covers whole: a prefix ends
 // at a boundary, so tomorrow's claims under a bound frame wire themselves.
+// Runs of spaces fold before comparing: an identity with no frames prints a
+// double space a hand will type as one.
 fn wired(entry: &str, identity: &str) -> bool {
+    let folded = |text: &str| text.split_whitespace().collect::<Vec<&str>>().join(" ");
+    let entry = folded(entry);
+    let identity = folded(identity);
     identity == entry
-        || (identity.starts_with(entry)
+        || (identity.starts_with(&entry)
             && (identity[entry.len()..].starts_with(" | ")
                 || identity[entry.len()..].starts_with(" / ")))
+}
+
+// The first line spelling the needle, so a finding points into the brief; 0
+// when the file never spells it whole.
+fn line_of(text: &str, needle: &str) -> usize {
+    text.lines()
+        .position(|line| line.contains(needle))
+        .map_or(0, |at| at + 1)
 }
 
 // The brief is written once it holds a case; a seeded file of comments is not
@@ -101,7 +114,7 @@ pub fn read(found: &Graph) -> Option<Reading> {
             findings.push(Finding {
                 check: "brief",
                 file: brief_path.clone(),
-                line: 0,
+                line: line_of(&text, &format!("name = \"{name}\"")),
                 name: "empty-case".to_string(),
                 reason: format!(
                     "the case '{name}' declares no needs; a case with no needs proves nothing"
@@ -146,7 +159,7 @@ pub fn read(found: &Graph) -> Option<Reading> {
                         findings.push(Finding {
                             check: "brief",
                             file: brief_path.clone(),
-                            line: 0,
+                            line: line_of(&text, binding),
                             name: "stale-binding".to_string(),
                             reason: format!(
                                 "the case '{name}' binds '{binding}', which the tree does not speak"
@@ -167,7 +180,7 @@ pub fn read(found: &Graph) -> Option<Reading> {
                 findings.push(Finding {
                     check: "brief",
                     file: brief_path.clone(),
-                    line: 0,
+                    line: line_of(&text, &format!("need = \"{need}\"")),
                     name: "unanswered-need".to_string(),
                     reason: format!(
                         "the need '{need}' of case '{name}' binds no claims and is neither planned nor manual"

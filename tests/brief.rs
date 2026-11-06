@@ -8,7 +8,7 @@ const CLAIMS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/claims
 fn the_brief_states_each_need_and_roars_at_the_unwired() {
     let found = graph(CLAIMS).expect("the fixture folder exists");
     let reading = read(&found).expect("the fixture writes a brief");
-    assert_eq!(reading.cases, 3);
+    assert_eq!(reading.cases, 4);
     assert_eq!(reading.claims, 8);
     let states: Vec<String> = reading
         .needs
@@ -32,6 +32,7 @@ fn the_brief_states_each_need_and_roars_at_the_unwired() {
             "lattice | the lattice survives a snapshot restore | manual",
             "lattice | a binding gone stale | unanswered",
             "lattice | a need with nothing at all | unanswered",
+            "spacing | a hand-typed binding folds its spaces | held",
         ]
     );
     let told: Vec<String> = reading
@@ -51,8 +52,35 @@ fn the_brief_states_each_need_and_roars_at_the_unwired() {
              in the brief",
             "unwired-claim the claim '. |  | doubles %s into place' answers no need in the brief",
             "unwired-claim the claim '. |  | a helper still names the door' answers no need in the brief",
-            "unwired-claim the claim '. |  | doubling two gives four' answers no need in the brief",
             "unwired-claim the claim '. |  | an empty lattice spans nothing' answers no need in the brief",
         ]
     );
+}
+
+#[test]
+fn a_binding_typed_with_one_space_wires_a_claim_printed_with_two() {
+    let found = graph(CLAIMS).expect("the fixture folder exists");
+    let reading = read(&found).expect("the fixture writes a brief");
+    let need = reading
+        .needs
+        .iter()
+        .find(|need| need.case == "spacing")
+        .expect("the fixture declares the spacing case");
+    assert!(need.state == State::Held);
+}
+
+#[test]
+fn a_brief_finding_points_at_its_own_line() {
+    let found = graph(CLAIMS).expect("the fixture folder exists");
+    let reading = read(&found).expect("the fixture writes a brief");
+    let at = |name: &str| {
+        reading
+            .findings
+            .iter()
+            .find(|finding| finding.name == name)
+            .map(|finding| finding.line)
+    };
+    assert_eq!(at("stale-binding"), Some(26));
+    assert_eq!(at("unanswered-need"), Some(29));
+    assert_eq!(at("empty-case"), Some(32));
 }

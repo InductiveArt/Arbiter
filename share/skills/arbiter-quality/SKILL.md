@@ -27,9 +27,9 @@ gate, warm, accept and adopt act; find, brief and rules read and never write.
 A finding's rule name is the same word everywhere: `arbiter rules <rule>` for
 its law, `arbiter find <rule> .` for its instances, this skill for its fix.
 
-Exit codes: 0 clean, 1 findings or failures, 2 nothing to judge or a broken
-machine. A preflight gap ("X is not on this machine") is a broken machine,
-never a finding: stop and tell the user.
+Exit codes: 0 clean, 1 findings or failures, 2 no judgment — a broken
+machine, a bad ask, or nothing to judge. A preflight gap ("X is not on this
+machine") is a broken machine, never a finding: stop and tell the user.
 
 ## Entry
 

@@ -188,6 +188,14 @@ story = "behavior is claimed by tests and commissioned by the brief"
   need = "the brief states each need and roars at the unwired"
   claims = [". |  | the brief states each need and roars at the unwired"]
 
+  [[case.need]]
+  need = "a binding folds runs of spaces, so a hand-typed one still wires"
+  claims = [". |  | a binding typed with one space wires a claim printed with two"]
+
+  [[case.need]]
+  need = "a brief finding points at the line it judges"
+  claims = [". |  | a brief finding points at its own line"]
+
 [[case]]
 name = "rhyme"
 story = "structurally equivalent code is named, never judged"

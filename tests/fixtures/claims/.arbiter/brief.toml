@@ -30,3 +30,11 @@ name = "lattice"
 
 [[case]]
 name = "hollow"
+
+[[case]]
+name = "spacing"
+story = "a hand types one space where the printer wrote two"
+
+  [[case.need]]
+  need = "a hand-typed binding folds its spaces"
+  claims = [". | | doubling two gives four"]
