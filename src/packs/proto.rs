@@ -43,24 +43,24 @@ impl Pack for Proto {
         &[
             ("resolve", "held"),
             (
-                "pinned-image",
+                "unpinned-image",
                 "never: the language names no container images",
             ),
             (
                 "dynamic-import",
                 "never: a contract names its imports in the file",
             ),
-            ("no-reexport", "never: proto has no re-export form"),
+            ("reexport", "never: proto has no re-export form"),
             ("self-entry", "never: a contract declares no routes"),
             ("interior-import", "never: a contract declares no routes"),
-            ("no-hidden-names", "never: proto has no alias form"),
+            ("hidden-name", "never: proto has no alias form"),
             (
-                "one-import-per-line",
+                "crowded-import",
                 "never: an import names one file by syntax",
             ),
-            ("no-comment-overreach", "held"),
+            ("comment-overreach", "held"),
             (
-                "protocol-shape-named",
+                "unnamed-door",
                 "never: a contract declares shapes, never classes",
             ),
             ("undeclared-dependency", "held"),
@@ -74,7 +74,7 @@ impl Pack for Proto {
                 "never: the contract is the source others generate from",
             ),
             (
-                "generated-unresolved",
+                "phantom-import",
                 "never: the contract is the source others generate from",
             ),
             ("drift", "held"),

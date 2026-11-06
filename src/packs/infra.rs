@@ -26,10 +26,10 @@ impl Infra {
 impl Pack for Infra {
     fn rules(&self) -> &'static [(&'static str, &'static str)] {
         &[
-            ("pinned-image", "held"),
-            ("no-comment-overreach", "held"),
+            ("unpinned-image", "held"),
+            ("comment-overreach", "held"),
             (
-                "no-hidden-names",
+                "hidden-name",
                 "never: a manifest declares state; it names no symbols",
             ),
             (
@@ -45,7 +45,7 @@ impl Pack for Infra {
                 "never: a manifest carries no directive that silences a judge",
             ),
             (
-                "protocol-shape-named",
+                "unnamed-door",
                 "never: a manifest declares state; it names no classes",
             ),
             (
@@ -57,7 +57,7 @@ impl Pack for Infra {
                 "never: a manifest declares state; it imports nothing",
             ),
             (
-                "no-reexport",
+                "reexport",
                 "never: a manifest declares state; it imports nothing",
             ),
             (
@@ -69,7 +69,7 @@ impl Pack for Infra {
                 "never: a manifest declares state; it imports nothing",
             ),
             (
-                "one-import-per-line",
+                "crowded-import",
                 "never: a manifest declares state; it imports nothing",
             ),
             (
@@ -81,7 +81,7 @@ impl Pack for Infra {
                 "never: a manifest declares state; it tests nothing",
             ),
             (
-                "generated-unresolved",
+                "phantom-import",
                 "never: a manifest declares state; it imports nothing",
             ),
             (
@@ -162,7 +162,7 @@ impl Pack for Infra {
                 check: "integrity",
                 file: file.clone(),
                 line: *line,
-                name: "pinned-image".to_string(),
+                name: "unpinned-image".to_string(),
                 reason: format!(
                     "{image} is pulled by tag; an image is named by digest, never by a tag alone"
                 ),
@@ -172,7 +172,7 @@ impl Pack for Infra {
             check: "integrity",
             file: file.clone(),
             line: *line,
-            name: "no-comment-overreach".to_string(),
+            name: "comment-overreach".to_string(),
             reason: format!(
                 "a comment names {token}, which nothing in the file defines, uses or quotes"
             ),

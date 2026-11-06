@@ -38,12 +38,12 @@ impl Pack for Cpp {
         &[
             ("resolve", "held"),
             (
-                "pinned-image",
+                "unpinned-image",
                 "never: the language names no container images",
             ),
-            ("no-comment-overreach", "held"),
+            ("comment-overreach", "held"),
             (
-                "one-import-per-line",
+                "crowded-import",
                 "never: an include names one header by syntax",
             ),
             (

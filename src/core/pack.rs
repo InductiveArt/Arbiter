@@ -81,7 +81,7 @@ pub const RULES: &[(&str, &str)] = &[
         "a run-time import of a literal module keeps its whole surface; a computed one is a finding",
     ),
     (
-        "no-reexport",
+        "reexport",
         "a module offers only its own names; a surface names each symbol it offers and defines none",
     ),
     ("self-entry", "a unit's own code imports from the defining file"),
@@ -89,13 +89,13 @@ pub const RULES: &[(&str, &str)] = &[
         "interior-import",
         "a unit is entered through the routes its manifest declares",
     ),
-    ("no-hidden-names", "a symbol keeps its own name"),
+    ("hidden-name", "a symbol keeps its own name"),
     (
-        "one-import-per-line",
+        "crowded-import",
         "an import line names one symbol and the module it comes from",
     ),
     (
-        "no-comment-overreach",
+        "comment-overreach",
         "a comment names only what its file defines, uses or quotes",
     ),
     (
@@ -107,7 +107,7 @@ pub const RULES: &[(&str, &str)] = &[
         "a third party a manifest declares and nothing reaches is named for deletion",
     ),
     (
-        "protocol-shape-named",
+        "unnamed-door",
         "a class standing where a protocol is asked names it among its bases",
     ),
     (
@@ -130,7 +130,7 @@ pub const RULES: &[(&str, &str)] = &[
     ),
     ("generated", "generated code is scanned, never judged"),
     (
-        "generated-unresolved",
+        "phantom-import",
         "a generated import resolves to the contract it was generated from; one naming no contract is a finding",
     ),
     (
@@ -138,7 +138,7 @@ pub const RULES: &[(&str, &str)] = &[
         "generated code matches its contract, and a contract break is a finding",
     ),
     (
-        "pinned-image",
+        "unpinned-image",
         "a container image is named by digest, never by a tag alone",
     ),
     (
@@ -167,7 +167,7 @@ pub const CORE: &[(&str, &str)] = &[
         "units form an order; no two import each other, however long the loop",
     ),
     (
-        "one-version",
+        "split-version",
         "a third party resolves to one version across the repository's lockfiles; a copy nested inside another third party is that party's own",
     ),
     (

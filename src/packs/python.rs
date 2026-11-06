@@ -64,10 +64,10 @@ impl Pack for Python {
         &[
             ("resolve", "held"),
             (
-                "pinned-image",
+                "unpinned-image",
                 "never: the language names no container images",
             ),
-            ("no-reexport", "held"),
+            ("reexport", "held"),
             (
                 "self-entry",
                 "never: an __init__ stays empty, so a unit has no barrel of its own to enter",
@@ -76,11 +76,11 @@ impl Pack for Python {
                 "interior-import",
                 "never: a module is imported by its defining path; python declares no routes",
             ),
-            ("no-hidden-names", "held"),
-            ("one-import-per-line", "held"),
-            ("no-comment-overreach", "held"),
+            ("hidden-name", "held"),
+            ("crowded-import", "held"),
+            ("comment-overreach", "held"),
             ("dynamic-import", "held"),
-            ("protocol-shape-named", "held"),
+            ("unnamed-door", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
             ("suppressions", "held"),
@@ -94,7 +94,7 @@ impl Pack for Python {
             ),
             ("container", "held"),
             ("generated", "held"),
-            ("generated-unresolved", "held"),
+            ("phantom-import", "held"),
             (
                 "drift",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
@@ -334,7 +334,7 @@ impl Pack for Python {
                 check: "integrity",
                 file: file.clone(),
                 line: *line,
-                name: "no-reexport".to_string(),
+                name: "reexport".to_string(),
                 reason: format!(
                     "__init__.py imports {name}; a symbol is imported from the module defining it"
                 ),
@@ -344,7 +344,7 @@ impl Pack for Python {
             check: "integrity",
             file: file.clone(),
             line: *line,
-            name: "no-hidden-names".to_string(),
+            name: "hidden-name".to_string(),
             reason: format!("imported as {alias}; a symbol keeps its own name"),
         }));
         findings.extend(self.computed.iter().map(|(file, line)| {
@@ -352,7 +352,7 @@ impl Pack for Python {
                 check: "integrity",
                 file: file.clone(),
                 line: *line,
-                name: "no-hidden-names".to_string(),
+                name: "hidden-name".to_string(),
                 reason: "imports a module through a computed value; a module is named by a literal"
                     .to_string(),
             }
@@ -378,7 +378,7 @@ impl Pack for Python {
             check: "integrity",
             file: file.clone(),
             line: *line,
-            name: "no-comment-overreach".to_string(),
+            name: "comment-overreach".to_string(),
             reason: format!(
                 "a comment names {token}, which nothing in the file defines, uses or quotes"
             ),
@@ -489,7 +489,7 @@ impl Pack for Python {
                     check: "integrity",
                     file: file.clone(),
                     line,
-                    name: "generated-unresolved".to_string(),
+                    name: "phantom-import".to_string(),
                     reason: format!(
                         "{module} names no contract; a generated import answers for \
                          the contract it was generated from"
@@ -605,7 +605,7 @@ impl Pack for Python {
                         check: "integrity",
                         file: (*place_file).clone(),
                         line: *place_line,
-                        name: "protocol-shape-named".to_string(),
+                        name: "unnamed-door".to_string(),
                         reason: format!(
                             "{constructor} stands where {asked} is asked and names no such \
                              base; a protocol satisfied by shape is still named"
@@ -1013,7 +1013,7 @@ fn manifest_findings(manifest: &str) -> Vec<String> {
 }
 
 // The registry and the repository are the only channels: a git or URL source
-// slips past the lockfile's hashes and past the one-version rule.
+// slips past the lockfile's hashes and past the split-version rule.
 fn dependency_findings(parsed: &toml::Value) -> Vec<String> {
     let mut findings = Vec::new();
     let mut lists: Vec<(String, Vec<toml::Value>)> = Vec::new();

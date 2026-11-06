@@ -310,9 +310,7 @@ fn fix_splits_a_use_to_one_per_line() {
         .expect("the rust pack exists")
         .integrity(&again.root, &again.repo);
     assert!(
-        quiet
-            .iter()
-            .all(|finding| finding.name != "one-import-per-line"),
+        quiet.iter().all(|finding| finding.name != "crowded-import"),
         "the split leaves no crowded use"
     );
 
@@ -505,7 +503,7 @@ fn a_class_standing_where_a_protocol_is_asked_names_it() {
         .expect("the python pack exists")
         .integrity(&judged.root, &judged.repo)
         .iter()
-        .filter(|finding| finding.name == "protocol-shape-named")
+        .filter(|finding| finding.name == "unnamed-door")
         .map(|finding| finding.reason.clone())
         .collect();
     assert_eq!(
@@ -543,7 +541,7 @@ fn a_class_standing_where_an_interface_is_asked_names_it() {
         .expect("the typescript pack exists")
         .integrity(&judged.root, &judged.repo)
         .iter()
-        .filter(|finding| finding.name == "protocol-shape-named")
+        .filter(|finding| finding.name == "unnamed-door")
         .map(|finding| finding.reason.clone())
         .collect();
     assert_eq!(

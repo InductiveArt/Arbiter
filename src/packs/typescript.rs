@@ -74,16 +74,16 @@ impl Pack for TypeScript {
         &[
             ("resolve", "held"),
             (
-                "pinned-image",
+                "unpinned-image",
                 "never: the language names no container images",
             ),
             ("dynamic-import", "held"),
-            ("no-reexport", "held"),
+            ("reexport", "held"),
             ("self-entry", "held"),
             ("interior-import", "held"),
-            ("no-hidden-names", "held"),
-            ("one-import-per-line", "held"),
-            ("no-comment-overreach", "held"),
+            ("hidden-name", "held"),
+            ("crowded-import", "held"),
+            ("comment-overreach", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
             ("suppressions", "held"),
@@ -92,10 +92,10 @@ impl Pack for TypeScript {
             ("no-warnings", "held"),
             ("tautology", "held"),
             ("stray-test", "held"),
-            ("protocol-shape-named", "held"),
+            ("unnamed-door", "held"),
             ("container", "held"),
             ("generated", "held"),
-            ("generated-unresolved", "held"),
+            ("phantom-import", "held"),
             (
                 "drift",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
@@ -309,7 +309,7 @@ impl Pack for TypeScript {
                     owned.len() - 1
                 )
             };
-            findings.push(Finding::integrity(file, *line, "no-reexport", reason));
+            findings.push(Finding::integrity(file, *line, "reexport", reason));
         }
         // A route target is the unit's declared surface, so a named re-export there is
         // the declaration itself; anywhere else it hides a name, and a star hides
@@ -326,13 +326,13 @@ impl Pack for TypeScript {
             } else {
                 format!("re-exports from \"{from}\"; a module offers only its own names")
             };
-            findings.push(Finding::integrity(file, *line, "no-reexport", reason));
+            findings.push(Finding::integrity(file, *line, "reexport", reason));
         }
         findings.extend(self.aliases.iter().map(|(file, alias, line)| Finding {
             check: "integrity",
             file: file.clone(),
             line: *line,
-            name: "no-hidden-names".to_string(),
+            name: "hidden-name".to_string(),
             reason: format!("imported as {alias}; a symbol keeps its own name"),
         }));
         findings.extend(self.computed.iter().map(|(file, line)| {
@@ -340,7 +340,7 @@ impl Pack for TypeScript {
                 check: "integrity",
                 file: file.clone(),
                 line: *line,
-                name: "no-hidden-names".to_string(),
+                name: "hidden-name".to_string(),
                 reason: "imports a module through a computed value; a module is named by a literal"
                     .to_string(),
             }
@@ -378,7 +378,7 @@ impl Pack for TypeScript {
             check: "integrity",
             file: file.clone(),
             line: *line,
-            name: "one-import-per-line".to_string(),
+            name: "crowded-import".to_string(),
             reason: format!(
                 "names {names} symbols in one import; an import line names one symbol and the module it comes from"
             ),
@@ -387,7 +387,7 @@ impl Pack for TypeScript {
             check: "integrity",
             file: file.clone(),
             line: *line,
-            name: "no-comment-overreach".to_string(),
+            name: "comment-overreach".to_string(),
             reason: format!(
                 "a comment names {token}, which nothing in the file defines, uses or quotes"
             ),
@@ -485,7 +485,7 @@ impl Pack for TypeScript {
                     check: "integrity",
                     file: file.clone(),
                     line: *line,
-                    name: "generated-unresolved".to_string(),
+                    name: "phantom-import".to_string(),
                     reason: format!(
                         "{from} names no contract; a generated import answers for \
                          the contract it was generated from"
@@ -617,7 +617,7 @@ impl Pack for TypeScript {
                         check: "integrity",
                         file: (*place_file).clone(),
                         line: *place_line,
-                        name: "protocol-shape-named".to_string(),
+                        name: "unnamed-door".to_string(),
                         reason: format!(
                             "{construction} stands where {asked} is asked and names no \
                                  such base; a protocol satisfied by shape is still named"
@@ -1054,7 +1054,7 @@ const OUTSIDE_CHANNELS: [&str; 7] = [
 ];
 
 // The registry and the workspace are the only channels: a git, URL or file
-// source slips past the lockfile's hashes and past the one-version rule.
+// source slips past the lockfile's hashes and past the split-version rule.
 fn dependency_findings(parsed: &serde_json::Value) -> Vec<String> {
     let mut findings = Vec::new();
     for section in DEPENDENCY_SECTIONS {

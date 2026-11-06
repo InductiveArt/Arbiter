@@ -49,14 +49,14 @@ impl Pack for Rust {
         &[
             ("resolve", "held"),
             (
-                "pinned-image",
+                "unpinned-image",
                 "never: the language names no container images",
             ),
             (
                 "dynamic-import",
                 "never: a crate links its dependencies; nothing imports at run time",
             ),
-            ("no-reexport", "held"),
+            ("reexport", "held"),
             (
                 "self-entry",
                 "never: a crate reaches its own items as crate::, never through its published name",
@@ -65,13 +65,13 @@ impl Pack for Rust {
                 "interior-import",
                 "never: pub already walls a crate's interior",
             ),
-            ("no-hidden-names", "held"),
+            ("hidden-name", "held"),
             (
-                "protocol-shape-named",
+                "unnamed-door",
                 "never: a trait is nominal; nothing implements invisibly",
             ),
-            ("one-import-per-line", "held"),
-            ("no-comment-overreach", "held"),
+            ("crowded-import", "held"),
+            ("comment-overreach", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
             ("suppressions", "held"),
@@ -296,7 +296,7 @@ impl Pack for Rust {
                 check: "integrity",
                 file: file.clone(),
                 line: *line,
-                name: "no-reexport".to_string(),
+                name: "reexport".to_string(),
                 reason: format!("re-exports {argument}; a module offers only its own names"),
             })
             .collect();
@@ -321,7 +321,7 @@ impl Pack for Rust {
             check: "integrity",
             file: file.clone(),
             line: *line,
-            name: "one-import-per-line".to_string(),
+            name: "crowded-import".to_string(),
             reason: format!(
                 "names {names} symbols in one import; \
                  an import line names one symbol and the module it comes from"
@@ -331,14 +331,14 @@ impl Pack for Rust {
             check: "integrity",
             file: file.clone(),
             line: *line,
-            name: "no-hidden-names".to_string(),
+            name: "hidden-name".to_string(),
             reason: format!("imported as {alias}; a symbol keeps its own name"),
         }));
         findings.extend(self.overreaches.iter().map(|(file, token, line)| Finding {
             check: "integrity",
             file: file.clone(),
             line: *line,
-            name: "no-comment-overreach".to_string(),
+            name: "comment-overreach".to_string(),
             reason: format!(
                 "a comment names {token}, which nothing in the file defines, uses or quotes"
             ),
@@ -540,7 +540,7 @@ fn manifest_findings(manifest: &str) -> Vec<String> {
         }
     }
     // The registry and the repository are the only channels: a git source slips
-    // past the lockfile's hashes and past the one-version rule.
+    // past the lockfile's hashes and past the split-version rule.
     for base in [
         "dependencies",
         "dev-dependencies",

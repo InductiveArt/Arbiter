@@ -100,23 +100,23 @@ Each finding has one expected fix. A suppression is never one of them.
 | `dead-symbol` | Verify with `find fallout` plus a grep, then delete the symbol, its surface line, its doc comment and its tests. Deletions cascade: loop until dry. |
 | `tests-only-symbol` | Tests exist for the symbol itself: delete both. The symbol is scaffolding for tests of other live code: move it into `src/__tests__/` and off the surface. When those tests wire to a case the brief still plans, the symbol is nascent - a note, never a finding - until the commissioned consumer lands. |
 | `self-entry` | Import the defining module, not the unit's own surface. |
-| `no-reexport` | A surface names each symbol and defines none; any other module offers only its own. Move the re-export to the surface, move a surface's own definitions behind it, or import the defining file. |
+| `reexport` | A surface names each symbol and defines none; any other module offers only its own. Move the re-export to the surface, move a surface's own definitions behind it, or import the defining file. |
 | `interior-import` | Enter the unit through a route its manifest declares, or declare the route. |
-| `one-import-per-line` | `arbiter gate --fix` splits it; by hand, one symbol and its module per line. |
-| `no-hidden-names` | Import under the symbol's own name; a genuine collision takes a namespace import named for its module. A computed dynamic import becomes a literal. |
-| `no-comment-overreach` | Reword the comment to name only what its file defines, uses or quotes - keep the meaning, lose the foreign names. |
+| `crowded-import` | `arbiter gate --fix` splits it; by hand, one symbol and its module per line. |
+| `hidden-name` | Import under the symbol's own name; a genuine collision takes a namespace import named for its module. A computed dynamic import becomes a literal. |
+| `comment-overreach` | Reword the comment to name only what its file defines, uses or quotes - keep the meaning, lose the foreign names. |
 | `undeclared-dependency` | Declare it in the importing unit's own manifest - another unit's declaration never counts. Shipped code takes a real dependency; development code (a test, a toolchain config file, a type-only import) may rest on a development table. Dynamic, default, namespace and bare side-effect imports all count. |
 | `unused-dependency` | Delete the declaration, or make the use real. A peer contract, a script-run tool, a stub of an imported library, a runner's plugin and the adapter's own packages already count as reached. |
-| `protocol-shape-named` | Name the door: the python class subclasses its Protocol, the TypeScript class writes `implements`. Conformance stays structural; the edge becomes one the graph resolves. |
-| `generated-unresolved` | Point the import at the module its contract generates, or regenerate - and a resolver gap is reported with evidence, never fixed by deleting. |
+| `unnamed-door` | Name the door: the python class subclasses its Protocol, the TypeScript class writes `implements`. Conformance stays structural; the edge becomes one the graph resolves. |
+| `phantom-import` | Point the import at the module its contract generates, or regenerate - and a resolver gap is reported with evidence, never fixed by deleting. |
 | `stray-test` | Name the test with a literal sentence; a title built at run time cannot be heard as a claim. |
-| `one-version` | Converge the lockfiles on one version. |
+| `split-version` | Converge the lockfiles on one version. |
 | `cycle` | Move what both sides need into a module each imports. |
 | `uninvited-use`, `undeclared-unit` | Invert the dependency or ask the user to amend the declaration - `units.toml` is theirs. |
 | `stale-grant`, `stale-declaration` | Delete the stale `units.toml` entry, or ask the user - the file is theirs. |
 | `unallowed-license` | Ask the user: the allow list is a policy decision. |
 | `unparsed` | Repair the decision file's TOML and tell the user what broke - its content is theirs. |
-| `pinned-image` | Pin the image by digest (`name@sha256:...`); a tag may ride beside the digest, never alone. |
+| `unpinned-image` | Pin the image by digest (`name@sha256:...`); a tag may ride beside the digest, never alone. |
 | `blanket-suppression` | Replace it with the one-rule named form - and that form is still a suppression: the user decides. |
 | wiring (option below the bar) | Earn the option: annotate exports, guard index access. Never a non-null assertion, never a cast, never lowering the config. |
 | tool failures (lint, types, test) | Read the unit's section in the report - it holds the whole output - and fix the code. Complexity findings take named extractions, not reshuffling. |

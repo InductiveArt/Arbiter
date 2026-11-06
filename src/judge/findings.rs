@@ -78,7 +78,7 @@ pub fn integrity(found: &Graph) -> Vec<Finding> {
     for pack in &found.packs {
         findings.extend(pack.integrity(&found.root, &found.repo));
     }
-    findings.extend(one_version(&found.root, &found.repo, &found.packs));
+    findings.extend(split_version(&found.root, &found.repo, &found.packs));
     findings.extend(boundaries(found));
     findings.extend(licenses(found));
     findings.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
@@ -174,9 +174,9 @@ fn folded(name: &str) -> String {
     }
 }
 
-// Bazel's one-version rule as a judgment: a third party resolved at two versions
-// across the repository's lockfiles is named with every version and its place.
-fn one_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Finding> {
+// A third party resolved at two versions across the repository's lockfiles
+// is named with every version and its place.
+fn split_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Finding> {
     let mut findings = Vec::new();
     for pack in packs {
         let locks = pack.lockfiles();
@@ -225,7 +225,7 @@ fn one_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Finding
                 check: "integrity",
                 file: anchor.clone(),
                 line: 0,
-                name: "one-version".to_string(),
+                name: "split-version".to_string(),
                 reason: format!("{name} is locked at {}", places.join(" and ")),
             });
         }
