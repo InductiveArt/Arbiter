@@ -126,11 +126,11 @@ pub(crate) fn judged(
                 continue;
             }
             let started = Instant::now();
-            if let Some(findings) = pack.wiring(&folder) {
+            if let Some(findings) = pack.dials(&folder) {
                 outcomes.push(Outcome {
                     unit: shown.clone(),
                     pack: pack.label(),
-                    check: "wiring".to_string(),
+                    check: "ecosystem-dials".to_string(),
                     passed: findings.is_empty(),
                     seconds: started.elapsed().as_secs_f64(),
                     output: findings.join("\n"),

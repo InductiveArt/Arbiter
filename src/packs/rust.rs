@@ -75,8 +75,8 @@ impl Pack for Rust {
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
             ("suppressions", "held"),
-            ("wiring", "held"),
-            ("tools", "held"),
+            ("ecosystem-dials", "held"),
+            ("pinned-tools", "held"),
             ("no-warnings", "held"),
             ("container", "held"),
             ("tautology", "held"),
@@ -115,7 +115,7 @@ impl Pack for Rust {
         parsed.get("workspace").is_some() && parsed.get("package").is_none()
     }
 
-    fn wiring(&self, folder: &Path) -> Option<Vec<String>> {
+    fn dials(&self, folder: &Path) -> Option<Vec<String>> {
         let Ok(manifest) = std::fs::read_to_string(folder.join("Cargo.toml")) else {
             return Some(vec![
                 "no Cargo.toml; the unit declares no environment".to_string()
@@ -953,7 +953,7 @@ mod tests {
     }
 
     #[test]
-    fn a_lint_raised_to_deny_passes_the_wiring() {
+    fn a_lint_raised_to_deny_passes_the_dials() {
         let manifest = "[lints.clippy]\nunwrap_used = \"deny\"\n";
         assert!(manifest_findings(manifest).is_empty());
     }

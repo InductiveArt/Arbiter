@@ -67,10 +67,10 @@ fn main() -> ExitCode {
                 String::new()
             };
             if failed == 0 {
-                println!("  {check:10} ok     {passed} units{heat}   {seconds:.1}s");
+                println!("  {check:15} ok     {passed} units{heat}   {seconds:.1}s");
             } else {
                 println!(
-                    "  {check:10} failed {failed} of {}{heat}   {seconds:.1}s",
+                    "  {check:15} failed {failed} of {}{heat}   {seconds:.1}s",
                     passed + failed
                 );
             }
@@ -80,42 +80,42 @@ fn main() -> ExitCode {
             *counts.entry(finding.check).or_insert(0) += 1;
         }
         for (check, count) in &counts {
-            println!("  {check:10} {count} findings");
+            println!("  {check:15} {count} findings");
         }
         match run.added {
             None => println!(
-                "  {:14} {} counted, no reference recorded",
+                "  {:15} {} counted, no reference recorded",
                 "suppressions", run.counted
             ),
             Some(added) => println!(
-                "  {:14} {} counted, {added} added since the signature",
+                "  {:15} {} counted, {added} added since the signature",
                 "suppressions", run.counted
             ),
         }
         match run.third_added {
             None => println!(
-                "  {:14} {} locked, no reference recorded",
+                "  {:15} {} locked, no reference recorded",
                 "third parties", run.third
             ),
             Some(added) => println!(
-                "  {:14} {} locked, {added} added since the signature",
+                "  {:15} {} locked, {added} added since the signature",
                 "third parties", run.third
             ),
         }
         match run.claims_vanished {
             None => println!(
-                "  {:14} {} spoken, no reference recorded",
+                "  {:15} {} spoken, no reference recorded",
                 "claims", run.claims
             ),
-            Some(0) => println!("  {:14} {} spoken, none vanished", "claims", run.claims),
+            Some(0) => println!("  {:15} {} spoken, none vanished", "claims", run.claims),
             Some(vanished) => println!(
-                "  {:14} {} spoken, {vanished} vanished since the signature",
+                "  {:15} {} spoken, {vanished} vanished since the signature",
                 "claims", run.claims
             ),
         }
         match run.brief {
-            verdict::BriefLine::Skipped => println!("  {:14} skipped", "brief"),
-            verdict::BriefLine::Unwritten => println!("  {:14} no brief written", "brief"),
+            verdict::BriefLine::Skipped => println!("  {:15} skipped", "brief"),
+            verdict::BriefLine::Unwritten => println!("  {:15} no brief written", "brief"),
             verdict::BriefLine::Read {
                 cases,
                 held,
@@ -124,7 +124,7 @@ fn main() -> ExitCode {
                 unanswered,
                 unwired,
             } => println!(
-                "  {:14} {cases} cases — {held} held, {planned} planned, \
+                "  {:15} {cases} cases — {held} held, {planned} planned, \
                  {manual} manual, {unanswered} unanswered; {unwired} claims unwired",
                 "brief"
             ),
@@ -789,56 +789,76 @@ fn fallout(name: &str, defs: &[Def], edges: &[Edge]) {
     }
 }
 
-// The matrix of rule against language. A cell answers held or never; an open
-// cell is work the matrix keeps visible, never a pass.
+// The matrix of rule against language, printed group by group. A cell answers
+// held or never; an open cell is work the matrix keeps visible, never a pass.
+// A core row is judged through the one graph, every language at once.
 fn matrix() {
     let packs = arbiter::packs::all();
     let width = pack::RULES
         .iter()
+        .chain(pack::CORE)
         .map(|(rule, _)| rule.len())
         .max()
         .unwrap_or(0);
-    print!("{:width$}", "rule");
+    print!("  {:width$}", "rule");
     for pack in &packs {
         print!("  {:10}", pack.label());
     }
     println!();
-    for (rule, _) in pack::RULES {
-        print!("{rule:width$}");
-        for pack in &packs {
-            let answer = pack
-                .rules()
-                .iter()
-                .find(|(name, _)| name == rule)
-                .map(|(_, answer)| *answer);
-            let cell = match answer {
-                Some("held") => "held",
-                Some(_) => "never",
-                None => "open",
-            };
-            print!("  {cell:10}");
+    for (group, members) in pack::GROUPS {
+        println!("{group}");
+        for member in *members {
+            print!("  {member:width$}");
+            if pack::RULES.iter().any(|(rule, _)| rule == member) {
+                for pack in &packs {
+                    let answer = pack
+                        .rules()
+                        .iter()
+                        .find(|(name, _)| name == member)
+                        .map(|(_, answer)| *answer);
+                    let cell = match answer {
+                        Some("held") => "held",
+                        Some(_) => "never",
+                        None => "open",
+                    };
+                    print!("  {cell:10}");
+                }
+                println!();
+            } else {
+                println!("  core");
+            }
         }
-        println!();
     }
     println!();
-    println!("each rule's law:");
-    for (rule, law) in pack::RULES {
-        println!("  {rule}: {law}");
-    }
-    println!();
-    println!("core judges every language through the one graph:");
-    for (name, law) in pack::CORE {
-        println!("  {name}: {law}");
+    println!("each law, group by group:");
+    for (group, members) in pack::GROUPS {
+        println!("{group}");
+        for member in *members {
+            if let Some(law) = pack::law(member) {
+                println!("  {member}: {law}");
+            }
+        }
     }
     println!();
     println!(
-        "arbiter rules <rule> prints one rule's stance in every language, with each never's why."
+        "arbiter rules <rule> prints one rule's stance in every language, with each \
+         never's why; a group name prints its laws."
     );
 }
 
 // One rule whole: its law, then each pack's stance - held, open, or never
-// with its why. A core judgment has no stances; its law is the answer.
+// with its why. A core judgment has no stances; its law is the answer. A
+// group prints every law on its shelf.
 fn ruled(asked: &str) -> ExitCode {
+    if let Some((group, members)) = pack::GROUPS.iter().find(|(group, _)| *group == asked) {
+        println!("{group}:");
+        for member in *members {
+            if let Some(law) = pack::law(member) {
+                println!("  {member}: {law}");
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
     if let Some((rule, law)) = pack::RULES.iter().find(|(rule, _)| *rule == asked) {
         println!("{rule}: {law}");
         println!();
@@ -866,7 +886,7 @@ fn ruled(asked: &str) -> ExitCode {
         println!("  core: judged through the one graph, every language at once");
         return ExitCode::SUCCESS;
     }
-    eprintln!("rules: no rule named {asked}; arbiter rules prints the matrix");
+    eprintln!("rules: no rule or group named {asked}; arbiter rules prints the matrix");
     ExitCode::from(2)
 }
 

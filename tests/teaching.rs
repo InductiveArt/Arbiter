@@ -21,6 +21,28 @@ fn the_skill_speaks_each_verb_with_its_own_line() {
 }
 
 #[test]
+fn every_rule_sits_in_exactly_one_group() {
+    use arbiter::core::pack::law;
+    use arbiter::core::pack::CORE;
+    use arbiter::core::pack::GROUPS;
+    use arbiter::core::pack::RULES;
+    let mut counts = std::collections::HashMap::new();
+    for (_, members) in GROUPS {
+        for member in *members {
+            assert!(law(member).is_some(), "{member} names no rule");
+            *counts.entry(*member).or_insert(0) += 1;
+        }
+    }
+    for (rule, _) in RULES.iter().chain(CORE) {
+        assert_eq!(
+            counts.get(rule),
+            Some(&1),
+            "{rule} sits in no group, or in two"
+        );
+    }
+}
+
+#[test]
 fn a_stamp_names_the_arbiter_that_wrote_the_file() {
     let page = stamped("SKILL.md", "---\nname: x\n---\nthe law\n");
     let hook = stamped("arbiter-stop.sh", "#!/bin/bash\nexit 0\n");

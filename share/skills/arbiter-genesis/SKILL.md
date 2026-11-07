@@ -11,7 +11,7 @@ Birth order, whatever the language. The gate teaches as you go: run
 1. The brief first: add the case, or the need under an existing case, that
    commissions the unit, as `planned = true`. A unit is born commissioned,
    never orphaned.
-2. The manifest: the smallest shape below. The next gate judges wiring and
+2. The manifest: the smallest shape below. The next gate judges the dials and
    names each option the bar demands - write what it asks, never less.
 3. Join the repository: workspace membership where the ecosystem keeps one
    (`pnpm-workspace.yaml`, `[workspace]` members); a `visibility` entry in

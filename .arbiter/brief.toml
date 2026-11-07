@@ -103,26 +103,26 @@ name = "the-bar"
 story = "a unit's declared environment meets the pack's bar, which never lowers"
 
   [[case.need]]
-  need = "typescript wiring names each unset or lowered option"
+  need = "the typescript dials name each unset or lowered option"
   claims = [
     ". |  | the bar names each unset option and leaves a met one",
     ". |  | a lowered option is named with its value",
   ]
 
   [[case.need]]
-  need = "python wiring names lowered settings, checkers and excludes"
+  need = "the python dials name lowered settings, checkers and excludes"
   claims = [
     ". |  | a setting lowering the bar is named with its reason",
     ". |  | a lowered checker rule and mode are named",
-    ". |  | an environment setting passes the wiring",
+    ". |  | an environment setting passes the dials",
     ". |  | an exclude may name generated code and nothing else",
   ]
 
   [[case.need]]
-  need = "rust wiring names a lint turned to allow and passes one raised to deny"
+  need = "the rust dials name a lint turned to allow and pass one raised to deny"
   claims = [
     ". |  | a lint turned to allow is named in either form",
-    ". |  | a lint raised to deny passes the wiring",
+    ". |  | a lint raised to deny passes the dials",
   ]
 
 [[case]]
@@ -268,3 +268,7 @@ story = "the tool teaches its own use, and the taught word cannot drift"
   [[case.need]]
   need = "a unit's birth and an arrival on living code are each taught"
   manual = "read the arbiter-genesis and arbiter-arrival skills"
+
+  [[case.need]]
+  need = "every rule sits in one group, and the group answers for its laws"
+  claims = [". |  | every rule sits in exactly one group"]

@@ -114,8 +114,8 @@ pub const RULES: &[(&str, &str)] = &[
         "suppressions",
         "every suppression is counted against the reference; a blanket form is a finding",
     ),
-    ("wiring", "a unit's declared environment meets the pack's bar"),
-    ("tools", "lint, types and tests run pinned by the pack"),
+    ("ecosystem-dials", "a unit's declared environment meets the pack's bar"),
+    ("pinned-tools", "lint, types and tests run pinned by the pack"),
     (
         "no-warnings",
         "a tool's warning is a finding, never a soft state",
@@ -217,9 +217,85 @@ pub const CORE: &[(&str, &str)] = &[
     ),
 ];
 
+// The matrix's groups: each rule sits in exactly one, and a group's name
+// answers arbiter rules with every law it holds. A group is a shelf the
+// matrix prints by; it is never part of a rule's name.
+pub const GROUPS: &[(&str, &[&str])] = &[
+    ("symbols", &["dead-symbol", "tests-only-symbol"]),
+    (
+        "imports",
+        &[
+            "resolve",
+            "dynamic-import",
+            "reexport",
+            "hidden-name",
+            "crowded-import",
+            "self-entry",
+            "interior-import",
+            "phantom-import",
+        ],
+    ),
+    ("doors", &["unnamed-door"]),
+    (
+        "units",
+        &[
+            "container",
+            "cycle",
+            "uninvited-use",
+            "stale-grant",
+            "undeclared-unit",
+            "stale-declaration",
+        ],
+    ),
+    (
+        "third-parties",
+        &[
+            "undeclared-dependency",
+            "unused-dependency",
+            "split-version",
+            "unallowed-license",
+        ],
+    ),
+    (
+        "tooling",
+        &[
+            "ecosystem-dials",
+            "pinned-tools",
+            "no-warnings",
+            "untested-branch",
+        ],
+    ),
+    ("suppressions", &["suppressions", "blanket-suppression"]),
+    (
+        "claims",
+        &[
+            "tautology",
+            "stray-test",
+            "vanished-claim",
+            "unwired-claim",
+            "unanswered-need",
+            "stale-binding",
+            "empty-case",
+            "unparsed",
+        ],
+    ),
+    ("generated", &["generated", "drift"]),
+    ("comments", &["comment-overreach"]),
+    ("images", &["unpinned-image"]),
+];
+
 // Whether arbiter rules answers the name: every finding carries one it does.
 pub fn drillable(name: &str) -> bool {
     RULES.iter().chain(CORE).any(|(rule, _)| *rule == name)
+}
+
+// The law a name states, wherever its row lives.
+pub fn law(name: &str) -> Option<&'static str> {
+    RULES
+        .iter()
+        .chain(CORE)
+        .find(|(rule, _)| *rule == name)
+        .map(|(_, law)| *law)
 }
 
 // A language. It says what defines a symbol and what uses one; the core knows no language.
@@ -265,7 +341,7 @@ pub trait Pack {
 
     // Holds the unit's declared environment to the pack's bar; None where no bar exists yet.
     // Settings may add, never lower: each finding names one option sitting below the bar.
-    fn wiring(&self, folder: &Path) -> Option<Vec<String>> {
+    fn dials(&self, folder: &Path) -> Option<Vec<String>> {
         let _ = folder;
         None
     }

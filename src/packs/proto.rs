@@ -67,7 +67,7 @@ impl Pack for Proto {
             ("unused-dependency", "held"),
             ("suppressions", "held"),
             ("container", "held"),
-            ("tools", "held"),
+            ("pinned-tools", "held"),
             ("no-warnings", "held"),
             (
                 "generated",

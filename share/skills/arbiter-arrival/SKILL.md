@@ -25,7 +25,7 @@ campaigns land in the user's order.
 Each is its own commit, opened at the user's word; none blocks the task at
 hand.
 
-1. **Wiring.** Each unit's declared environment meets the bar; the gate
+1. **Ecosystem dials.** Each unit's declared environment meets the bar; the gate
    names every unset or lowered option, unit by unit. Raise the
    configuration, never lower the bar.
 2. **The mechanical pass.** One `arbiter gate --fix .`: packs mend their
@@ -55,5 +55,5 @@ hand.
 - Never silence a finding to get green, and never reword code so a check
   stops matching it. Both are the user's decisions.
 - A finding outside the task is reported, never fixed unasked.
-- When the task collides with the debt - its unit fails wiring, its test
+- When the task collides with the debt - its unit fails its dials, its test
   needs a service - say so and ask whether to set up first or do the task.

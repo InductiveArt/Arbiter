@@ -19,7 +19,7 @@ what they decide.
 | `arbiter ledger .` | the signature's account: suppressions, third parties and claims against the reference. | no |
 | `arbiter ledger sign .` | record today's account as the reference: the user's signature. **Never run it.** | yes |
 | `arbiter brief [case] .` | every need's state against the claims tree; a case is one slice. Each need held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. | no |
-| `arbiter rules [rule]` | the matrix and each law; one rule prints its whys. | no |
+| `arbiter rules [rule]` | the matrix in groups and each law; a rule prints its whys, a group its laws. | no |
 | `arbiter adopt .` | install the agent layer; arbiter-owned files refresh with the binary, never backwards: a file written by a newer arbiter is left, and the binary updates. `settings.json` and the `CLAUDE.md` pointer are written once. | yes |
 
 gate, adopt and ledger sign act; find, ledger, brief and rules read and never write.
@@ -118,7 +118,7 @@ Each finding has one expected fix. A suppression is never one of them.
 | `unparsed` | Repair the decision file's TOML and tell the user what broke - its content is theirs. |
 | `unpinned-image` | Pin the image by digest (`name@sha256:...`); a tag may ride beside the digest, never alone. |
 | `blanket-suppression` | Replace it with the one-rule named form - and that form is still a suppression: the user decides. |
-| wiring (option below the bar) | Earn the option: annotate exports, guard index access. Never a non-null assertion, never a cast, never lowering the config. |
+| `ecosystem-dials` (option below the bar) | Earn the option: annotate exports, guard index access. Never a non-null assertion, never a cast, never lowering the config. |
 | tool failures (lint, types, test) | Read the unit's section in the report - it holds the whole output - and fix the code. Complexity findings take named extractions, not reshuffling. |
 | `vanished-claim` | Restore the behavior and its test, or ask the user to sign the removal - a claim once signed leaves only with their signature. |
 | `unanswered-need` | Bind the claims that prove it, or mark it planned or manual - never invent the binding; the need's meaning is the user's. |

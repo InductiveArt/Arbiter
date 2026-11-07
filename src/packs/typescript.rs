@@ -87,8 +87,8 @@ impl Pack for TypeScript {
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
             ("suppressions", "held"),
-            ("wiring", "held"),
-            ("tools", "held"),
+            ("ecosystem-dials", "held"),
+            ("pinned-tools", "held"),
             ("no-warnings", "held"),
             ("tautology", "held"),
             ("stray-test", "held"),
@@ -137,7 +137,7 @@ impl Pack for TypeScript {
         )]
     }
 
-    fn wiring(&self, folder: &Path) -> Option<Vec<String>> {
+    fn dials(&self, folder: &Path) -> Option<Vec<String>> {
         let finished = std::process::Command::new(RESOLVE[0])
             .args(&RESOLVE[1..])
             .current_dir(folder)

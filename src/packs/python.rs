@@ -84,8 +84,8 @@ impl Pack for Python {
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
             ("suppressions", "held"),
-            ("wiring", "held"),
-            ("tools", "held"),
+            ("ecosystem-dials", "held"),
+            ("pinned-tools", "held"),
             ("no-warnings", "held"),
             ("tautology", "held"),
             (
@@ -133,7 +133,7 @@ impl Pack for Python {
         parsed.get("project").is_none() && workspace.is_some()
     }
 
-    fn wiring(&self, folder: &Path) -> Option<Vec<String>> {
+    fn dials(&self, folder: &Path) -> Option<Vec<String>> {
         let Ok(manifest) = fs::read_to_string(folder.join("pyproject.toml")) else {
             return Some(vec![
                 "no pyproject.toml; the unit declares no environment".to_string()
@@ -1498,7 +1498,7 @@ mod tests {
     }
 
     #[test]
-    fn an_environment_setting_passes_the_wiring() {
+    fn an_environment_setting_passes_the_dials() {
         let manifest = "[project]\nname = \"a\"\nversion = \"0\"\n\
                         [tool.ruff]\nextend = \"shared.toml\"\n\
                         [tool.basedpyright]\nextends = \"shared.json\"\n";
