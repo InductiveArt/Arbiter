@@ -79,7 +79,7 @@ impl Pack for Python {
             ("hidden-name", "held"),
             ("crowded-import", "held"),
             ("comment-overreach", "held"),
-            ("unnamed-door", "held"),
+            ("undeclared-protocol", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
             ("ecosystem-dials", "held"),
@@ -609,7 +609,7 @@ impl Pack for Python {
                         check: "integrity",
                         file: (*place_file).clone(),
                         line: *place_line,
-                        name: "unnamed-door".to_string(),
+                        name: "undeclared-protocol".to_string(),
                         reason: format!(
                             "{constructor} stands where {asked} is asked and names no such \
                              base; a protocol satisfied by shape is still named"

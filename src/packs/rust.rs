@@ -63,7 +63,7 @@ impl Pack for Rust {
             ),
             ("hidden-name", "held"),
             (
-                "unnamed-door",
+                "undeclared-protocol",
                 "never: a trait is nominal; nothing implements invisibly",
             ),
             ("crowded-import", "held"),

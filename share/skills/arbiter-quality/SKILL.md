@@ -19,7 +19,7 @@ what they decide.
 | `arbiter ledger .` | the signature's account: suppressions, third parties and claims against the reference. | no |
 | `arbiter ledger sign .` | record today's account as the reference: the user's signature. **Never run it.** | yes |
 | `arbiter brief [case] .` | every need's state against the claims tree; a case is one slice. Each need held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. | no |
-| `arbiter rules [rule]` | the matrix in groups and each law; a rule prints its whys, a group its laws. | no |
+| `arbiter rules [rule]` | the matrix in groups; a rule prints its law and whys, a group its laws. | no |
 | `arbiter adopt .` | install the agent layer; its files refresh with the binary, never backwards: a file written by a newer arbiter is left, and the binary updates. `settings.json` and the `CLAUDE.md` pointer are written once. | yes |
 
 gate, adopt and ledger sign act; find, ledger, brief and rules read and never write.
@@ -107,7 +107,7 @@ Each finding has one expected fix. A suppression is never one of them.
 | `comment-overreach` | Reword the comment to name only what its file defines, uses or quotes - keep the meaning, lose the foreign names. |
 | `undeclared-dependency` | Declare it in the importing unit's own manifest - another unit's declaration never counts. Shipped code takes a real dependency; development code (a test, a toolchain config file, a type-only import) may rest on a development table. Dynamic, default, namespace and bare side-effect imports all count. |
 | `unused-dependency` | Delete the declaration, or make the use real. A peer contract, a script-run tool, a stub of an imported library, a runner's plugin and the adapter's own packages already count as reached. |
-| `unnamed-door` | Name the door: the python class subclasses its Protocol, the TypeScript class writes `implements`. Conformance stays structural; the edge becomes one the graph resolves. |
+| `undeclared-protocol` | Name the door: the python class subclasses its Protocol, the TypeScript class writes `implements`. Conformance stays structural; the edge becomes one the graph resolves. |
 | `phantom-import` | Point the import at the module its contract generates, or regenerate - and a resolver gap is reported with evidence, never fixed by deleting. |
 | `stray-test` | Name the test with a literal sentence; a title built at run time cannot be heard as a claim. |
 | `split-version` | Converge the lockfiles on one version. |

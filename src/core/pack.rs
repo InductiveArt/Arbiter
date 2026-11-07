@@ -102,7 +102,7 @@ pub const RULES: &[(&str, &str)] = &[
         "a third party a manifest declares and nothing reaches is named for deletion",
     ),
     (
-        "unnamed-door",
+        "undeclared-protocol",
         "a class standing where a protocol is asked names it among its bases",
     ),
     (
@@ -229,7 +229,7 @@ pub const GROUPS: &[(&str, &[&str])] = &[
             "phantom-import",
         ],
     ),
-    ("doors", &["unnamed-door"]),
+    ("protocols", &["undeclared-protocol"]),
     (
         "units",
         &[

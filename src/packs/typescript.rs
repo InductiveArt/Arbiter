@@ -88,7 +88,7 @@ impl Pack for TypeScript {
             ("ecosystem-dials", "held"),
             ("tautology", "held"),
             ("stray-test", "held"),
-            ("unnamed-door", "held"),
+            ("undeclared-protocol", "held"),
             ("phantom-import", "held"),
             (
                 "stale-generated",
@@ -622,7 +622,7 @@ impl Pack for TypeScript {
                         check: "integrity",
                         file: (*place_file).clone(),
                         line: *place_line,
-                        name: "unnamed-door".to_string(),
+                        name: "undeclared-protocol".to_string(),
                         reason: format!(
                             "{construction} stands where {asked} is asked and names no \
                                  such base; a protocol satisfied by shape is still named"

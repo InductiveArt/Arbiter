@@ -41,7 +41,7 @@ impl Pack for Infra {
                 "never: a manifest's third parties are images, judged by digest",
             ),
             (
-                "unnamed-door",
+                "undeclared-protocol",
                 "never: a manifest declares state; it names no classes",
             ),
             (

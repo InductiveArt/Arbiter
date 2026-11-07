@@ -838,19 +838,9 @@ fn matrix() {
         }
     }
     println!();
-    println!("each law, group by group:");
-    for (group, members) in pack::GROUPS {
-        println!("{group}");
-        for member in *members {
-            if let Some(law) = pack::law(member) {
-                println!("  {member}: {law}");
-            }
-        }
-    }
-    println!();
     println!(
-        "arbiter rules <rule> prints one rule's stance in every language, with each \
-         never's why; a group name prints its laws."
+        "arbiter rules <rule> prints the law and each stance with its why; \
+         a group name prints its laws."
     );
 }
 

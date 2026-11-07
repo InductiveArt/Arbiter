@@ -55,7 +55,7 @@ impl Pack for Proto {
             ),
             ("comment-overreach", "held"),
             (
-                "unnamed-door",
+                "undeclared-protocol",
                 "never: a contract declares shapes, never classes",
             ),
             ("undeclared-dependency", "held"),

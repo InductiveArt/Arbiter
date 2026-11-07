@@ -503,7 +503,7 @@ fn a_class_standing_where_a_protocol_is_asked_names_it() {
         .expect("the python pack exists")
         .integrity(&judged.root, &judged.repo)
         .iter()
-        .filter(|finding| finding.name == "unnamed-door")
+        .filter(|finding| finding.name == "undeclared-protocol")
         .map(|finding| finding.reason.clone())
         .collect();
     assert_eq!(
@@ -541,7 +541,7 @@ fn a_class_standing_where_an_interface_is_asked_names_it() {
         .expect("the typescript pack exists")
         .integrity(&judged.root, &judged.repo)
         .iter()
-        .filter(|finding| finding.name == "unnamed-door")
+        .filter(|finding| finding.name == "undeclared-protocol")
         .map(|finding| finding.reason.clone())
         .collect();
     assert_eq!(

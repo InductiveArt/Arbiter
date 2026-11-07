@@ -35,7 +35,7 @@ pub const VERBS: &[(&str, &str)] = &[
     ),
     (
         "rules [rule]",
-        "the matrix in groups and each law; a rule prints its whys, a group its laws",
+        "the matrix in groups; a rule prints its law and whys, a group its laws",
     ),
     (
         "adopt",
