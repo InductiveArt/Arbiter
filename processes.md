@@ -106,9 +106,13 @@ the fix. Laws. Evidence: the findings themselves, named and placed.
 
 **Dials.** Provides the bar: each unit's declared configuration — the
 ecosystem's dials — held to the pack's floor. A setting may add, never
-lower, because the cheapest green is a loosened judge. Laws over facts,
-bounded by authority. Evidence: one outcome per unit, each unset or
-lowered option named in the report.
+lower, because the cheapest green is a loosened judge. The same files
+declare where dependencies come from, so a source slipping the locked
+registry is named here too. Laws over facts, bounded by authority.
+Evidence: a finding per unset dial, lowered dial or off-channel source,
+at the unit's config file — read fresh every run, warm or not, because a
+finding never rests on the store. TypeScript's dials resolve through the
+pinned tsc, which is why these laws answer at the gate, not at find.
 
 **Tools.** Provides the verdicts code cannot self-report: lint, types,
 tests. The pack pins the versions — the pins are not checked, they are
@@ -116,8 +120,10 @@ constitution: a unit never chooses its own judge. Warnings fail, never
 float. Laws, priced by economy. Evidence: one outcome per check per
 unit, the whole output in the report.
 
-**Drift.** Provides the contract check: generated code matches what its
-contracts generate, digest-keyed so unmoved contracts cost nothing.
+**Contracts.** Provides the inter-language check, twice: generated code
+matches what its contracts generate (stale-generated), and the contracts
+themselves break their signed image only with the user's signature
+(inter-language-break). Digest-keyed so unmoved contracts cost nothing.
 Laws, priced by economy. Evidence: outcomes per unit.
 
 **Claims.** Provides the heard tree: every test sentence, under its

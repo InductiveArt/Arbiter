@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use tree_sitter::Language;
 use tree_sitter::Tree;
 
+use crate::core::pack::dial;
 use crate::core::pack::pinned;
 use crate::core::pack::Claim;
 use crate::core::pack::Def;
@@ -90,7 +91,11 @@ impl Pack for TypeScript {
             ("unnamed-door", "held"),
             ("phantom-import", "held"),
             (
-                "drift",
+                "stale-generated",
+                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+            ),
+            (
+                "inter-language-break",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
             ),
         ]
@@ -130,35 +135,42 @@ impl Pack for TypeScript {
         )]
     }
 
-    fn dials(&self, folder: &Path) -> Option<Vec<String>> {
+    fn dials(&self, home: &Path, folder: &Path) -> Option<(Vec<Finding>, Vec<String>)> {
         let finished = std::process::Command::new(RESOLVE[0])
             .args(&RESOLVE[1..])
             .current_dir(folder)
             .output();
         let Ok(output) = finished else {
-            return Some(vec![format!("{} did not start", RESOLVE[0])]);
+            return Some((Vec::new(), vec![format!("{} did not start", RESOLVE[0])]));
         };
         if !output.status.success() {
-            return Some(vec![
-                "no tsconfig.json resolves here; the unit declares no environment".to_string(),
-            ]);
+            return Some((
+                vec![dial(
+                    home,
+                    "tsconfig.json",
+                    "unset-dial",
+                    "no tsconfig.json resolves here; the unit declares no environment".to_string(),
+                )],
+                Vec::new(),
+            ));
         }
         let Ok(resolved) = serde_json::from_slice::<serde_json::Value>(&output.stdout) else {
-            return Some(vec![
-                "tsc --showConfig answered something unreadable".to_string()
-            ]);
+            return Some((
+                Vec::new(),
+                vec!["tsc --showConfig answered something unreadable".to_string()],
+            ));
         };
         let options = resolved
             .get("compilerOptions")
             .cloned()
             .unwrap_or(serde_json::Value::Null);
-        let mut findings = option_findings(&options);
+        let mut found = option_findings(&options, home);
         if let Ok(manifest) = std::fs::read_to_string(folder.join("package.json")) {
             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&manifest) {
-                findings.extend(dependency_findings(&parsed));
+                found.extend(dependency_findings(&parsed, home));
             }
         }
-        Some(findings)
+        Some((found, Vec::new()))
     }
 
     fn claims(&self, source: &str) -> Vec<Claim> {
@@ -1048,7 +1060,7 @@ const OUTSIDE_CHANNELS: [&str; 7] = [
 
 // The registry and the workspace are the only channels: a git, URL or file
 // source slips past the lockfile's hashes and past the split-version rule.
-fn dependency_findings(parsed: &serde_json::Value) -> Vec<String> {
+fn dependency_findings(parsed: &serde_json::Value, home: &Path) -> Vec<Finding> {
     let mut findings = Vec::new();
     for section in DEPENDENCY_SECTIONS {
         let Some(table) = parsed.get(section).and_then(serde_json::Value::as_object) else {
@@ -1060,9 +1072,14 @@ fn dependency_findings(parsed: &serde_json::Value) -> Vec<String> {
                 .iter()
                 .any(|channel| spec.starts_with(channel))
             {
-                findings.push(format!(
-                    "{section}.{name} is \"{spec}\"; \
-                     a dependency comes from the locked registry or the workspace"
+                findings.push(dial(
+                    home,
+                    "package.json",
+                    "off-channel-dependency",
+                    format!(
+                        "{section}.{name} is \"{spec}\"; \
+                         a dependency comes from the locked registry or the workspace"
+                    ),
                 ));
             }
         }
@@ -1112,7 +1129,7 @@ fn manifest_license(parsed: &serde_json::Value) -> (Option<String>, String) {
     (name, license)
 }
 
-fn option_findings(options: &serde_json::Value) -> Vec<String> {
+fn option_findings(options: &serde_json::Value, home: &Path) -> Vec<Finding> {
     let bar = BAR.parse::<toml::Value>().expect("a pack's bar parses");
     let Some(required) = bar.get("compilerOptions").and_then(toml::Value::as_table) else {
         return Vec::new();
@@ -1123,12 +1140,15 @@ fn option_findings(options: &serde_json::Value) -> Vec<String> {
         if actual.is_some_and(|value| meets(value, needed)) {
             continue;
         }
-        let found = match actual {
-            None => "unset".to_string(),
-            Some(value) => value.to_string(),
+        let (kind, found) = match actual {
+            None => ("unset-dial", "unset".to_string()),
+            Some(value) => ("lowered-dial", value.to_string()),
         };
-        findings.push(format!(
-            "compilerOptions.{name} is {found}; the bar says {needed}"
+        findings.push(dial(
+            home,
+            "tsconfig.json",
+            kind,
+            format!("compilerOptions.{name} is {found}; the bar says {needed}"),
         ));
     }
     findings
@@ -2003,35 +2023,37 @@ mod tests {
             },
             "devDependencies": { "linked": "link:../elsewhere" }
         });
-        let findings = dependency_findings(&manifest);
+        let findings = dependency_findings(&manifest, Path::new("u"));
+        assert!(findings.iter().any(|finding| finding
+            .reason
+            .starts_with("dependencies.forked is \"github:x/forked\";")));
         assert!(findings
             .iter()
-            .any(|finding| finding.starts_with("dependencies.forked is \"github:x/forked\";")));
+            .any(|finding| finding.reason.contains("dependencies.grabbed")));
         assert!(findings
             .iter()
-            .any(|finding| finding.contains("dependencies.grabbed")));
-        assert!(findings
-            .iter()
-            .any(|finding| finding.contains("devDependencies.linked")));
+            .any(|finding| finding.reason.contains("devDependencies.linked")));
         assert_eq!(findings.len(), 3);
     }
 
     #[test]
     fn the_bar_names_each_unset_option_and_leaves_a_met_one() {
         let options = serde_json::json!({ "strict": true });
-        let findings = option_findings(&options);
+        let findings = option_findings(&options, Path::new("u"));
         assert!(findings
             .iter()
-            .any(|finding| finding.contains("noUnusedLocals is unset")));
-        assert!(!findings.iter().any(|finding| finding.contains("strict is")));
+            .any(|finding| finding.reason.contains("noUnusedLocals is unset")));
+        assert!(!findings
+            .iter()
+            .any(|finding| finding.reason.contains("strict is")));
     }
 
     #[test]
     fn a_lowered_option_is_named_with_its_value() {
         let options = serde_json::json!({ "allowUnreachableCode": true });
-        assert!(option_findings(&options)
+        assert!(option_findings(&options, Path::new("u"))
             .iter()
-            .any(|finding| finding
+            .any(|finding| finding.reason
                 == "compilerOptions.allowUnreachableCode is true; the bar says false"));
     }
 

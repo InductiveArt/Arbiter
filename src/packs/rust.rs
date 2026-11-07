@@ -5,6 +5,7 @@ use tree_sitter::Language;
 use tree_sitter::Node;
 use tree_sitter::Tree;
 
+use crate::core::pack::dial;
 use crate::core::pack::Claim;
 use crate::core::pack::Def;
 use crate::core::pack::Definition;
@@ -76,7 +77,11 @@ impl Pack for Rust {
                 "never: a test is a fn, and a fn's name is always literal",
             ),
             (
-                "drift",
+                "stale-generated",
+                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+            ),
+            (
+                "inter-language-break",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
             ),
         ]
@@ -106,13 +111,19 @@ impl Pack for Rust {
         parsed.get("workspace").is_some() && parsed.get("package").is_none()
     }
 
-    fn dials(&self, folder: &Path) -> Option<Vec<String>> {
+    fn dials(&self, home: &Path, folder: &Path) -> Option<(Vec<Finding>, Vec<String>)> {
         let Ok(manifest) = std::fs::read_to_string(folder.join("Cargo.toml")) else {
-            return Some(vec![
-                "no Cargo.toml; the unit declares no environment".to_string()
-            ]);
+            return Some((
+                vec![dial(
+                    home,
+                    "Cargo.toml",
+                    "unset-dial",
+                    "no Cargo.toml; the unit declares no environment".to_string(),
+                )],
+                Vec::new(),
+            ));
         };
-        Some(manifest_findings(&manifest))
+        Some((manifest_findings(&manifest, home), Vec::new()))
     }
 
     fn claims(&self, source: &str) -> Vec<Claim> {
@@ -510,9 +521,14 @@ fn declared_crates(root: &Path, repo: &Repo) -> std::collections::HashMap<usize,
 }
 
 // The bar denies every warning, so a lint turned to allow in the manifest lowers it.
-fn manifest_findings(manifest: &str) -> Vec<String> {
+fn manifest_findings(manifest: &str, home: &Path) -> Vec<Finding> {
     let Ok(parsed) = manifest.parse::<toml::Value>() else {
-        return vec!["Cargo.toml does not parse".to_string()];
+        return vec![dial(
+            home,
+            "Cargo.toml",
+            "unset-dial",
+            "Cargo.toml does not parse; every dial is unreadable".to_string(),
+        )];
     };
     let mut findings = Vec::new();
     for base in ["lints", "workspace.lints"] {
@@ -523,8 +539,11 @@ fn manifest_findings(manifest: &str) -> Vec<String> {
             };
             for (name, level) in table {
                 if allows(level) {
-                    findings.push(format!(
-                        "{path}.{name} is allow; the bar denies every warning"
+                    findings.push(dial(
+                        home,
+                        "Cargo.toml",
+                        "lowered-dial",
+                        format!("{path}.{name} is allow; the bar denies every warning"),
                     ));
                 }
             }
@@ -543,18 +562,28 @@ fn manifest_findings(manifest: &str) -> Vec<String> {
         };
         for (name, spec) in table {
             if spec.get("git").is_some() {
-                findings.push(format!(
-                    "{base}.{name} comes from git; \
-                     a dependency comes from the locked registry or this repository"
+                findings.push(dial(
+                    home,
+                    "Cargo.toml",
+                    "off-channel-dependency",
+                    format!(
+                        "{base}.{name} comes from git; \
+                         a dependency comes from the locked registry or this repository"
+                    ),
                 ));
             } else if spec
                 .get("path")
                 .and_then(toml::Value::as_str)
                 .is_some_and(|path| Path::new(path).is_absolute())
             {
-                findings.push(format!(
-                    "{base}.{name} is an absolute path; \
-                     a path dependency stays inside the repository"
+                findings.push(dial(
+                    home,
+                    "Cargo.toml",
+                    "off-channel-dependency",
+                    format!(
+                        "{base}.{name} is an absolute path; \
+                         a path dependency stays inside the repository"
+                    ),
                 ));
             }
         }
@@ -920,13 +949,13 @@ mod tests {
         let manifest = "[dependencies]\nserde = \"1\"\n\
                         forked = { git = \"https://github.com/x/forked\" }\n\
                         patched = { path = \"/abs/patched\" }\nlocal = { path = \"../local\" }\n";
-        let findings = manifest_findings(manifest);
-        assert!(findings
-            .iter()
-            .any(|finding| finding.starts_with("dependencies.forked comes from git;")));
-        assert!(findings
-            .iter()
-            .any(|finding| finding.starts_with("dependencies.patched is an absolute path;")));
+        let findings = manifest_findings(manifest, Path::new("u"));
+        assert!(findings.iter().any(|finding| finding
+            .reason
+            .starts_with("dependencies.forked comes from git;")));
+        assert!(findings.iter().any(|finding| finding
+            .reason
+            .starts_with("dependencies.patched is an absolute path;")));
         assert_eq!(findings.len(), 2);
     }
 
@@ -934,19 +963,19 @@ mod tests {
     fn a_lint_turned_to_allow_is_named_in_either_form() {
         let manifest = "[lints.clippy]\ncmp_owned = \"allow\"\n\
                         [workspace.lints.rust]\ndead_code = { level = \"allow\", priority = 1 }\n";
-        let findings = manifest_findings(manifest);
-        assert!(findings
-            .iter()
-            .any(|finding| finding.starts_with("lints.clippy.cmp_owned is allow;")));
-        assert!(findings
-            .iter()
-            .any(|finding| finding.starts_with("workspace.lints.rust.dead_code is allow;")));
+        let findings = manifest_findings(manifest, Path::new("u"));
+        assert!(findings.iter().any(|finding| finding
+            .reason
+            .starts_with("lints.clippy.cmp_owned is allow;")));
+        assert!(findings.iter().any(|finding| finding
+            .reason
+            .starts_with("workspace.lints.rust.dead_code is allow;")));
     }
 
     #[test]
     fn a_lint_raised_to_deny_passes_the_dials() {
         let manifest = "[lints.clippy]\nunwrap_used = \"deny\"\n";
-        assert!(manifest_findings(manifest).is_empty());
+        assert!(manifest_findings(manifest, Path::new("u")).is_empty());
     }
 
     #[test]

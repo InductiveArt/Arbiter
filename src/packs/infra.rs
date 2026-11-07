@@ -77,7 +77,11 @@ impl Pack for Infra {
                 "never: a manifest declares state; it asserts nothing",
             ),
             (
-                "drift",
+                "stale-generated",
+                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+            ),
+            (
+                "inter-language-break",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
             ),
         ]

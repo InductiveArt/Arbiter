@@ -49,7 +49,7 @@ pub struct Run {
 // Judges everything: the units' tools, then the graph. A fixing run repairs first,
 // so the graph is read only after the repairs have settled.
 pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run> {
-    let (outcomes, mut notes, found) = if fixing {
+    let (outcomes, mut notes, dialed, found) = if fixing {
         let root = PathBuf::from(asked).canonicalize().ok()?;
         let packs = packs::all();
         let repo = units::scan(&root, &packs);
@@ -61,7 +61,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         }
         let found = graph::graph(asked)?;
         let warmth = heated(&found, cold);
-        let (outcomes, mut notes) = outcomes::judged(
+        let (outcomes, mut notes, dialed) = outcomes::judged(
             &found.root,
             &found.repo,
             &found.packs,
@@ -70,11 +70,11 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
             warmth.as_ref(),
         );
         notes.extend(mended);
-        (outcomes, notes, found)
+        (outcomes, notes, dialed, found)
     } else {
         let found = graph::graph(asked)?;
         let warmth = heated(&found, cold);
-        let (outcomes, notes) = outcomes::judged(
+        let (outcomes, notes, dialed) = outcomes::judged(
             &found.root,
             &found.repo,
             &found.packs,
@@ -82,15 +82,17 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
             cold,
             warmth.as_ref(),
         );
-        (outcomes, notes, found)
+        (outcomes, notes, dialed, found)
     };
     let commissioned = brief::commissioned(&found);
     let (winnowed, nascent) =
         findings::winnow(&found.defs, &found.edges, &found.repo, &commissioned);
     notes.extend(nascent);
     let mut all = winnowed;
+    all.extend(dialed);
     all.extend(findings::integrity(&found));
     all.extend(ledger::blanket_findings(&found));
+    all.extend(ledger::broken_record(&found.root));
     let brief = if briefless {
         BriefLine::Skipped
     } else {

@@ -70,7 +70,7 @@ pub fn read(found: &Graph) -> Option<Reading> {
                     check: "brief",
                     file: brief_path,
                     line: 0,
-                    name: "unparsed".to_string(),
+                    name: "unparsable-user-record".to_string(),
                     reason: format!("{BRIEF} does not parse"),
                 }],
                 claims: 0,

@@ -96,7 +96,7 @@ fn licenses(found: &Graph) -> Vec<Finding> {
             check: "licenses",
             file: PathBuf::from(LICENSES),
             line: 0,
-            name: "unparsed".to_string(),
+            name: "unparsable-user-record".to_string(),
             reason: format!("{LICENSES} does not parse"),
         }];
     };

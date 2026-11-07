@@ -2,6 +2,7 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
+use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::units::Repo;
 
@@ -70,23 +71,42 @@ pub(crate) fn judged(
     fixing: bool,
     cold: bool,
     warmth: Option<&crate::core::warm::Warmth>,
-) -> (Vec<Outcome>, Vec<String>) {
+) -> (Vec<Outcome>, Vec<String>, Vec<Finding>) {
     let mut outcomes = Vec::new();
     let mut notes = Vec::new();
+    let mut dialed = Vec::new();
     for (index, unit) in repo.units.iter().enumerate() {
         // A unit on a test path is a fixture: data for some test, not code to judge.
         if repo.is_test(index, &unit.path) {
             continue;
         }
+        let folder = root.join(&unit.path);
+        let shown = if unit.path.as_os_str().is_empty() {
+            ".".to_string()
+        } else {
+            unit.path.to_string_lossy().to_string()
+        };
+        // Dials are findings, and a finding never rests on the store: they are
+        // read fresh for every unit, warm or not.
+        for pack in packs {
+            let Some(manifest) = pack.manifest() else {
+                continue;
+            };
+            let Ok(declared) = std::fs::read_to_string(folder.join(manifest)) else {
+                continue;
+            };
+            if pack.container(&declared) {
+                continue;
+            }
+            if let Some((found, told)) = pack.dials(&unit.path, &folder) {
+                dialed.extend(found);
+                notes.extend(told.into_iter().map(|note| format!("{shown}: {note}")));
+            }
+        }
         // A green run stored under an unchanged key answers for the unit's tools;
         // the graph is recomputed regardless, so no finding ever rests on the store.
         if let Some(warmth) = warmth {
             if let Some(stored) = warmth.stored(index, &unit.path) {
-                let shown = if unit.path.as_os_str().is_empty() {
-                    ".".to_string()
-                } else {
-                    unit.path.to_string_lossy().to_string()
-                };
                 for check in stored {
                     let Some(pack) = packs.iter().find(|pack| pack.label() == check.pack) else {
                         continue;
@@ -105,12 +125,6 @@ pub(crate) fn judged(
             }
         }
         let first = outcomes.len();
-        let folder = root.join(&unit.path);
-        let shown = if unit.path.as_os_str().is_empty() {
-            ".".to_string()
-        } else {
-            unit.path.to_string_lossy().to_string()
-        };
         for pack in packs {
             let Some(manifest) = pack.manifest() else {
                 continue;
@@ -124,18 +138,6 @@ pub(crate) fn judged(
                     pack.label()
                 ));
                 continue;
-            }
-            let started = Instant::now();
-            if let Some(findings) = pack.dials(&folder) {
-                outcomes.push(Outcome {
-                    unit: shown.clone(),
-                    pack: pack.label(),
-                    check: "ecosystem-dials".to_string(),
-                    passed: findings.is_empty(),
-                    seconds: started.elapsed().as_secs_f64(),
-                    output: findings.join("\n"),
-                    warm: false,
-                });
             }
             let Some(adapter) = pack.adapter() else {
                 notes.push(format!(
@@ -201,7 +203,7 @@ pub(crate) fn judged(
             }
         }
     }
-    (outcomes, notes)
+    (outcomes, notes, dialed)
 }
 
 struct Check {

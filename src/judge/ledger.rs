@@ -98,6 +98,24 @@ pub fn recorded_packages(root: &Path) -> Option<Vec<String>> {
     )
 }
 
+// A reference that exists but cannot be read is named, never read as virgin:
+// the signature's record is irreplaceable.
+pub fn broken_record(root: &Path) -> Vec<Finding> {
+    let Ok(text) = fs::read_to_string(root.join(REFERENCE)) else {
+        return Vec::new();
+    };
+    if serde_json::from_str::<serde_json::Value>(&text).is_ok() {
+        return Vec::new();
+    }
+    vec![Finding {
+        check: "ledger",
+        file: std::path::PathBuf::from(REFERENCE),
+        line: 0,
+        name: "unparsable-user-record".to_string(),
+        reason: format!("{REFERENCE} does not parse; the signature cannot be read"),
+    }]
+}
+
 pub fn reference(root: &Path) -> Option<Vec<(String, String)>> {
     let text = fs::read_to_string(root.join(REFERENCE)).ok()?;
     let parsed: serde_json::Value = serde_json::from_str(&text).ok()?;

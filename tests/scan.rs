@@ -554,3 +554,18 @@ fn a_class_standing_where_an_interface_is_asked_names_it() {
 
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_broken_reference_is_named_never_read_as_virgin() {
+    let root = std::env::temp_dir().join(format!("arbiter-record-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
+    fs::write(root.join(".arbiter/reference.json"), "{ not json").expect("the folder is writable");
+    let broken = arbiter::judge::ledger::broken_record(&root);
+    assert_eq!(broken.len(), 1);
+    assert_eq!(broken[0].name, "unparsable-user-record");
+    assert!(broken[0].reason.contains("the signature cannot be read"));
+    fs::write(root.join(".arbiter/reference.json"), "{}").expect("the folder is writable");
+    assert!(arbiter::judge::ledger::broken_record(&root).is_empty());
+    let _ = fs::remove_dir_all(&root);
+}

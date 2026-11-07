@@ -105,7 +105,18 @@ pub const RULES: &[(&str, &str)] = &[
         "unnamed-door",
         "a class standing where a protocol is asked names it among its bases",
     ),
-    ("ecosystem-dials", "a unit's declared environment meets the pack's bar"),
+    (
+        "unset-dial",
+        "a dial the bar requires is present in the unit's config",
+    ),
+    (
+        "lowered-dial",
+        "a dial sits at or above the pack's floor; a setting may add, never lower",
+    ),
+    (
+        "off-channel-dependency",
+        "a dependency comes from the locked registry or this repository; git, url and absolute paths slip the lock",
+    ),
     (
         "untested-branch",
         "a unit's tests reach every branch of its source",
@@ -115,8 +126,12 @@ pub const RULES: &[(&str, &str)] = &[
         "a generated import resolves to the contract it was generated from; one naming no contract is a finding",
     ),
     (
-        "drift",
-        "generated code matches its contract, and a contract break is a finding",
+        "stale-generated",
+        "generated code matches what its contracts generate; missing, differing and orphaned output is named",
+    ),
+    (
+        "inter-language-break",
+        "an inter-language contract breaks its signed image only with the user's signature",
     ),
     (
         "unpinned-image",
@@ -193,8 +208,8 @@ pub const CORE: &[(&str, &str)] = &[
         "a case declares at least one need; a case with no needs proves nothing",
     ),
     (
-        "unparsed",
-        "a decision file parses, or the break itself is the finding",
+        "unparsable-user-record",
+        "a record the user wrote parses, or the break itself is the finding; a store is rebuilt, never judged",
     ),
 ];
 
@@ -230,11 +245,15 @@ pub const GROUPS: &[(&str, &[&str])] = &[
         &[
             "undeclared-dependency",
             "unused-dependency",
+            "off-channel-dependency",
             "split-version",
             "unallowed-license",
         ],
     ),
-    ("tooling", &["ecosystem-dials", "untested-branch"]),
+    (
+        "tooling",
+        &["unset-dial", "lowered-dial", "untested-branch"],
+    ),
     ("suppressions", &["blanket-suppression"]),
     (
         "claims",
@@ -246,17 +265,35 @@ pub const GROUPS: &[(&str, &[&str])] = &[
             "unanswered-need",
             "stale-binding",
             "empty-case",
-            "unparsed",
+            "unparsable-user-record",
         ],
     ),
-    ("generated", &["drift"]),
+    ("generated", &["stale-generated", "inter-language-break"]),
     ("comments", &["comment-overreach"]),
     ("images", &["unpinned-image"]),
 ];
 
 // The laws that fire through the gate's outcomes instead of tool-free
 // findings: config, tool and contract stages. Each drills; none is found.
-pub const GATED: &[&str] = &["ecosystem-dials", "drift", "untested-branch"];
+pub const GATED: &[&str] = &[
+    "unset-dial",
+    "lowered-dial",
+    "off-channel-dependency",
+    "stale-generated",
+    "inter-language-break",
+    "untested-branch",
+];
+
+// One dial finding, placed at the unit's config file.
+pub fn dial(home: &Path, config: &str, name: &str, reason: String) -> Finding {
+    Finding {
+        check: "ecosystem-dials",
+        file: home.join(config),
+        line: 0,
+        name: name.to_string(),
+        reason,
+    }
+}
 
 // Whether arbiter rules answers the name: every finding carries one it does.
 pub fn drillable(name: &str) -> bool {
@@ -318,10 +355,12 @@ pub trait Pack {
         Vec::new()
     }
 
-    // Holds the unit's declared environment to the pack's bar; None where no bar exists yet.
-    // Settings may add, never lower: each finding names one option sitting below the bar.
-    fn dials(&self, folder: &Path) -> Option<Vec<String>> {
-        let _ = folder;
+    // Holds the unit's declared environment to the pack's bar; None where no
+    // bar exists yet. Settings may add, never lower: each finding names one
+    // dial unset or lowered, placed at the config file home names; a note
+    // tells machine trouble the tools will also hit.
+    fn dials(&self, home: &Path, folder: &Path) -> Option<(Vec<Finding>, Vec<String>)> {
+        let _ = (home, folder);
         None
     }
 

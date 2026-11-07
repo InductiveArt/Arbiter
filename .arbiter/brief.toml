@@ -175,6 +175,10 @@ story = "every suppression is counted against the user's signature"
     ". |  | the reference absorbs known entries and names the extra",
   ]
 
+  [[case.need]]
+  need = "a record the user wrote never silently degrades"
+  claims = [". |  | a broken reference is named never read as virgin"]
+
 [[case]]
 name = "claims"
 story = "behavior is claimed by tests and commissioned by the brief"

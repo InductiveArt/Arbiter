@@ -39,7 +39,7 @@ pub const VERBS: &[(&str, &str)] = &[
     ),
     (
         "adopt",
-        "install the agent layer; arbiter-owned files refresh with the binary",
+        "install the agent layer; its files refresh with the binary, never backwards",
     ),
 ];
 

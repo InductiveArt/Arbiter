@@ -64,7 +64,8 @@ impl Pack for Proto {
                 "phantom-import",
                 "never: the contract is the source others generate from",
             ),
-            ("drift", "held"),
+            ("stale-generated", "held"),
+            ("inter-language-break", "held"),
             (
                 "untested-branch",
                 "never: a contract declares shapes; nothing of it executes",
@@ -276,7 +277,7 @@ impl Pack for Proto {
                     .is_ok_and(|stored| stored.trim() == digest.to_string());
             if warm {
                 found.push(Drift {
-                    check: "drift".to_string(),
+                    check: "stale-generated".to_string(),
                     problems: Vec::new(),
                     seconds: 0.0,
                 });
@@ -292,7 +293,7 @@ impl Pack for Proto {
                     let _ = std::fs::remove_file(&kept);
                 }
                 found.push(Drift {
-                    check: "drift".to_string(),
+                    check: "stale-generated".to_string(),
                     problems,
                     seconds: started.elapsed().as_secs_f64(),
                 });
@@ -308,7 +309,7 @@ impl Pack for Proto {
                         Err(output) => output.lines().map(str::to_string).collect(),
                     };
                 found.push(Drift {
-                    check: "breaking".to_string(),
+                    check: "inter-language-break".to_string(),
                     problems,
                     seconds: started.elapsed().as_secs_f64(),
                 });

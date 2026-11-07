@@ -20,7 +20,7 @@ what they decide.
 | `arbiter ledger sign .` | record today's account as the reference: the user's signature. **Never run it.** | yes |
 | `arbiter brief [case] .` | every need's state against the claims tree; a case is one slice. Each need held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. | no |
 | `arbiter rules [rule]` | the matrix in groups and each law; a rule prints its whys, a group its laws. | no |
-| `arbiter adopt .` | install the agent layer; arbiter-owned files refresh with the binary, never backwards: a file written by a newer arbiter is left, and the binary updates. `settings.json` and the `CLAUDE.md` pointer are written once. | yes |
+| `arbiter adopt .` | install the agent layer; its files refresh with the binary, never backwards: a file written by a newer arbiter is left, and the binary updates. `settings.json` and the `CLAUDE.md` pointer are written once. | yes |
 
 gate, adopt and ledger sign act; find, ledger, brief and rules read and never write.
 A finding's rule name is the same word everywhere: `arbiter rules <rule>` for
@@ -115,10 +115,14 @@ Each finding has one expected fix. A suppression is never one of them.
 | `uninvited-use`, `undeclared-unit` | Invert the dependency or ask the user to amend the declaration - `units.toml` is theirs. |
 | `stale-grant`, `stale-declaration` | Delete the stale `units.toml` entry, or ask the user - the file is theirs. |
 | `unallowed-license` | Ask the user: the allow list is a policy decision. |
-| `unparsed` | Repair the decision file's TOML and tell the user what broke - its content is theirs. |
+| `unparsable-user-record` | Repair the record's syntax and tell the user what broke - its content is theirs; a broken reference means the signature cannot be read. |
+| `stale-generated` | Regenerate from the contracts, or delete the orphaned output - never hand-edit generated code. |
+| `inter-language-break` | Restore compatibility, or ask the user to re-sign the contracts image - a break ships only with their signature. |
 | `unpinned-image` | Pin the image by digest (`name@sha256:...`); a tag may ride beside the digest, never alone. |
 | `blanket-suppression` | Replace it with the one-rule named form - and that form is still a suppression: the user decides. |
-| `ecosystem-dials` (option below the bar) | Earn the option: annotate exports, guard index access. Never a non-null assertion, never a cast, never lowering the config. |
+| `unset-dial` | Set the dial the bar names, in the unit's own config. Earn it: annotate exports, guard index access - never a non-null assertion, never a cast. |
+| `lowered-dial` | Raise the dial back to the pack's floor; wanting it lower is the user's ask, not an edit. |
+| `off-channel-dependency` | Point the dependency at the locked registry or a path inside the repository; git, url and absolute sources slip the lock. |
 | tool failures (lint, types, test) | Read the unit's section in the report - it holds the whole output - and fix the code. Complexity findings take named extractions, not reshuffling. |
 | `vanished-claim` | Restore the behavior and its test, or ask the user to sign the removal - a claim once signed leaves only with their signature. |
 | `unanswered-need` | Bind the claims that prove it, or mark it planned or manual - never invent the binding; the need's meaning is the user's. |

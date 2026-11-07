@@ -381,6 +381,7 @@ fn found(rest: &[String]) -> ExitCode {
             let mut all = winnowed;
             all.extend(integrity(&found));
             all.extend(ledger::blanket_findings(&found));
+            all.extend(ledger::broken_record(&found.root));
             all.extend(claims::vanished(&found));
             all.extend(brief::findings(&found));
             all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));

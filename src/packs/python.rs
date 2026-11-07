@@ -8,6 +8,7 @@ use tree_sitter::Language;
 use tree_sitter::Node;
 use tree_sitter::Tree;
 
+use crate::core::pack::dial;
 use crate::core::pack::pinned;
 use crate::core::pack::Claim;
 use crate::core::pack::Def;
@@ -89,7 +90,11 @@ impl Pack for Python {
             ),
             ("phantom-import", "held"),
             (
-                "drift",
+                "stale-generated",
+                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+            ),
+            (
+                "inter-language-break",
                 "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
             ),
         ]
@@ -126,13 +131,19 @@ impl Pack for Python {
         parsed.get("project").is_none() && workspace.is_some()
     }
 
-    fn dials(&self, folder: &Path) -> Option<Vec<String>> {
+    fn dials(&self, home: &Path, folder: &Path) -> Option<(Vec<Finding>, Vec<String>)> {
         let Ok(manifest) = fs::read_to_string(folder.join("pyproject.toml")) else {
-            return Some(vec![
-                "no pyproject.toml; the unit declares no environment".to_string()
-            ]);
+            return Some((
+                vec![dial(
+                    home,
+                    "pyproject.toml",
+                    "unset-dial",
+                    "no pyproject.toml; the unit declares no environment".to_string(),
+                )],
+                Vec::new(),
+            ));
         };
-        Some(manifest_findings(&manifest))
+        Some((manifest_findings(&manifest, home), Vec::new()))
     }
 
     fn claims(&self, source: &str) -> Vec<Claim> {
@@ -995,19 +1006,24 @@ fn metadata_license(text: &str) -> Option<(String, String)> {
     Some((name?, license))
 }
 
-fn manifest_findings(manifest: &str) -> Vec<String> {
+fn manifest_findings(manifest: &str, home: &Path) -> Vec<Finding> {
     let Ok(parsed) = manifest.parse::<toml::Value>() else {
-        return vec!["pyproject.toml does not parse".to_string()];
+        return vec![dial(
+            home,
+            "pyproject.toml",
+            "unset-dial",
+            "pyproject.toml does not parse; every dial is unreadable".to_string(),
+        )];
     };
-    let mut findings = refused_findings(&parsed);
-    findings.extend(checker_findings(&parsed));
-    findings.extend(dependency_findings(&parsed));
+    let mut findings = refused_findings(&parsed, home);
+    findings.extend(checker_findings(&parsed, home));
+    findings.extend(dependency_findings(&parsed, home));
     findings
 }
 
 // The registry and the repository are the only channels: a git or URL source
 // slips past the lockfile's hashes and past the split-version rule.
-fn dependency_findings(parsed: &toml::Value) -> Vec<String> {
+fn dependency_findings(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
     let mut findings = Vec::new();
     let mut lists: Vec<(String, Vec<toml::Value>)> = Vec::new();
     if let Some(list) = lookup(parsed, "project.dependencies").and_then(toml::Value::as_array) {
@@ -1027,9 +1043,14 @@ fn dependency_findings(parsed: &toml::Value) -> Vec<String> {
             let requirement = entry.as_str().unwrap_or("");
             if requirement.contains("://") || requirement.contains("git+") {
                 let name = requirement.split_whitespace().next().unwrap_or(requirement);
-                findings.push(format!(
-                    "{place} pulls {name} past the registry; \
-                     a dependency comes from the locked registry or this repository"
+                findings.push(dial(
+                    home,
+                    "pyproject.toml",
+                    "off-channel-dependency",
+                    format!(
+                        "{place} pulls {name} past the registry; \
+                         a dependency comes from the locked registry or this repository"
+                    ),
                 ));
             }
         }
@@ -1039,25 +1060,35 @@ fn dependency_findings(parsed: &toml::Value) -> Vec<String> {
     };
     for (name, source) in sources {
         if source.get("git").is_some() || source.get("url").is_some() {
-            findings.push(format!(
-                "tool.uv.sources.{name} points past the registry; \
-                 a dependency comes from the locked registry or this repository"
+            findings.push(dial(
+                home,
+                "pyproject.toml",
+                "off-channel-dependency",
+                format!(
+                    "tool.uv.sources.{name} points past the registry; \
+                     a dependency comes from the locked registry or this repository"
+                ),
             ));
         } else if source
             .get("path")
             .and_then(toml::Value::as_str)
             .is_some_and(|path| Path::new(path).is_absolute())
         {
-            findings.push(format!(
-                "tool.uv.sources.{name} is an absolute path; \
-                 a path source stays inside the repository"
+            findings.push(dial(
+                home,
+                "pyproject.toml",
+                "off-channel-dependency",
+                format!(
+                    "tool.uv.sources.{name} is an absolute path; \
+                     a path source stays inside the repository"
+                ),
             ));
         }
     }
     findings
 }
 
-fn refused_findings(parsed: &toml::Value) -> Vec<String> {
+fn refused_findings(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
     let bar = BAR.parse::<toml::Value>().expect("a pack's bar parses");
     let Some(refused) = bar.get("refused").and_then(toml::Value::as_table) else {
         return Vec::new();
@@ -1065,7 +1096,12 @@ fn refused_findings(parsed: &toml::Value) -> Vec<String> {
     let mut findings = Vec::new();
     for (path, reason) in refused {
         if lookup(parsed, path).is_some() {
-            findings.push(format!("{path} is set; {}", reason.as_str().unwrap_or("")));
+            findings.push(dial(
+                home,
+                "pyproject.toml",
+                "lowered-dial",
+                format!("{path} is set; {}", reason.as_str().unwrap_or("")),
+            ));
         }
     }
     findings
@@ -1079,7 +1115,7 @@ fn lookup<'manifest>(parsed: &'manifest toml::Value, path: &str) -> Option<&'man
     Some(value)
 }
 
-fn checker_findings(parsed: &toml::Value) -> Vec<String> {
+fn checker_findings(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
     let mut findings = Vec::new();
     for checker in CHECKERS {
         let table = parsed
@@ -1093,20 +1129,33 @@ fn checker_findings(parsed: &toml::Value) -> Vec<String> {
             if name == "typeCheckingMode" {
                 let mode = value.as_str().unwrap_or("");
                 if !MODES.contains(&mode) {
-                    findings.push(format!(
-                        "tool.{checker}.typeCheckingMode is {mode}; the bar starts at strict"
+                    findings.push(dial(
+                        home,
+                        "pyproject.toml",
+                        "lowered-dial",
+                        format!(
+                            "tool.{checker}.typeCheckingMode is {mode}; the bar starts at strict"
+                        ),
                     ));
                 }
             } else if name.starts_with("report") && !is_error(value) {
-                findings.push(format!(
-                    "tool.{checker}.{name} is lowered; a rule reports an error or stays unset"
+                findings.push(dial(
+                    home,
+                    "pyproject.toml",
+                    "lowered-dial",
+                    format!(
+                        "tool.{checker}.{name} is lowered; a rule reports an error or stays unset"
+                    ),
                 ));
             } else if name == "exclude" {
                 for entry in value.as_array().cloned().unwrap_or_default() {
                     let glob = entry.as_str().unwrap_or("");
                     if !glob.contains("_pb2") {
-                        findings.push(format!(
-                            "tool.{checker}.exclude hides {glob}; only generated code leaves the checker's sight"
+                        findings.push(dial(
+                            home,
+                            "pyproject.toml",
+                            "lowered-dial",
+                            format!("tool.{checker}.exclude hides {glob}; only generated code leaves the checker's sight"),
                         ));
                     }
                 }
@@ -1417,9 +1466,11 @@ mod tests {
     fn an_exclude_may_name_generated_code_and_nothing_else() {
         let manifest =
             "[tool.basedpyright]\nexclude = [\"**/*_pb2.py\", \"**/*_pb2.pyi\", \"src/core\"]\n";
-        let findings = manifest_findings(manifest);
+        let findings = manifest_findings(manifest, Path::new("u"));
         assert_eq!(findings.len(), 1);
-        assert!(findings[0].starts_with("tool.basedpyright.exclude hides src/core;"));
+        assert!(findings[0]
+            .reason
+            .starts_with("tool.basedpyright.exclude hides src/core;"));
     }
 
     #[test]
@@ -1449,45 +1500,46 @@ mod tests {
                         [dependency-groups]\ndev = [\"tool @ https://example.com/tool.whl\"]\n\
                         [tool.uv.sources]\nforked = { git = \"https://github.com/x/forked\" }\n\
                         patched = { path = \"/abs/patched\" }\nlocal = { path = \"../local\" }\n";
-        let findings = manifest_findings(manifest);
+        let findings = manifest_findings(manifest, Path::new("u"));
         assert!(findings.iter().any(|finding| {
-            finding.starts_with("project.dependencies pulls left past the registry;")
+            finding
+                .reason
+                .starts_with("project.dependencies pulls left past the registry;")
         }));
         assert!(findings.iter().any(|finding| {
-            finding.starts_with("dependency-groups.dev pulls tool past the registry;")
+            finding
+                .reason
+                .starts_with("dependency-groups.dev pulls tool past the registry;")
         }));
-        assert!(
-            findings
-                .iter()
-                .any(|finding| finding
-                    .starts_with("tool.uv.sources.forked points past the registry;"))
-        );
-        assert!(findings
-            .iter()
-            .any(|finding| finding.starts_with("tool.uv.sources.patched is an absolute path;")));
+        assert!(findings.iter().any(|finding| finding
+            .reason
+            .starts_with("tool.uv.sources.forked points past the registry;")));
+        assert!(findings.iter().any(|finding| finding
+            .reason
+            .starts_with("tool.uv.sources.patched is an absolute path;")));
         assert_eq!(findings.len(), 4);
     }
 
     #[test]
     fn a_setting_lowering_the_bar_is_named_with_its_reason() {
         let manifest = "[tool.ruff.lint]\nignore = [\"E501\"]\n";
-        let findings = manifest_findings(manifest);
+        let findings = manifest_findings(manifest, Path::new("u"));
         assert!(findings
             .iter()
-            .any(|finding| finding.starts_with("tool.ruff.lint.ignore is set;")));
+            .any(|finding| finding.reason.starts_with("tool.ruff.lint.ignore is set;")));
     }
 
     #[test]
     fn a_lowered_checker_rule_and_mode_are_named() {
         let manifest =
             "[tool.basedpyright]\ntypeCheckingMode = \"basic\"\nreportAny = \"warning\"\n";
-        let findings = manifest_findings(manifest);
+        let findings = manifest_findings(manifest, Path::new("u"));
         assert!(findings
             .iter()
-            .any(|finding| finding.contains("typeCheckingMode is basic")));
+            .any(|finding| finding.reason.contains("typeCheckingMode is basic")));
         assert!(findings
             .iter()
-            .any(|finding| finding.contains("reportAny is lowered")));
+            .any(|finding| finding.reason.contains("reportAny is lowered")));
     }
 
     #[test]
@@ -1495,7 +1547,7 @@ mod tests {
         let manifest = "[project]\nname = \"a\"\nversion = \"0\"\n\
                         [tool.ruff]\nextend = \"shared.toml\"\n\
                         [tool.basedpyright]\nextends = \"shared.json\"\n";
-        assert!(manifest_findings(manifest).is_empty());
+        assert!(manifest_findings(manifest, Path::new("u")).is_empty());
     }
 
     #[test]
