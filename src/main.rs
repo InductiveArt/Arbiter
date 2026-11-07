@@ -799,7 +799,7 @@ fn fallout(name: &str, defs: &[Def], edges: &[Edge]) {
 
 // The matrix of rule against language, printed group by group. A cell answers
 // held or never; an open cell is work the matrix keeps visible, never a pass.
-// A core row is judged through the one graph, every language at once.
+// A core row is judged on one graph, all languages together.
 fn matrix() {
     let packs = arbiter::packs::all();
     let width = pack::RULES
@@ -838,10 +838,9 @@ fn matrix() {
         }
     }
     println!();
-    println!("a rule marked (core) is judged through the one graph, every language at once.");
     println!(
-        "arbiter rules <rule> prints the law and each stance with its why; \
-         a group name prints its laws."
+        "a rule marked (core) is judged on one graph: every unit and import, \
+         all languages together."
     );
 }
 
@@ -882,7 +881,7 @@ fn ruled(asked: &str) -> ExitCode {
     if let Some((name, law)) = pack::CORE.iter().find(|(name, _)| *name == asked) {
         println!("{name}: {law}");
         println!();
-        println!("  core: judged through the one graph, every language at once");
+        println!("  core: judged on one graph — every unit and import, all languages together");
         return ExitCode::SUCCESS;
     }
     eprintln!("rules: no rule or group named {asked}; arbiter rules prints the matrix");
