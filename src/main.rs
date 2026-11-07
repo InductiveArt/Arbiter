@@ -816,8 +816,8 @@ fn matrix() {
     for (group, members) in pack::GROUPS {
         println!("{group}");
         for member in *members {
-            print!("  {member:width$}");
             if pack::RULES.iter().any(|(rule, _)| rule == member) {
+                print!("  {member:width$}");
                 for pack in &packs {
                     let answer = pack
                         .rules()
@@ -833,11 +833,12 @@ fn matrix() {
                 }
                 println!();
             } else {
-                println!("  core");
+                println!("  {member} (core)");
             }
         }
     }
     println!();
+    println!("a rule marked (core) is judged through the one graph, every language at once.");
     println!(
         "arbiter rules <rule> prints the law and each stance with its why; \
          a group name prints its laws."
