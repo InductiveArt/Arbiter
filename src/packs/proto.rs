@@ -41,14 +41,9 @@ impl Proto {
 impl Pack for Proto {
     fn rules(&self) -> &'static [(&'static str, &'static str)] {
         &[
-            ("resolve", "held"),
             (
                 "unpinned-image",
                 "never: the language names no container images",
-            ),
-            (
-                "dynamic-import",
-                "never: a contract names its imports in the file",
             ),
             ("reexport", "never: proto has no re-export form"),
             ("self-entry", "never: a contract declares no routes"),
@@ -65,14 +60,6 @@ impl Pack for Proto {
             ),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
-            ("suppressions", "held"),
-            ("container", "held"),
-            ("pinned-tools", "held"),
-            ("no-warnings", "held"),
-            (
-                "generated",
-                "never: the contract is the source others generate from",
-            ),
             (
                 "phantom-import",
                 "never: the contract is the source others generate from",

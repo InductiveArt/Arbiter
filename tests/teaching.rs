@@ -43,6 +43,24 @@ fn every_rule_sits_in_exactly_one_group() {
 }
 
 #[test]
+fn a_gated_law_drills_but_is_not_findable() {
+    use arbiter::core::pack::drillable;
+    use arbiter::core::pack::findable;
+    use arbiter::core::pack::CORE;
+    use arbiter::core::pack::GATED;
+    use arbiter::core::pack::RULES;
+    for gated in GATED {
+        assert!(drillable(gated), "{gated} names no rule");
+        assert!(!findable(gated));
+    }
+    for (rule, _) in RULES.iter().chain(CORE) {
+        if !GATED.contains(rule) {
+            assert!(findable(rule), "{rule} should be findable");
+        }
+    }
+}
+
+#[test]
 fn a_stamp_names_the_arbiter_that_wrote_the_file() {
     let page = stamped("SKILL.md", "---\nname: x\n---\nthe law\n");
     let hook = stamped("arbiter-stop.sh", "#!/bin/bash\nexit 0\n");

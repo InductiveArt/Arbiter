@@ -81,7 +81,10 @@ story = "the graph plane finds what breaks the laws and names it"
 
   [[case.need]]
   need = "a finding names the law it breaks, and every printed name drills"
-  claims = [". |  | every finding names a law the matrix drills"]
+  claims = [
+    ". |  | every finding names a law the matrix drills",
+    ". |  | a gated law drills but is not findable",
+  ]
 
   [[case.need]]
   need = "a published unit keeps its unused surface"

@@ -47,14 +47,9 @@ impl Rust {
 impl Pack for Rust {
     fn rules(&self) -> &'static [(&'static str, &'static str)] {
         &[
-            ("resolve", "held"),
             (
                 "unpinned-image",
                 "never: the language names no container images",
-            ),
-            (
-                "dynamic-import",
-                "never: a crate links its dependencies; nothing imports at run time",
             ),
             ("reexport", "held"),
             (
@@ -74,11 +69,7 @@ impl Pack for Rust {
             ("comment-overreach", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
-            ("suppressions", "held"),
             ("ecosystem-dials", "held"),
-            ("pinned-tools", "held"),
-            ("no-warnings", "held"),
-            ("container", "held"),
             ("tautology", "held"),
             (
                 "stray-test",

@@ -8,7 +8,7 @@ what it may not decide.
 ## Start
 
 ```
-cargo install --git https://github.com/InductiveArt/Arbiter --tag v0.6.0 arbiter
+cargo install --git https://github.com/InductiveArt/Arbiter --tag v0.7.0 arbiter
 
 arbiter adopt .   # install the agent layer under .claude/
 arbiter gate .    # judge; the first run seeds .arbiter/'s decision files
@@ -27,6 +27,8 @@ installing the next tag: the judge is pinned like everything it pins.
 
 ## The shape
 
+- `processes.md` is the plan: the axes the work stands on, why each
+  process step exists, and the constitution no step may cross.
 - A language is a pack - typescript, python, rust, cpp, proto, infra. The
   core resolves and judges one graph and knows no language.
 - `arbiter rules` prints what holds where and each rule's one-line law;

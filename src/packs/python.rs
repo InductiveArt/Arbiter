@@ -62,7 +62,6 @@ impl Python {
 impl Pack for Python {
     fn rules(&self) -> &'static [(&'static str, &'static str)] {
         &[
-            ("resolve", "held"),
             (
                 "unpinned-image",
                 "never: the language names no container images",
@@ -79,21 +78,15 @@ impl Pack for Python {
             ("hidden-name", "held"),
             ("crowded-import", "held"),
             ("comment-overreach", "held"),
-            ("dynamic-import", "held"),
             ("unnamed-door", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
-            ("suppressions", "held"),
             ("ecosystem-dials", "held"),
-            ("pinned-tools", "held"),
-            ("no-warnings", "held"),
             ("tautology", "held"),
             (
                 "stray-test",
                 "never: a test is a def, and a def's name is always literal",
             ),
-            ("container", "held"),
-            ("generated", "held"),
             ("phantom-import", "held"),
             (
                 "drift",

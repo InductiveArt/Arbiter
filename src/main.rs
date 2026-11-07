@@ -355,7 +355,14 @@ fn found(rest: &[String]) -> ExitCode {
         first => {
             let (rule, asked) = match first {
                 None => (None, ".".to_string()),
-                Some(word) if pack::drillable(word) => (Some(word.to_string()), folder(1)),
+                Some(word) if pack::findable(word) => (Some(word.to_string()), folder(1)),
+                Some(word) if pack::drillable(word) => {
+                    eprintln!(
+                        "find: {word} fires through the gate's outcomes; \
+                         run arbiter gate . and read .arbiter/last/report.md"
+                    );
+                    return ExitCode::from(2);
+                }
                 Some(word) if Path::new(word).is_dir() => (None, word.to_string()),
                 Some(word) => {
                     eprintln!(

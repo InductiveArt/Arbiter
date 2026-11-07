@@ -75,11 +75,6 @@ pub struct Drift {
 // The judgments every pack answers for, each with its one-line law. A pack
 // answers "held" or "never: <why>"; a rule left unanswered prints as open.
 pub const RULES: &[(&str, &str)] = &[
-    ("resolve", "an import reaches the file its module path names"),
-    (
-        "dynamic-import",
-        "a run-time import of a literal module keeps its whole surface; a computed one is a finding",
-    ),
     (
         "reexport",
         "a module offers only its own names; a surface names each symbol it offers and defines none",
@@ -110,25 +105,11 @@ pub const RULES: &[(&str, &str)] = &[
         "unnamed-door",
         "a class standing where a protocol is asked names it among its bases",
     ),
-    (
-        "suppressions",
-        "every suppression is counted against the reference; a blanket form is a finding",
-    ),
     ("ecosystem-dials", "a unit's declared environment meets the pack's bar"),
-    ("pinned-tools", "lint, types and tests run pinned by the pack"),
-    (
-        "no-warnings",
-        "a tool's warning is a finding, never a soft state",
-    ),
     (
         "untested-branch",
         "a unit's tests reach every branch of its source",
     ),
-    (
-        "container",
-        "a members-only manifest bounds a unit without being judged",
-    ),
-    ("generated", "generated code is scanned, never judged"),
     (
         "phantom-import",
         "a generated import resolves to the contract it was generated from; one naming no contract is a finding",
@@ -225,8 +206,6 @@ pub const GROUPS: &[(&str, &[&str])] = &[
     (
         "imports",
         &[
-            "resolve",
-            "dynamic-import",
             "reexport",
             "hidden-name",
             "crowded-import",
@@ -239,7 +218,6 @@ pub const GROUPS: &[(&str, &[&str])] = &[
     (
         "units",
         &[
-            "container",
             "cycle",
             "uninvited-use",
             "stale-grant",
@@ -256,16 +234,8 @@ pub const GROUPS: &[(&str, &[&str])] = &[
             "unallowed-license",
         ],
     ),
-    (
-        "tooling",
-        &[
-            "ecosystem-dials",
-            "pinned-tools",
-            "no-warnings",
-            "untested-branch",
-        ],
-    ),
-    ("suppressions", &["suppressions", "blanket-suppression"]),
+    ("tooling", &["ecosystem-dials", "untested-branch"]),
+    ("suppressions", &["blanket-suppression"]),
     (
         "claims",
         &[
@@ -279,14 +249,23 @@ pub const GROUPS: &[(&str, &[&str])] = &[
             "unparsed",
         ],
     ),
-    ("generated", &["generated", "drift"]),
+    ("generated", &["drift"]),
     ("comments", &["comment-overreach"]),
     ("images", &["unpinned-image"]),
 ];
 
+// The laws that fire through the gate's outcomes instead of tool-free
+// findings: config, tool and contract stages. Each drills; none is found.
+pub const GATED: &[&str] = &["ecosystem-dials", "drift", "untested-branch"];
+
 // Whether arbiter rules answers the name: every finding carries one it does.
 pub fn drillable(name: &str) -> bool {
     RULES.iter().chain(CORE).any(|(rule, _)| *rule == name)
+}
+
+// Whether tool-free findings can carry the name: a law outside the gated set.
+pub fn findable(name: &str) -> bool {
+    drillable(name) && !GATED.contains(&name)
 }
 
 // The law a name states, wherever its row lives.

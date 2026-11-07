@@ -72,12 +72,10 @@ impl TypeScript {
 impl Pack for TypeScript {
     fn rules(&self) -> &'static [(&'static str, &'static str)] {
         &[
-            ("resolve", "held"),
             (
                 "unpinned-image",
                 "never: the language names no container images",
             ),
-            ("dynamic-import", "held"),
             ("reexport", "held"),
             ("self-entry", "held"),
             ("interior-import", "held"),
@@ -86,15 +84,10 @@ impl Pack for TypeScript {
             ("comment-overreach", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
-            ("suppressions", "held"),
             ("ecosystem-dials", "held"),
-            ("pinned-tools", "held"),
-            ("no-warnings", "held"),
             ("tautology", "held"),
             ("stray-test", "held"),
             ("unnamed-door", "held"),
-            ("container", "held"),
-            ("generated", "held"),
             ("phantom-import", "held"),
             (
                 "drift",

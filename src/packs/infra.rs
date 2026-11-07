@@ -41,20 +41,8 @@ impl Pack for Infra {
                 "never: a manifest's third parties are images, judged by digest",
             ),
             (
-                "suppressions",
-                "never: a manifest carries no directive that silences a judge",
-            ),
-            (
                 "unnamed-door",
                 "never: a manifest declares state; it names no classes",
-            ),
-            (
-                "resolve",
-                "never: a manifest declares state; it imports nothing",
-            ),
-            (
-                "dynamic-import",
-                "never: a manifest declares state; it imports nothing",
             ),
             (
                 "reexport",

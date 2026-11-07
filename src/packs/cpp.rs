@@ -36,7 +36,6 @@ impl Cpp {
 impl Pack for Cpp {
     fn rules(&self) -> &'static [(&'static str, &'static str)] {
         &[
-            ("resolve", "held"),
             (
                 "unpinned-image",
                 "never: the language names no container images",
@@ -45,10 +44,6 @@ impl Pack for Cpp {
             (
                 "crowded-import",
                 "never: an include names one header by syntax",
-            ),
-            (
-                "container",
-                "never: no manifest declares a C++ unit; a BUILD file bounds it",
             ),
             (
                 "drift",
