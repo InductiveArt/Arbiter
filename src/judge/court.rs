@@ -82,6 +82,18 @@ fn snapshot(run: &Run) -> serde_json::Value {
             serde_json::json!({ "user": user, "owner": owner, "breaks": breaks })
         })
         .collect();
+    let families: Vec<serde_json::Value> = findings::families(found)
+        .into_iter()
+        .map(|family| {
+            let drawn: Vec<serde_json::Value> = family
+                .edges
+                .into_iter()
+                .map(|(from, to)| serde_json::json!({ "from": from, "to": to }))
+                .collect();
+            serde_json::json!({ "unit": family.unit, "place": family.place, "edges": drawn })
+        })
+        .collect();
+    let declared = declared_units(run);
     let tangles: Vec<serde_json::Value> = findings::tangles(found)
         .into_iter()
         .map(|(place, members)| serde_json::json!({ "place": place, "members": members }))
@@ -123,6 +135,8 @@ fn snapshot(run: &Run) -> serde_json::Value {
         "findings": found_findings,
         "rules": rules,
         "edges": edges,
+        "families": families,
+        "declared": declared,
         "tangles": tangles,
         "plans": plans,
         "brief": brief,
@@ -130,6 +144,58 @@ fn snapshot(run: &Run) -> serde_json::Value {
         "third": { "locked": run.third, "added": run.third_added },
         "claims": run.claims,
     })
+}
+
+// The written unit declarations, so the panel shows intent beside the real.
+fn declared_units(run: &Run) -> Vec<serde_json::Value> {
+    let Ok(text) = fs::read_to_string(run.root.join(crate::core::units::DECLARATIONS)) else {
+        return Vec::new();
+    };
+    let Ok(parsed) = text.parse::<toml::Value>() else {
+        return Vec::new();
+    };
+    let Some(units) = parsed.get("units").and_then(toml::Value::as_table) else {
+        return Vec::new();
+    };
+    let listed = |value: &toml::Value, field: &str| -> Vec<String> {
+        value
+            .get(field)
+            .and_then(toml::Value::as_array)
+            .map(|list| {
+                list.iter()
+                    .filter_map(toml::Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    units
+        .iter()
+        .map(|(name, value)| {
+            let inner: Vec<serde_json::Value> = value
+                .get("inner")
+                .and_then(toml::Value::as_table)
+                .map(|table| {
+                    table
+                        .iter()
+                        .map(|(path, node)| {
+                            serde_json::json!({
+                                "path": path,
+                                "deps": listed(node, "deps"),
+                                "visibility": listed(node, "visibility"),
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            serde_json::json!({
+                "name": name,
+                "deps": listed(value, "deps"),
+                "visibility": listed(value, "visibility"),
+                "inner": inner,
+            })
+        })
+        .collect()
 }
 
 fn plans_snapshot(run: &Run) -> serde_json::Value {
@@ -146,6 +212,10 @@ fn plans_snapshot(run: &Run) -> serde_json::Value {
                 "replicas": service.replicas,
                 "needs": service.needs,
                 "volumes": service.volumes,
+                "cpu": service.cpu,
+                "memory_mb": service.memory_mb,
+                "accepts": service.accepts,
+                "line": service.line,
             })
         })
         .collect();
@@ -191,10 +261,28 @@ fn plans_snapshot(run: &Run) -> serde_json::Value {
             }));
         }
     }
+    let machines: Vec<serde_json::Value> = reading
+        .machines
+        .iter()
+        .map(|machine| {
+            serde_json::json!({
+                "name": machine.name,
+                "cpu": machine.cpu,
+                "memory_mb": machine.memory_mb,
+            })
+        })
+        .collect();
+    let volumes: Vec<serde_json::Value> = reading
+        .volumes
+        .iter()
+        .map(|volume| serde_json::json!({ "name": volume.name, "backup": volume.backup }))
+        .collect();
     serde_json::json!({
         "services": services,
         "plans": plans,
         "doors": doors,
         "channels": channels,
+        "machines": machines,
+        "volumes": volumes,
     })
 }

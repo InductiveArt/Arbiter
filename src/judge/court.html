@@ -6,57 +6,93 @@
 <title>arbiter court</title>
 <style>
 :root {
-  --paper: #11151a; --panel: #171c23; --line: #262d37; --ink: #d7dde5;
-  --dim: #8a94a1; --good: #7dc87d; --bad: #e07a7a; --warn: #d8b45f;
-  --accent: #7aa7d8; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --paper: #10141a; --panel: #161b23; --line: #272f3b; --ink: #d9dfe7;
+  --dim: #8b95a3; --good: #7dc87d; --bad: #e07a7a; --warn: #d8b45f;
+  --accent: #7aa7d8; --sel: #2c3a4d;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; margin: 0; }
-body { background: var(--paper); color: var(--ink); font: 14px/1.55 var(--mono); padding: 0 0 6rem; }
-header { padding: 2.2rem 2.5rem 1.4rem; border-bottom: 1px solid var(--line); }
-header h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: .02em; }
-header .verdict { margin-top: .4rem; }
-header .meta { color: var(--dim); margin-top: .3rem; font-size: .85rem; }
+html, body { height: 100%; }
+body { background: var(--paper); color: var(--ink); font: 13.5px/1.5 var(--mono);
+       display: flex; flex-direction: column; overflow: hidden; }
 .good { color: var(--good); } .bad { color: var(--bad); } .warn { color: var(--warn); }
 .dim { color: var(--dim); } .accent { color: var(--accent); }
-nav { position: sticky; top: 0; background: var(--paper); border-bottom: 1px solid var(--line);
-      padding: .55rem 2.5rem; display: flex; gap: 1.4rem; flex-wrap: wrap; z-index: 2; }
-nav a { color: var(--dim); text-decoration: none; }
-nav a:hover { color: var(--ink); }
-nav a b { color: var(--ink); font-weight: 600; }
-section { padding: 1.6rem 2.5rem 0; max-width: 1100px; }
-section h2 { font-size: .95rem; text-transform: lowercase; letter-spacing: .06em;
-             color: var(--accent); margin-bottom: .8rem; }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
-         padding: .9rem 1.1rem; margin-bottom: .8rem; overflow-x: auto; }
+header { padding: .9rem 1.4rem .7rem; border-bottom: 1px solid var(--line);
+         display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap; }
+header h1 { font-size: 1.05rem; font-weight: 600; }
+header .meta { color: var(--dim); font-size: .8rem; }
+nav { display: flex; gap: .2rem; padding: 0 1rem; border-bottom: 1px solid var(--line); }
+nav a { color: var(--dim); text-decoration: none; padding: .5rem .8rem; border-bottom: 2px solid transparent; }
+nav a.on { color: var(--ink); border-bottom-color: var(--accent); }
+nav a b { font-weight: 600; } nav a span { color: var(--dim); font-size: .8rem; }
+#stage { flex: 1; display: flex; min-height: 0; }
+#view { flex: 1; overflow: auto; padding: 1.1rem 1.4rem; min-width: 0; }
+#panel { width: 340px; border-left: 1px solid var(--line); overflow: auto;
+         padding: 1rem 1.1rem; display: none; background: var(--panel); flex-shrink: 0; }
+#panel.open { display: block; }
+#panel h3 { font-size: .95rem; margin-bottom: .2rem; word-break: break-all; }
+#panel .kind { color: var(--dim); font-size: .78rem; margin-bottom: .8rem; }
+#panel h4 { color: var(--accent); font-size: .78rem; margin: .9rem 0 .25rem; text-transform: lowercase; }
+#panel .row { margin: .1rem 0; word-break: break-all; }
+#panel .close { float: right; color: var(--dim); cursor: pointer; }
+#panel a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+.crumbs { margin-bottom: .8rem; color: var(--dim); }
+.crumbs a { color: var(--accent); cursor: pointer; text-decoration: none; }
+.crumbs span { color: var(--dim); }
+.board { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 1rem; }
+svg { display: block; }
+.node rect { fill: #1d242e; stroke: var(--line); rx: 5; cursor: pointer; }
+.node text { fill: var(--ink); font: 12px var(--mono); pointer-events: none; }
+.node .badge { fill: var(--dim); font-size: 10px; }
+.node.tangled rect { stroke: var(--bad); }
+.node.selected rect { fill: var(--sel); stroke: var(--accent); }
+.node.enterable text.name { fill: var(--accent); }
+.edge { stroke: var(--dim); fill: none; marker-end: url(#arrow); opacity: .75; }
+.edge.breaks { stroke: var(--bad); opacity: 1; }
+.edge.tangled { stroke: var(--bad); opacity: 1; }
+.edge.channel { stroke: var(--accent); stroke-dasharray: 5 4; }
+.edge.door { stroke: var(--warn); }
+.machinebox { fill: none; stroke: var(--line); stroke-dasharray: 3 4; rx: 8; }
+.machinelabel { fill: var(--dim); font: 11px var(--mono); }
+.runglabel { fill: var(--dim); font: 10px var(--mono); }
+.worldlabel { fill: var(--warn); font: 11px var(--mono); }
 table { border-collapse: collapse; width: 100%; }
-th { text-align: left; color: var(--dim); font-weight: 500; padding: .15rem .9rem .35rem 0; }
-td { padding: .15rem .9rem .15rem 0; vertical-align: top; }
-.tag { display: inline-block; font-size: .72rem; padding: 0 .45rem; border-radius: 3px;
-       border: 1px solid var(--line); color: var(--dim); margin-left: .5rem; }
+th { text-align: left; color: var(--dim); font-weight: 500; padding: .12rem .9rem .3rem 0; }
+td { padding: .12rem .9rem .12rem 0; vertical-align: top; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+        padding: .8rem 1rem; margin-bottom: .7rem; overflow-x: auto; }
+.tag { display: inline-block; font-size: .7rem; padding: 0 .4rem; border-radius: 3px;
+       border: 1px solid var(--line); color: var(--dim); margin-left: .45rem; }
 .tag.core { color: var(--accent); border-color: var(--accent); }
 .tag.record { color: var(--warn); border-color: var(--warn); }
-.finding { border-left: 3px solid var(--bad); padding-left: .85rem; margin: .55rem 0; }
-.finding .where { color: var(--dim); font-size: .85rem; }
-.rung { margin: .1rem 0; }
-.rung .step { color: var(--dim); display: inline-block; width: 4.2rem; }
-.edge-break { color: var(--bad); }
-.law { color: var(--dim); font-size: .85rem; }
+.finding { border-left: 3px solid var(--bad); padding: .1rem 0 .1rem .8rem; margin: .5rem 0; cursor: pointer; }
+.finding:hover { background: var(--sel); }
+.finding .where { color: var(--dim); font-size: .8rem; }
+.law { color: var(--dim); font-size: .8rem; }
 .state-held { color: var(--good); } .state-open { color: var(--warn); }
 .state-never, .state-planned, .state-manual { color: var(--dim); }
 .state-unanswered { color: var(--bad); }
 .empty { color: var(--dim); font-style: italic; }
-footer { padding: 2rem 2.5rem; color: var(--dim); font-size: .8rem; }
+.chips { display: flex; gap: .9rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.chip { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: .45rem .8rem; }
+.chip b { font-size: 1.05rem; }
+.chip div { color: var(--dim); font-size: .75rem; }
+.planpick { margin-bottom: .6rem; }
+.planpick a { color: var(--dim); margin-right: .9rem; cursor: pointer; text-decoration: none; }
+.planpick a.on { color: var(--ink); border-bottom: 2px solid var(--accent); }
 </style>
 </head>
 <body>
 <header>
   <h1>arbiter court</h1>
-  <div class="verdict" id="verdict"></div>
+  <div id="verdict"></div>
   <div class="meta" id="meta"></div>
 </header>
 <nav id="nav"></nav>
-<main id="main"></main>
-<footer>written by the gate; evidence, never committed. the desired side of the control plane.</footer>
+<div id="stage">
+  <div id="view"></div>
+  <aside id="panel"></aside>
+</div>
 <script id="data" type="application/json">/*ARBITER_DATA*/</script>
 <script>
 const DATA = JSON.parse(document.getElementById("data").textContent);
@@ -66,168 +102,535 @@ const el = (tag, cls, text) => {
   if (text !== undefined) node.textContent = text;
   return node;
 };
-const section = (id, title) => {
-  const box = el("section"); box.id = id;
-  box.appendChild(el("h2", null, title));
-  document.getElementById("main").appendChild(box);
-  return box;
+const svgel = (tag, attrs) => {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const key in attrs) node.setAttribute(key, attrs[key]);
+  return node;
 };
-const panel = (parent) => { const p = el("div", "panel"); parent.appendChild(p); return p; };
+const ruleMeta = name => DATA.rules.find(r => r.name === name);
+let pending = null; // a highlight handed from the docket to the next render
 
-// Header: the verdict, said once.
+// ---- header ----
 {
   const failed = DATA.outcomes.filter(o => !o.passed).length;
   const verdict = document.getElementById("verdict");
-  if (failed === 0 && DATA.findings.length === 0) {
-    verdict.appendChild(el("span", "good", "clean — " + DATA.outcomes.length + " checks, no findings"));
-  } else {
-    verdict.appendChild(el("span", "bad",
-      failed + " checks failed, " + DATA.findings.length + " findings"));
-  }
+  verdict.appendChild(failed === 0 && DATA.findings.length === 0
+    ? el("span", "good", "clean — " + DATA.outcomes.length + " checks, no findings")
+    : el("span", "bad", failed + " checks failed, " + DATA.findings.length + " findings"));
   document.getElementById("meta").textContent =
     DATA.root + " · arbiter " + DATA.version + " · " + DATA.units + " units, " + DATA.files + " files";
 }
 
-// Nav with counts.
-{
+// ---- routing ----
+const TABS = [
+  ["overview", () => DATA.findings.length],
+  ["graph", () => DATA.edges.length + DATA.families.length],
+  ["plans", () => DATA.plans.plans.length],
+  ["brief", () => DATA.brief ? DATA.brief.cases : 0],
+  ["ledger", () => DATA.suppressions.counted.length],
+  ["rules", () => DATA.rules.length],
+];
+function route() {
+  const hash = decodeURIComponent(location.hash.slice(1)) || "overview";
+  const [tab, ...rest] = hash.split("/");
   const nav = document.getElementById("nav");
-  const entries = [
-    ["docket", "docket", DATA.findings.length],
-    ["graph", "graph", DATA.edges.length],
-    ["tangles", "tangles", DATA.tangles.length],
-    ["plans", "plans", DATA.plans.plans.length],
-    ["brief", "brief", DATA.brief ? DATA.brief.cases : 0],
-    ["ledger", "ledger", DATA.suppressions.counted.length],
-    ["rules", "rules", DATA.rules.length],
-  ];
-  for (const [id, name, count] of entries) {
-    const a = el("a"); a.href = "#" + id;
+  nav.textContent = "";
+  for (const [name, count] of TABS) {
+    const a = el("a", name === tab ? "on" : null);
+    a.href = "#" + name;
     a.appendChild(el("b", null, name));
-    a.appendChild(document.createTextNode(" " + count));
+    a.appendChild(el("span", null, " " + count()));
     nav.appendChild(a);
   }
+  closePanel();
+  const view = document.getElementById("view");
+  view.textContent = "";
+  ({ overview, graph, plans, brief, ledger, rules }[tab] || overview)(view, rest.join("/"));
+}
+window.addEventListener("hashchange", route);
+
+// ---- the panel ----
+function openPanel(title, kind, build) {
+  const panel = document.getElementById("panel");
+  panel.textContent = "";
+  panel.className = "open";
+  const close = el("span", "close", "x");
+  close.onclick = closePanel;
+  panel.appendChild(close);
+  panel.appendChild(el("h3", null, title));
+  panel.appendChild(el("div", "kind", kind));
+  build(panel);
+}
+function closePanel() {
+  const panel = document.getElementById("panel");
+  panel.className = ""; panel.textContent = "";
+}
+function panelList(panel, title, items, cls) {
+  if (!items || !items.length) return;
+  panel.appendChild(el("h4", null, title));
+  for (const item of items) panel.appendChild(el("div", "row " + (cls || ""), item));
+}
+function panelFindings(panel, mine) {
+  if (!mine.length) { panelList(panel, "findings", ["none"], "dim"); return; }
+  panel.appendChild(el("h4", null, "findings " + mine.length));
+  for (const f of mine) {
+    const row = el("div", "row bad", f.rule + " — " + f.reason);
+    row.style.cursor = "pointer";
+    row.onclick = () => jump(f);
+    panel.appendChild(row);
+  }
+}
+const findingsUnder = place => DATA.findings.filter(f =>
+  f.file === place || f.file.startsWith(place === "." ? "" : place + "/"));
+
+// ---- the layered graph ----
+function layer(nodes, edges, tangled) {
+  // Kahn with cycle tolerance: a stuck set lands together, highlighted anyway.
+  const deps = {}; nodes.forEach(n => deps[n] = new Set());
+  edges.forEach(e => { if (deps[e.from] && e.from !== e.to) deps[e.from].add(e.to); });
+  const layers = []; const placed = new Set();
+  let remaining = nodes.slice();
+  while (remaining.length) {
+    let ready = remaining.filter(n => [...deps[n]].every(d => placed.has(d)));
+    if (!ready.length) ready = remaining.filter(n => tangled.has(n));
+    if (!ready.length) ready = remaining.slice();
+    layers.push(ready.sort());
+    ready.forEach(n => placed.add(n));
+    remaining = remaining.filter(n => !placed.has(n));
+  }
+  return layers.reverse(); // owners at the bottom, users above
+}
+function drawGraph(view, nodes, edges, options) {
+  const tangled = options.tangled || new Set();
+  const layers = layer(nodes, edges, tangled);
+  const gapx = 26, gapy = 86, padd = 34, nodeh = 30;
+  const width = node => Math.max(70, node.length * 7.4 + 26);
+  const pos = {};
+  let maxw = 0;
+  layers.forEach((row, i) => {
+    let x = padd;
+    row.forEach(node => {
+      pos[node] = { x, y: padd + i * gapy, w: width(node) };
+      x += width(node) + gapx;
+    });
+    maxw = Math.max(maxw, x);
+  });
+  const height = padd * 2 + (layers.length - 1) * gapy + nodeh;
+  const svg = svgel("svg", { width: Math.max(maxw + padd, 360), height: Math.max(height, 120) });
+  const defs = svgel("defs", {});
+  const marker = svgel("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 9, refY: 5,
+    markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+  marker.appendChild(svgel("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "#8b95a3" }));
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+  for (const e of edges) {
+    const a = pos[e.from], b = pos[e.to];
+    if (!a || !b) continue;
+    const x1 = a.x + a.w / 2, y1 = a.y + nodeh, x2 = b.x + b.w / 2, y2 = b.y;
+    const path = svgel("path", {
+      d: `M ${x1} ${y1} C ${x1} ${y1 + 32}, ${x2} ${y2 - 32}, ${x2} ${y2 - 2}`,
+      class: "edge" + (e.breaks ? " breaks" : "") +
+        (tangled.has(e.from) && tangled.has(e.to) ? " tangled" : ""),
+    });
+    svg.appendChild(path);
+  }
+  for (const name of nodes) {
+    const p = pos[name];
+    const enterable = options.enterable && options.enterable(name);
+    const group = svgel("g", { class: "node" + (tangled.has(name) ? " tangled" : "") +
+      (enterable ? " enterable" : "") + (options.selected === name ? " selected" : "") });
+    group.appendChild(svgel("rect", { x: p.x, y: p.y, width: p.w, height: nodeh }));
+    const label = svgel("text", { x: p.x + 13, y: p.y + 19, class: "name" });
+    label.textContent = name + (options.suffix ? options.suffix(name) : "");
+    group.appendChild(label);
+    group.onclick = () => options.onclick && options.onclick(name);
+    group.ondblclick = () => enterable && options.enter(name);
+    svg.appendChild(group);
+  }
+  const board = el("div", "board");
+  board.appendChild(svg);
+  view.appendChild(board);
 }
 
-// Docket: findings grouped by the law they break.
-{
-  const box = section("docket", "the docket");
-  if (!DATA.findings.length) panel(box).appendChild(el("div", "empty", "no findings"));
+// ---- tabs ----
+function overview(view) {
+  const chips = el("div", "chips");
+  const chip = (value, label) => {
+    const c = el("div", "chip");
+    c.appendChild(el("b", null, String(value)));
+    c.appendChild(el("div", null, label));
+    chips.appendChild(c);
+  };
+  chip(DATA.findings.length, "findings");
+  chip(DATA.suppressions.counted.length, "suppressions"
+    + (DATA.suppressions.added === null ? "" : " (+" + DATA.suppressions.added + ")"));
+  chip(DATA.third.locked, "third parties");
+  chip(DATA.claims, "claims");
+  chip(DATA.tangles.length, "tangles");
+  view.appendChild(chips);
+  const checks = el("div", "card");
+  const table = el("table");
+  for (const o of DATA.outcomes) {
+    const row = el("tr");
+    row.appendChild(el("td", o.passed ? "good" : "bad", o.check));
+    row.appendChild(el("td", "dim", o.unit));
+    row.appendChild(el("td", "dim", o.warm ? "warm" : o.seconds.toFixed(1) + "s"));
+    table.appendChild(row);
+  }
+  checks.appendChild(table);
+  view.appendChild(checks);
+  docket(view);
+}
+function docket(view) {
+  if (!DATA.findings.length) {
+    const card = el("div", "card");
+    card.appendChild(el("div", "empty", "the docket is empty"));
+    view.appendChild(card);
+    return;
+  }
   const byRule = {};
   for (const f of DATA.findings) (byRule[f.rule] = byRule[f.rule] || []).push(f);
   for (const rule of Object.keys(byRule).sort()) {
-    const p = panel(box);
+    const card = el("div", "card");
     const head = el("div");
     head.appendChild(el("b", null, rule));
-    const meta = DATA.rules.find(r => r.name === rule);
+    const meta = ruleMeta(rule);
     if (meta) {
       if (meta.core) head.appendChild(el("span", "tag core", "core"));
       head.appendChild(el("span", "tag" + (meta.record ? " record" : ""), meta.record ? "record" : "facts"));
       head.appendChild(el("div", "law", meta.law));
     }
-    p.appendChild(head);
+    card.appendChild(head);
     for (const f of byRule[rule]) {
       const node = el("div", "finding");
       node.appendChild(el("div", null, f.reason));
-      node.appendChild(el("div", "where", f.file + (f.line ? ":" + f.line : "")));
-      p.appendChild(node);
+      node.appendChild(el("div", "where", f.file + (f.line ? ":" + f.line : "") + "  — click to see it"));
+      node.onclick = () => jump(f);
+      card.appendChild(node);
+    }
+    view.appendChild(card);
+  }
+}
+
+// A finding knows where it is seen.
+function jump(f) {
+  const planRules = new Set(["phantom-service", "boot-cycle", "undeclared-volume", "unbacked-volume",
+    "unplanned-service", "overcommitted-machine", "uninvited-channel", "stale-channel-grant",
+    "unbuilt-artifact"]);
+  if (planRules.has(f.rule)) {
+    const service = DATA.plans.services.find(s => s.line === f.line);
+    pending = { service: service && service.name };
+    location.hash = "#plans";
+    if (location.hash === "#plans") route();
+    return;
+  }
+  if (f.rule === "sibling-cycle") {
+    const tangle = DATA.tangles.find(t => t.place === f.file);
+    pending = { members: tangle ? tangle.members : [] };
+    go("graph/" + f.file);
+    return;
+  }
+  if (DATA.families.some(fam => fam.place === f.file)) { go("graph/" + f.file); return; }
+  // Scope to the family holding the file; fall back to the unit quotient.
+  const dir = f.file.includes("/") ? f.file.slice(0, f.file.lastIndexOf("/")) : ".";
+  const scope = DATA.families.some(fam => fam.place === dir) ? dir : "units";
+  pending = { file: f.file };
+  go("graph/" + scope);
+}
+function go(hash) {
+  if (location.hash === "#" + hash) route();
+  else location.hash = "#" + hash;
+}
+
+function graph(view, scope) {
+  scope = scope || "units";
+  const crumbs = el("div", "crumbs");
+  const link = (label, target) => {
+    const a = el("a", null, label);
+    a.onclick = () => go("graph/" + target);
+    crumbs.appendChild(a);
+  };
+  link("units", "units");
+  if (scope !== "units") {
+    const parts = scope === "." ? ["."] : scope.split("/");
+    let walked = "";
+    parts.forEach((part, i) => {
+      crumbs.appendChild(el("span", null, "  /  "));
+      walked = i === 0 ? part : walked + "/" + part;
+      link(part, walked);
+    });
+  }
+  view.appendChild(crumbs);
+  const familyAt = place => DATA.families.find(fam => fam.place === place);
+  if (scope === "units") {
+    const nodes = [...new Set(DATA.edges.flatMap(e => [e.user, e.owner]))];
+    for (const d of DATA.declared) if (!nodes.includes(d.name)) nodes.push(d.name);
+    if (!nodes.length) { view.appendChild(el("div", "empty", "one unit, no cross-unit edges — enter it below")); }
+    drawGraph(view, nodes.length ? nodes : [], DATA.edges.map(e => ({ from: e.user, to: e.owner, breaks: e.breaks })), {
+      tangled: new Set(),
+      enterable: name => !!familyAt(name === "." ? "." : name),
+      enter: name => go("graph/" + name),
+      onclick: name => unitPanel(name),
+      selected: pending && pending.node,
+    });
+    const roots = DATA.families.filter(fam => fam.place === "." || !fam.place.includes("/"))
+      .map(fam => fam.place);
+    if (roots.length) {
+      const card = el("div", "card");
+      card.appendChild(el("span", "dim", "enter: "));
+      [...new Set(roots)].sort().forEach(place => {
+        const a = el("a", "accent", place + "  ");
+        a.style.cursor = "pointer";
+        a.onclick = () => go("graph/" + place);
+        card.appendChild(a);
+      });
+      view.appendChild(card);
+    }
+  } else {
+    const family = familyAt(scope);
+    if (!family) { view.appendChild(el("div", "empty", "no edges inside " + scope)); pending = null; return; }
+    const nodes = [...new Set(family.edges.flatMap(e => [e.from, e.to]))];
+    const tangle = DATA.tangles.find(t => t.place === scope);
+    const members = new Set((pending && pending.members) || (tangle ? tangle.members : []));
+    drawGraph(view, nodes, family.edges, {
+      tangled: members,
+      enterable: name => !!familyAt(scope === "." ? name : name),
+      enter: name => go("graph/" + name),
+      onclick: name => placePanel(family.unit, name),
+      selected: pending && (pending.node || pending.file),
+    });
+    if (tangle) {
+      const card = el("div", "card");
+      card.appendChild(el("span", "bad", "tangle: " + tangle.members.join(" <-> ")));
+      view.appendChild(card);
     }
   }
+  pending = null;
+}
+function unitPanel(name) {
+  const declared = DATA.declared.find(d => d.name === name);
+  openPanel(name, "unit", panel => {
+    if (declared) {
+      panelList(panel, "deps (intent)", declared.deps.length ? declared.deps : ["(undeclared — binds nothing)"],
+        declared.deps.length ? "" : "dim");
+      panelList(panel, "visibility (intent)", declared.visibility.length ? declared.visibility : ["(undeclared)"],
+        declared.visibility.length ? "" : "dim");
+      panelList(panel, "inner declarations", declared.inner.map(i =>
+        i.path + (i.deps.length ? "  deps " + i.deps.join(", ") : "")
+        + (i.visibility.length ? "  visibility " + i.visibility.join(", ") : "")));
+    } else panelList(panel, "intent", ["(nothing declared — binds nothing)"], "dim");
+    panelList(panel, "uses (real)", DATA.edges.filter(e => e.user === name).map(e =>
+      e.owner + (e.breaks ? "  (undeclared)" : "")));
+    panelList(panel, "used by (real)", DATA.edges.filter(e => e.owner === name).map(e => e.user));
+    panelFindings(panel, findingsUnder(name === "." ? "." : name));
+  });
+}
+function placePanel(unit, place) {
+  openPanel(place, "inside unit " + unit, panel => {
+    const declared = DATA.declared.find(d => d.name === unit);
+    const relative = unit === "." ? place : place.startsWith(unit + "/") ? place.slice(unit.length + 1) : place;
+    const inner = declared && declared.inner.find(i => i.path === relative);
+    if (inner) {
+      panelList(panel, "deps (intent)", inner.deps.length ? inner.deps : ["(undeclared)"]);
+      panelList(panel, "visibility (intent)", inner.visibility.length ? inner.visibility : ["(undeclared)"]);
+    } else panelList(panel, "intent", ["(nothing declared — binds nothing)"], "dim");
+    panelFindings(panel, findingsUnder(place));
+  });
 }
 
-// The graph: declared against real, breaks first.
-{
-  const box = section("graph", "the unit graph — declared against real");
-  const p = panel(box);
-  if (!DATA.edges.length) p.appendChild(el("div", "empty", "no cross-unit edges resolved"));
-  const sorted = [...DATA.edges].sort((a, b) => (b.breaks | 0) - (a.breaks | 0));
-  for (const e of sorted) {
-    const row = el("div", e.breaks ? "edge-break" : null,
-      e.user + "  ->  " + e.owner + (e.breaks ? "   (undeclared)" : ""));
-    p.appendChild(row);
+function plans(view) {
+  const data = DATA.plans;
+  if (!data.services.length) {
+    view.appendChild(el("div", "empty", "no plans written — the record is .arbiter/plans.toml"));
+    return;
   }
-}
-
-// Tangles: the knots, largest first.
-{
-  const box = section("tangles", "tangles");
-  const p = panel(box);
-  if (!DATA.tangles.length) p.appendChild(el("div", "empty", "none — every family forms an order"));
-  for (const t of DATA.tangles) p.appendChild(el("div", "edge-break", t.place + ":  " + t.members.join(" <-> ")));
-}
-
-// Plans: ladders up and down, doors, channels.
-{
-  const box = section("plans", "plans — the desired side");
-  const plans = DATA.plans;
-  if (!plans.services.length) panel(box).appendChild(el("div", "empty", "no plans written"));
-  for (const plan of plans.plans) {
-    const p = panel(box);
-    p.appendChild(el("b", null, "plan " + plan.name));
-    plan.ladder.forEach((rung, i) => {
-      const row = el("div", "rung");
-      row.appendChild(el("span", "step", "up " + (i + 1)));
-      row.appendChild(document.createTextNode(rung.map(s => s.service +
-        (s.replicas > 1 ? " x" + s.replicas : "") + " on " + s.machine).join(", ")));
-      p.appendChild(row);
+  const chosen = (pending && pending.plan) || (data.plans[0] && data.plans[0].name);
+  if (data.plans.length > 1) {
+    const pick = el("div", "planpick");
+    for (const plan of data.plans) {
+      const a = el("a", plan.name === chosen ? "on" : null, "plan " + plan.name);
+      a.onclick = () => { pending = { plan: plan.name }; route(); };
+      pick.appendChild(a);
+    }
+    view.appendChild(pick);
+  }
+  const plan = data.plans.find(p => p.name === chosen);
+  if (plan) planBoard(view, plan);
+  else view.appendChild(el("div", "empty", "services declared, no plan written yet"));
+  // Unplaced services still deserve a door into their detail.
+  const placedNames = new Set(plan ? plan.ladder.flat().map(s => s.service) : []);
+  const loose = data.services.filter(s => !placedNames.has(s.name));
+  if (loose.length) {
+    const card = el("div", "card");
+    card.appendChild(el("span", "dim", "not in this plan: "));
+    loose.forEach(s => {
+      const a = el("a", "warn", s.name + "  ");
+      a.style.cursor = "pointer";
+      a.onclick = () => servicePanel(s.name);
+      card.appendChild(a);
     });
-    [...plan.ladder].reverse().forEach((rung, i) => {
-      const row = el("div", "rung dim");
-      row.appendChild(el("span", "step", "down " + (i + 1)));
-      row.appendChild(document.createTextNode(rung.map(s => s.service).join(", ")));
-      p.appendChild(row);
+    view.appendChild(card);
+  }
+  const selected = pending && pending.service;
+  pending = null;
+  if (selected) servicePanel(selected);
+}
+function planBoard(view, plan) {
+  const data = DATA.plans;
+  const machines = [...new Set(plan.ladder.flat().map(s => s.machine))].sort();
+  const colw = 190, rowh = 92, padd = 56, nodeh = 32, top = 70;
+  const pos = {};
+  plan.ladder.forEach((rung, r) => {
+    const perMachine = {};
+    rung.forEach(s => {
+      const col = machines.indexOf(s.machine);
+      const stack = (perMachine[s.machine] = (perMachine[s.machine] || 0));
+      pos[s.service] = { x: padd + col * colw + 12 + stack * 10, y: top + r * rowh, meta: s };
+      perMachine[s.machine]++;
     });
+  });
+  const width = padd * 2 + machines.length * colw;
+  const height = top + plan.ladder.length * rowh + 30;
+  const svg = svgel("svg", { width: Math.max(width, 420), height });
+  const defs = svgel("defs", {});
+  const marker = svgel("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 9, refY: 5,
+    markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+  marker.appendChild(svgel("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "#8b95a3" }));
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+  machines.forEach((machine, col) => {
+    svg.appendChild(svgel("rect", { x: padd + col * colw, y: top - 28,
+      width: colw - 22, height: plan.ladder.length * rowh + 28, class: "machinebox" }));
+    const label = svgel("text", { x: padd + col * colw + 8, y: top - 36, class: "machinelabel" });
+    const spec = data.machines.find(m => m.name === machine);
+    label.textContent = machine + (spec && spec.cpu ? "  cpu " + spec.cpu : "")
+      + (spec && spec.memory_mb ? "  mem " + spec.memory_mb : "");
+    svg.appendChild(label);
+  });
+  plan.ladder.forEach((_, r) => {
+    const label = svgel("text", { x: 8, y: top + r * rowh + 20, class: "runglabel" });
+    label.textContent = "up " + (r + 1);
+    svg.appendChild(label);
+  });
+  const centre = name => {
+    const p = pos[name];
+    return p && { x: p.x + 70, y: p.y };
+  };
+  for (const service of data.services) {
+    for (const need of service.needs) {
+      const a = pos[service.name], b = pos[need];
+      if (!a || !b) continue;
+      svg.appendChild(svgel("path", { class: "edge",
+        d: `M ${a.x + 70} ${a.y + nodeh} C ${a.x + 70} ${a.y + nodeh + 26}, ${b.x + 70} ${b.y - 26}, ${b.x + 70} ${b.y - 2}` }));
+    }
   }
-  if (plans.doors.length || plans.channels.length) {
-    const p = panel(box);
-    for (const d of plans.doors)
-      p.appendChild(el("div", "accent", "door  " + d.domain + ":" + d.port + " -> " + d.to + "  via " + d.via));
-    for (const c of plans.channels)
-      p.appendChild(el("div", null, "channel  " + c.from + " -> " + c.to + (c.contract ? "  " + c.contract : "")));
+  for (const c of data.channels) {
+    const a = centre(c.from), b = centre(c.to);
+    if (!a || !b) continue;
+    svg.appendChild(svgel("path", { class: "edge channel",
+      d: `M ${a.x + 40} ${a.y + nodeh / 2} C ${(a.x + b.x) / 2 + 90} ${a.y}, ${(a.x + b.x) / 2 + 90} ${b.y}, ${b.x + 40} ${b.y + nodeh / 2}` }));
   }
+  for (const d of data.doors) {
+    const b = pos[d.via] || pos[d.to];
+    if (!b) continue;
+    const label = svgel("text", { x: b.x, y: 22, class: "worldlabel" });
+    label.textContent = d.domain + ":" + d.port + " ->";
+    svg.appendChild(label);
+    svg.appendChild(svgel("path", { class: "edge door",
+      d: `M ${b.x + 70} 28 L ${b.x + 70} ${b.y - 4}` }));
+  }
+  for (const name in pos) {
+    const p = pos[name];
+    const meta = p.meta;
+    const group = svgel("g", { class: "node" });
+    group.appendChild(svgel("rect", { x: p.x, y: p.y, width: 140, height: nodeh }));
+    const label = svgel("text", { x: p.x + 10, y: p.y + 20, class: "name" });
+    label.textContent = name + (meta.replicas > 1 ? " x" + meta.replicas : "");
+    group.appendChild(label);
+    group.onclick = () => servicePanel(name);
+    svg.appendChild(group);
+  }
+  const board = el("div", "board");
+  board.appendChild(svg);
+  view.appendChild(board);
+}
+function servicePanel(name) {
+  const service = DATA.plans.services.find(s => s.name === name);
+  if (!service) return;
+  openPanel(name, "service" + (service.replicas > 1 ? " x" + service.replicas : ""), panel => {
+    if (service.unit) {
+      panel.appendChild(el("h4", null, "built by"));
+      const a = el("a", null, "unit " + service.unit + " — open its graph");
+      a.onclick = () => go("graph/" + (service.unit === "." ? "." : service.unit));
+      panel.appendChild(a);
+    } else panelList(panel, "built by", ["(external artifact)"], "dim");
+    panelList(panel, "resources", [
+      "cpu " + (service.cpu === null || service.cpu === undefined ? "unstated" : service.cpu),
+      "memory_mb " + (service.memory_mb === null || service.memory_mb === undefined ? "unstated" : service.memory_mb)]);
+    panelList(panel, "needs (construction)", service.needs.length ? service.needs : ["none"],
+      service.needs.length ? "" : "dim");
+    panelList(panel, "channels (association)",
+      DATA.plans.channels.filter(c => c.from === name).map(c => "-> " + c.to + (c.contract ? "  " + c.contract : "")));
+    panelList(panel, "accepts", service.accepts === null || service.accepts === undefined
+      ? ["(absent — invites everyone)"] : service.accepts);
+    panelList(panel, "volumes", service.volumes.map(v => {
+      const vol = DATA.plans.volumes.find(x => x.name === v);
+      return v + (vol && vol.backup ? "  backup " + vol.backup : vol ? "  (unbacked)" : "  (undeclared)");
+    }));
+    panelList(panel, "doors", DATA.plans.doors.filter(d => d.via === name)
+      .map(d => d.domain + ":" + d.port + " -> " + d.to));
+    panelFindings(panel, DATA.findings.filter(f =>
+      f.file.endsWith("plans.toml") && f.line === service.line));
+  });
 }
 
-// Brief: intent and its states.
-{
-  const box = section("brief", "the brief — intent");
-  const p = panel(box);
-  if (!DATA.brief) p.appendChild(el("div", "empty", "no brief written"));
-  else for (const need of DATA.brief.needs) {
-    const row = el("div");
-    row.appendChild(el("span", "state-" + need.state, need.state.padEnd(10)));
-    row.appendChild(document.createTextNode(" " + need.case + " · " + need.need));
-    p.appendChild(row);
+function brief(view) {
+  if (!DATA.brief) { view.appendChild(el("div", "empty", "no brief written")); return; }
+  const byCase = {};
+  for (const need of DATA.brief.needs) (byCase[need.case] = byCase[need.case] || []).push(need);
+  for (const name of Object.keys(byCase)) {
+    const card = el("div", "card");
+    card.appendChild(el("b", null, name));
+    for (const need of byCase[name]) {
+      const row = el("div");
+      row.appendChild(el("span", "state-" + need.state, need.state.padEnd(11)));
+      row.appendChild(document.createTextNode(need.need));
+      card.appendChild(row);
+    }
+    view.appendChild(card);
   }
 }
-
-// Ledger: every signed exception, visible forever.
-{
-  const box = section("ledger", "the ledger");
-  const p = panel(box);
+function ledger(view) {
   const s = DATA.suppressions;
-  p.appendChild(el("div", null, s.counted.length + " suppressions counted" +
+  const card = el("div", "card");
+  card.appendChild(el("div", null, s.counted.length + " suppressions counted" +
     (s.added === null ? ", no reference recorded" : ", " + s.added + " added since the signature")));
-  for (const entry of s.counted) p.appendChild(el("div", "dim", entry));
+  for (const entry of s.counted) card.appendChild(el("div", "dim", entry));
+  view.appendChild(card);
+  const third = el("div", "card");
+  third.appendChild(el("div", null, DATA.third.locked + " third parties locked" +
+    (DATA.third.added === null ? ", no reference recorded" : ", " + DATA.third.added + " added since the signature")));
+  view.appendChild(third);
 }
-
-// The matrix, tagged.
-{
-  const box = section("rules", "the matrix");
-  const p = panel(box);
+function rules(view) {
+  const card = el("div", "card");
   const table = el("table");
   const head = el("tr");
   for (const h of ["rule", "power", "group", "law"]) head.appendChild(el("th", null, h));
   table.appendChild(head);
   for (const r of DATA.rules) {
     const row = el("tr");
-    const name = el("td", null, r.name);
-    row.appendChild(name);
+    row.appendChild(el("td", null, r.name));
     row.appendChild(el("td", r.record ? "warn" : "dim", (r.core ? "core, " : "") + (r.record ? "record" : "facts")));
     row.appendChild(el("td", "dim", r.group));
     row.appendChild(el("td", "law", r.law));
     table.appendChild(row);
   }
-  p.appendChild(table);
+  card.appendChild(table);
+  view.appendChild(card);
 }
+
+route();
 </script>
 </body>
 </html>

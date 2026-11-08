@@ -14,7 +14,10 @@ story = "manifests carve a repository into units before anything is judged"
 
   [[case.need]]
   need = "the resolved unit graph is drawable, declared against real"
-  claims = [". |  | the resolved graph draws itself declared against real"]
+  claims = [
+    ". |  | the resolved graph draws itself declared against real",
+    ". |  | the families of every folder travel with the snapshot",
+  ]
 
   [[case.need]]
   need = "tests, fixtures, ignored folders and containers are told apart from code"

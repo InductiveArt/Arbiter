@@ -764,3 +764,38 @@ fn the_tangles_read_lists_entangled_siblings_largest_first() {
     );
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn the_families_of_every_folder_travel_with_the_snapshot() {
+    use arbiter::judge::findings::families;
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-families-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    for folder in ["api", "infra"] {
+        fs::create_dir_all(root.join(folder)).expect("the folder is writable");
+    }
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("infra/db.py"),
+        "def connect() -> int:\n    return 1\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("api/handler.py"),
+        "from infra.db import connect\n\nprint(connect())\n",
+    )
+    .expect("the folder is writable");
+
+    let found = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let told = families(&found);
+    assert!(told.iter().any(|family| family.unit == "."
+        && family.place == "."
+        && family
+            .edges
+            .contains(&("api".to_string(), "infra".to_string()))));
+    let _ = fs::remove_dir_all(&root);
+}

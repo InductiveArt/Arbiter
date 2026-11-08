@@ -655,6 +655,44 @@ fn sibling_graphs(
     graphs
 }
 
+// One family of the containment tree, told in repo coordinates: the unit it
+// belongs to, its place, and the edges between its children.
+pub struct Family {
+    pub unit: String,
+    pub place: String,
+    pub edges: Vec<(String, String)>,
+}
+
+// Every family the containment tree holds - the drawable form of the sibling
+// facts, suppressed or not.
+pub fn families(found: &Graph) -> Vec<Family> {
+    let mut told = Vec::new();
+    for ((unit, folder), children) in sibling_graphs(found) {
+        let home = &found.repo.units[unit].path;
+        let place = if folder.is_empty() {
+            if home.as_os_str().is_empty() {
+                ".".to_string()
+            } else {
+                home.to_string_lossy().to_string()
+            }
+        } else {
+            home.join(&folder).to_string_lossy().to_string()
+        };
+        let mut edges = Vec::new();
+        for (from, reached) in &children {
+            for to in reached {
+                edges.push((from.clone(), to.clone()));
+            }
+        }
+        told.push(Family {
+            unit: found.repo.unit_name(unit),
+            place,
+            edges,
+        });
+    }
+    told
+}
+
 // The sibling law: within every folder, the children form an order. A cycle
 // is named with its whole member set; the user's record may quiet one exact
 // set, and a quieting entry is proven alive or named stale.
