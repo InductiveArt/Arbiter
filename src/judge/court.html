@@ -4,9 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>arbiter court</title>
-<script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js"></script>
 <style>
 :root {
   --paper: #10141a; --panel: #161b23; --line: #272f3b; --ink: #d9dfe7;
@@ -50,7 +48,6 @@ nav a span.bad { color: var(--bad); }
 .crumbs { margin-bottom: .6rem; color: var(--dim); flex: none; }
 .crumbs a { color: var(--accent); cursor: pointer; text-decoration: none; }
 #cy { flex: 1; min-height: 380px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
-.underside { flex: none; margin-top: .7rem; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
         padding: .75rem 1rem; margin-bottom: .7rem; overflow-x: auto; }
 .card h3 { font-size: .9rem; margin-bottom: .4rem; }
@@ -119,6 +116,21 @@ details.group .body { margin-top: .5rem; border-top: 1px solid var(--line); padd
 .legend { color: var(--dim); font-size: .78rem; margin: .4rem 0 .8rem; }
 .planpick a { color: var(--dim); margin-right: .9rem; cursor: pointer; text-decoration: none; }
 .planpick a.on { color: var(--ink); border-bottom: 2px solid var(--accent); }
+svg.deps { display: block; width: 100%; height: 100%; cursor: grab; }
+svg.deps:active { cursor: grabbing; }
+.gnode rect { fill: #1d242e; stroke: #272f3b; stroke-width: 1.5; rx: 5; cursor: pointer; }
+.gnode text { fill: var(--ink); font: 12px var(--mono); pointer-events: none; }
+.gnode.enterable rect { stroke-dasharray: 5 3; }
+.gnode.alarmed rect { stroke: var(--bad); }
+.gnode.stageok rect { stroke: #4f7d4f; }
+.gnode.stageok.alarmed rect { stroke: var(--bad); }
+.gnode.stagefail rect, .gnode.tangled rect { stroke: var(--bad); stroke-width: 2.5; }
+.gnode.selected rect, .gnode.glow rect { fill: var(--sel) !important; stroke: var(--accent); }
+.gedge { stroke: #5c6673; stroke-width: 1.4; fill: none; }
+.gedge.breaks, .gedge.tangled { stroke: var(--bad); stroke-width: 2; }
+.gedge.glow { stroke: var(--accent); stroke-width: 2.2; }
+.junction { fill: #5c6673; }
+.faded { opacity: .16; }
 svg.board { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; margin-bottom: .8rem; }
 svg .node rect { fill: #1d242e; stroke: var(--line); rx: 5; cursor: pointer; }
 svg .node:hover rect { stroke: var(--accent); }
@@ -155,7 +167,6 @@ const el = (tag, cls, text) => {
 };
 const ruleMeta = name => DATA.rules.find(r => r.name === name);
 let pending = null;
-let cy = null;
 
 // ---- the containment tree, derived once ----
 // Every known place in repo coordinates, with its owning unit; children are
@@ -232,7 +243,6 @@ function route() {
   closePanel();
   const view = document.getElementById("view");
   view.textContent = "";
-  cy = null;
   ({ overview, findings, graph, plans, brief, ledger, rules }[tab] || overview)(view, rest.join("/"));
 }
 window.addEventListener("hashchange", route);
@@ -332,11 +342,14 @@ function panelFindings(panel, mine, place) {
 }
 // A finding that names a tangle isolates it on hover, wherever it is shown.
 function hoverFor(f) {
-  if (f.rule !== "sibling-cycle") return null;
-  const tangle = DATA.tangles.find(t => t.place === f.file);
-  if (!tangle) return null;
-  const owner = ownerOf(f.file);
-  return () => glowMembers(tangle.members.map(m => fullOf(owner, m)));
+  if (f.rule === "sibling-cycle") {
+    const tangle = DATA.tangles.find(t => t.place === f.file);
+    if (tangle) {
+      const owner = ownerOf(f.file);
+      return () => glowMembers(tangle.members.map(m => fullOf(owner, m)));
+    }
+  }
+  return () => glow(f.file);
 }
 function showOverlay(title, body) {
   document.getElementById("overlaytitle").textContent = title;
@@ -347,26 +360,57 @@ function closeOverlay() { document.getElementById("overlay").className = ""; }
 document.getElementById("overlay").onclick = e => { if (e.target.id === "overlay") closeOverlay(); };
 
 // ---- the graph (cytoscape + dagre) ----
-function glow(place) {
-  if (!cy) return;
-  const node = cy.getElementById(place);
-  if (!node.length) return;
-  cy.elements().addClass("faded");
-  node.removeClass("faded").addClass("glow");
-  node.connectedEdges().removeClass("faded").addClass("glow");
-  node.connectedEdges().connectedNodes().removeClass("faded");
+let GRAPHSVG = null;
+// The deepest drawn node holding a place: itself, or its nearest ancestor.
+function visibleFor(place) {
+  if (!GRAPHSVG) return null;
+  let best = null;
+  for (const id of GRAPHSVG.nodes.keys()) {
+    if (id === place || place.startsWith(id === "." ? "" : id + "/")) {
+      if (!best || id.length > best.length) best = id;
+    }
+  }
+  return best;
 }
-function glowMembers(places) {
-  if (!cy) return;
-  cy.elements().addClass("faded");
-  for (const p of places) {
-    const node = cy.getElementById(p);
-    node.removeClass("faded").addClass("glow");
-    node.connectedEdges().filter(e => places.includes(e.source().id()) && places.includes(e.target().id()))
-      .removeClass("faded").addClass("glow");
+function fadeAll() {
+  for (const g of GRAPHSVG.nodes.values()) g.classList.add("faded");
+  for (const e of GRAPHSVG.edges) e.el.classList.add("faded");
+}
+function glow(place) {
+  if (!GRAPHSVG) return;
+  const id = visibleFor(place);
+  if (!id) return;
+  fadeAll();
+  const node = GRAPHSVG.nodes.get(id);
+  node.classList.remove("faded"); node.classList.add("glow");
+  for (const e of GRAPHSVG.edges) {
+    if (e.from === id || e.to === id) {
+      e.el.classList.remove("faded"); e.el.classList.add("glow");
+      const other = GRAPHSVG.nodes.get(e.from === id ? e.to : e.from);
+      if (other) other.classList.remove("faded");
+    }
   }
 }
-function unglow() { if (cy) cy.elements().removeClass("faded glow"); }
+function glowMembers(places) {
+  if (!GRAPHSVG) return;
+  const ids = [...new Set(places.map(visibleFor).filter(Boolean))];
+  if (!ids.length) return;
+  fadeAll();
+  for (const id of ids) {
+    const g = GRAPHSVG.nodes.get(id);
+    g.classList.remove("faded"); g.classList.add("glow");
+  }
+  for (const e of GRAPHSVG.edges) {
+    if (ids.includes(e.from) && ids.includes(e.to)) {
+      e.el.classList.remove("faded"); e.el.classList.add("glow");
+    }
+  }
+}
+function unglow() {
+  if (!GRAPHSVG) return;
+  for (const g of GRAPHSVG.nodes.values()) g.classList.remove("faded", "glow");
+  for (const e of GRAPHSVG.edges) e.el.classList.remove("faded", "glow");
+}
 
 function graph(view, scope) {
   scope = scope || "units";
@@ -411,116 +455,21 @@ function graph(view, scope) {
   const holder = el("div"); holder.id = "cy";
   view.appendChild(holder);
   if (!nodes.length) holder.replaceWith(el("div", "empty", "nothing resolved here"));
-  else if (!window.cytoscape) {
+  else if (!window.ELK) {
     const card = el("div", "card");
     card.appendChild(el("div", "warn", "graph library unreachable (offline?) — the edges, listed:"));
     edges.forEach(e => card.appendChild(el("div", e.breaks ? "bad" : "dim", e.from + " -> " + e.to)));
     holder.replaceWith(card);
-  } else {
-    const lerp = (a, b, t) => {
-      const hex = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
-      const [ar, ag, ab] = hex(a), [br, bg, bb] = hex(b);
-      const mix = (x, y) => Math.round(x + (y - x) * t).toString(16).padStart(2, "0");
-      return "#" + mix(ar, br) + mix(ag, bg) + mix(ab, bb);
-    };
-    const SOURCE = "#27405e", SINK = "#45335e", LONE = "#1d242e";
-    const degree = {};
-    for (const n of nodes) degree[n] = { incoming: 0, outgoing: 0 };
-    for (const e of edges) {
-      if (degree[e.from]) degree[e.from].outgoing++;
-      if (degree[e.to]) degree[e.to].incoming++;
-    }
-    const flow = n => {
-      const d = degree[n];
-      if (!d || (!d.incoming && !d.outgoing)) return LONE;
-      return lerp(SOURCE, SINK, d.incoming / (d.incoming + d.outgoing));
-    };
-    const label = place => {
-      const short = place === "." ? "." : place.split("/").pop();
-      const alarms = findingsUnder(place).length;
-      return short + (alarms ? "  ●" + alarms : "");
-    };
-    const stageClass = place => {
-      const outs = outcomesOf(place);
-      if (!outs.length) return "";
-      return outs.some(o => !o.passed) ? " stagefail" : " stageok";
-    };
-    const elements = [];
-    for (const n of nodes) elements.push({ data: { id: n, label: label(n), flow: flow(n) },
-      classes: (tangleMembers.has(n) ? "tangled " : "") + (findingsUnder(n).length ? "alarmed" : "")
-        + stageClass(n) + (childrenOf(n).length || DATA.families.some(f => f.place === n) ? " enterable" : "") });
-    edges.forEach((e, i) => elements.push({
-      data: { id: "e" + i, source: e.from, target: e.to, turn: 16 + (i % 7) * 11 },
-      classes: (e.breaks ? "breaks " : "") + (tangleMembers.has(e.from) && tangleMembers.has(e.to) ? "tangled" : "") }));
-    cy = cytoscape({
-      container: holder, elements,
-      style: [
-        { selector: "node", style: { shape: "round-rectangle", width: "label", padding: "9px",
-          label: "data(label)", color: "#d9dfe7", "font-family": "Menlo, monospace", "font-size": 12,
-          "text-valign": "center", "background-color": "data(flow)", "border-width": 1.5, "border-color": "#272f3b" } },
-        { selector: "node.enterable", style: { "border-style": "dashed" } },
-        { selector: "node.alarmed", style: { "border-color": "#e07a7a" } },
-        { selector: "node.stageok", style: { "border-color": "#4f7d4f" } },
-        { selector: "node.stageok.alarmed", style: { "border-color": "#e07a7a" } },
-        { selector: "node.stagefail", style: { "border-color": "#e07a7a", "border-width": 2.5 } },
-        { selector: "node.tangled", style: { "border-color": "#e07a7a", "border-width": 2.5 } },
-        { selector: "node:selected", style: { "background-color": "#2c3a4d", "border-color": "#7aa7d8" } },
-        { selector: "node.glow", style: { "background-color": "#2c3a4d", "border-color": "#7aa7d8" } },
-        { selector: "edge", style: { width: 1.4, "line-color": "#5c6673", "curve-style": "taxi",
-          "taxi-direction": "downward", "taxi-turn": "data(turn)", "taxi-turn-min-distance": 6,
-          "target-arrow-shape": "triangle", "target-arrow-color": "#5c6673", "arrow-scale": .9 } },
-        { selector: "edge.breaks, edge.tangled", style: { "line-color": "#e07a7a", "target-arrow-color": "#e07a7a", width: 2 } },
-        { selector: "edge.glow", style: { "line-color": "#7aa7d8", "target-arrow-color": "#7aa7d8", width: 2.2 } },
-        { selector: ".faded", style: { opacity: .18 } },
-      ],
-      layout: { name: "dagre", rankDir: "TB", nodeSep: 26, rankSep: 70, padding: 18 },
-      wheelSensitivity: .25,
-    });
-    cy.on("tap", evt => {
-      if (evt.target !== cy) return;
-      cy.$(":selected").unselect();
-      scopePanel(scope);
-    });
-    cy.on("tap", "node", evt => {
-      const place = evt.target.id();
-      if (scope === "units") unitPanel(place); else placePanel(place);
-    });
-    cy.on("dbltap", "node", evt => {
-      const place = evt.target.id();
-      if (childrenOf(place).length || DATA.families.some(f => f.place === place)) go("graph/" + place);
-    });
-    if (pending && pending.members) { const m = pending.members.map(x => fullOf(ownerOf(scope), x)); setTimeout(() => glowMembers(m), 60); }
-    if (pending && pending.select) {
-      const target = pending.select;
-      setTimeout(() => { const n = cy.getElementById(target); if (n.length) { n.select(); glow(target); } }, 60);
-    }
   }
   const legend = el("div", "legend",
-    "blue gives, purple receives, the shade between is the mix · red border = findings or a failed stage · dashed = enterable · double-click descends");
+    "blue gives, purple receives, the shade between is the mix · red border = findings or a failed stage · dashed = enterable · double-click descends · drag pans, wheel zooms");
   view.appendChild(legend);
-  const under = el("div", "underside");
   const tangle = DATA.tangles.find(t => t.place === scope);
-  const owner = ownerOf(scope);
-  const isolate = tangle ? () => glowMembers(tangle.members.map(m => fullOf(owner, m))) : null;
-  const here = DATA.findings.filter(f => f.file === scope);
-  if (here.length) {
-    const card = el("div", "card");
-    for (const f of here) card.appendChild(findingRow(f, f.rule === "sibling-cycle" ? isolate : null));
-    if (tangle) card.appendChild(el("div", "legend", "hover the sibling-cycle to isolate its members above"));
-    under.appendChild(card);
-  } else if (tangle) {
-    const card = el("div", "card");
-    const line = el("div", "dim", "tangle (signed): " + tangle.members.join("  <->  ") + "   (hover to isolate)");
-    line.style.cursor = "pointer";
-    line.onmouseenter = isolate;
-    line.onmouseleave = unglow;
-    card.appendChild(line);
-    under.appendChild(card);
-  }
-  view.appendChild(under);
   scopeFacts = { nodes: nodes.length, edges: edges.length, tangle: tangle || null };
-  if (!pending || (!pending.select && !pending.members)) scopePanel(scope);
+  const want = pending;
   pending = null;
+  if (nodes.length && window.ELK) drawDeps(holder, scope, nodes, edges, tangleMembers, want);
+  else scopePanel(scope);
 }
 function unitPanel(name) {
   const declared = DATA.declared.find(d => d.name === name);
@@ -922,6 +871,156 @@ function docketInto(box, list, openAll) {
     group.appendChild(body);
     box.appendChild(group);
   }
+}
+
+// ---- the dependency drawing: ELK layered, orthogonal lanes ----
+function flowColor(nodes, edges) {
+  const lerp = (a, b, k) => {
+    const hex = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+    const [ar, ag, ab] = hex(a), [br, bg, bb] = hex(b);
+    const mix = (x, y) => Math.round(x + (y - x) * k).toString(16).padStart(2, "0");
+    return "#" + mix(ar, br) + mix(ag, bg) + mix(ab, bb);
+  };
+  const SOURCE = "#27405e", SINK = "#45335e", LONE = "#1d242e";
+  const degree = {};
+  for (const n of nodes) degree[n] = { incoming: 0, outgoing: 0 };
+  for (const e of edges) {
+    if (degree[e.from]) degree[e.from].outgoing++;
+    if (degree[e.to]) degree[e.to].incoming++;
+  }
+  return n => {
+    const d = degree[n];
+    if (!d || (!d.incoming && !d.outgoing)) return LONE;
+    return lerp(SOURCE, SINK, d.incoming / (d.incoming + d.outgoing));
+  };
+}
+function drawDeps(holder, scope, nodes, edges, tangleMembers, want) {
+  const label = place => {
+    const short = place === "." ? "." : place.split("/").pop();
+    const alarms = findingsUnder(place).length;
+    return short + (alarms ? "  ●" + alarms : "");
+  };
+  const sized = place => Math.max(70, label(place).length * 7.4 + 26);
+  new ELK().layout({
+    id: "root",
+    layoutOptions: {
+      "elk.algorithm": "layered",
+      "elk.direction": "DOWN",
+      "elk.edgeRouting": "ORTHOGONAL",
+      "elk.layered.mergeEdges": "true",
+      "elk.spacing.nodeNode": "30",
+      "elk.layered.spacing.nodeNodeBetweenLayers": "58",
+      "elk.spacing.edgeEdge": "11",
+      "elk.layered.spacing.edgeEdgeBetweenLayers": "11",
+      "elk.layered.spacing.edgeNodeBetweenLayers": "18",
+      "elk.padding": "[top=16,left=16,bottom=16,right=16]",
+    },
+    children: nodes.map(n => ({ id: n, width: sized(n), height: 30 })),
+    edges: edges.map((e, i) => ({ id: "e" + i, sources: [e.from], targets: [e.to] })),
+  }).then(done => {
+    const svg = svgel("svg", { class: "deps", viewBox: "0 0 " + done.width + " " + done.height });
+    const defs = svgel("defs", {});
+    const marker = svgel("marker", { id: "darrow", viewBox: "0 0 10 10", refX: 8, refY: 5,
+      markerWidth: 6.5, markerHeight: 6.5, orient: "auto" });
+    marker.appendChild(svgel("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "#8b95a3" }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+    GRAPHSVG = { nodes: new Map(), edges: [] };
+    for (const e of done.edges || []) {
+      const spec = edges[Number(e.id.slice(1))];
+      const cls = "gedge" + (spec.breaks ? " breaks" : "")
+        + (tangleMembers.has(spec.from) && tangleMembers.has(spec.to) ? " tangled" : "");
+      const sections = e.sections || [];
+      sections.forEach((section, at) => {
+        const points = [section.startPoint, ...(section.bendPoints || []), section.endPoint];
+        const path = svgel("path", {
+          d: points.map((pt, j) => (j ? "L" : "M") + pt.x + " " + pt.y).join(" "),
+          class: cls,
+        });
+        if (at === sections.length - 1) path.setAttribute("marker-end", "url(#darrow)");
+        svg.appendChild(path);
+        GRAPHSVG.edges.push({ from: spec.from, to: spec.to, el: path });
+      });
+      for (const junction of e.junctionPoints || []) {
+        svg.appendChild(svgel("circle", { cx: junction.x, cy: junction.y, r: 2.4, class: "junction" }));
+      }
+    }
+    const flow = flowColor(nodes, edges);
+    for (const child of done.children || []) {
+      const place = child.id;
+      const outs = outcomesOf(place);
+      const g = svgel("g", { class: "gnode"
+        + (tangleMembers.has(place) ? " tangled" : "")
+        + (findingsUnder(place).length ? " alarmed" : "")
+        + (outs.length ? (outs.some(o => !o.passed) ? " stagefail" : " stageok") : "")
+        + (childrenOf(place).length || DATA.families.some(f => f.place === place) ? " enterable" : "") });
+      const rect = svgel("rect", { x: child.x, y: child.y, width: child.width, height: child.height });
+      rect.style.fill = flow(place);
+      g.appendChild(rect);
+      const text = svgel("text", { x: child.x + 12, y: child.y + 19 });
+      text.textContent = label(place);
+      g.appendChild(text);
+      g.onclick = evt => {
+        evt.stopPropagation();
+        select(place);
+        if (scope === "units") unitPanel(place); else placePanel(place);
+      };
+      g.ondblclick = evt => {
+        evt.stopPropagation();
+        if (childrenOf(place).length || DATA.families.some(f => f.place === place)) go("graph/" + place);
+      };
+      svg.appendChild(g);
+      GRAPHSVG.nodes.set(place, g);
+    }
+    svg.onclick = () => { deselect(); scopePanel(scope); };
+    panzoom(holder, svg, done.width, done.height);
+    holder.textContent = "";
+    holder.appendChild(svg);
+    if (want && want.members) glowMembers(want.members.map(m => fullOf(ownerOf(scope === "units" ? "." : scope), m)));
+    else if (want && want.select) {
+      const id = visibleFor(want.select);
+      if (id) { select(id); glow(id); }
+      scopePanel(scope);
+    } else scopePanel(scope);
+  });
+}
+function select(place) {
+  deselect();
+  const g = GRAPHSVG && GRAPHSVG.nodes.get(place);
+  if (g) g.classList.add("selected");
+}
+function deselect() {
+  if (!GRAPHSVG) return;
+  for (const g of GRAPHSVG.nodes.values()) g.classList.remove("selected");
+  unglow();
+}
+// Wheel zooms at the cursor, dragging pans: the viewBox is the camera.
+function panzoom(holder, svg, width, height) {
+  let vb = { x: 0, y: 0, w: width, h: height };
+  const apply = () => svg.setAttribute("viewBox", vb.x + " " + vb.y + " " + vb.w + " " + vb.h);
+  let moved = false;
+  holder.onwheel = evt => {
+    evt.preventDefault();
+    const k = evt.deltaY > 0 ? 1.12 : 1 / 1.12;
+    const box = svg.getBoundingClientRect();
+    const mx = vb.x + (evt.clientX - box.left) / box.width * vb.w;
+    const my = vb.y + (evt.clientY - box.top) / box.height * vb.h;
+    vb = { x: mx - (mx - vb.x) * k, y: my - (my - vb.y) * k, w: vb.w * k, h: vb.h * k };
+    apply();
+  };
+  let drag = null;
+  holder.onmousedown = evt => { moved = false; drag = { x: evt.clientX, y: evt.clientY, vx: vb.x, vy: vb.y }; };
+  holder.onmousemove = evt => {
+    if (!drag) return;
+    moved = true;
+    const box = svg.getBoundingClientRect();
+    vb.x = drag.vx - (evt.clientX - drag.x) / box.width * vb.w;
+    vb.y = drag.vy - (evt.clientY - drag.y) / box.height * vb.h;
+    apply();
+  };
+  holder.onmouseup = holder.onmouseleave = () => { drag = null; };
+  // A drag should not read as a background click.
+  svg.addEventListener("click", evt => { if (moved) { evt.stopPropagation(); moved = false; } }, true);
 }
 
 // ---- plans (the board) ----
