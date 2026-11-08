@@ -199,6 +199,7 @@ const outcomesOf = unit => DATA.outcomes.filter(o => o.unit === unit);
 // ---- routing ----
 const TABS = [
   ["overview", () => DATA.findings.length, () => DATA.findings.length > 0],
+  ["findings", () => DATA.findings.length, () => DATA.findings.length > 0],
   ["graph", () => DATA.edges.length + DATA.families.length, () => DATA.tangles.length > 0],
   ["plans", () => DATA.plans.plans.length, () => false],
   ["brief", () => DATA.brief ? DATA.brief.cases : 0, () => false],
@@ -221,7 +222,7 @@ function route() {
   const view = document.getElementById("view");
   view.textContent = "";
   cy = null;
-  ({ overview, graph, plans, brief, ledger, rules }[tab] || overview)(view, rest.join("/"));
+  ({ overview, findings, graph, plans, brief, ledger, rules }[tab] || overview)(view, rest.join("/"));
 }
 window.addEventListener("hashchange", route);
 function go(hash) {
@@ -260,9 +261,14 @@ function panelList(panel, title, items, each) {
     panel.appendChild(row);
   }
 }
-function panelFindings(panel, mine) {
+function panelFindings(panel, mine, place) {
   panel.appendChild(el("h4", null, "findings " + mine.length));
   if (!mine.length) { panel.appendChild(el("div", "row dim", "none")); return; }
+  if (place) {
+    const all = el("a", null, "open in findings ↗");
+    all.onclick = () => go("findings/" + place);
+    panel.appendChild(all);
+  }
   for (const f of mine) {
     const row = el("div", "finding");
     row.appendChild(el("div", "bad", f.rule));
@@ -459,7 +465,7 @@ function unitPanel(name) {
       a.onclick = () => go("graph/" + name);
       panel.appendChild(a);
     }
-    panelFindings(panel, findingsUnder(name));
+    panelFindings(panel, findingsUnder(name), name);
   });
 }
 function placePanel(place) {
@@ -478,7 +484,7 @@ function placePanel(place) {
       a.onclick = () => go("graph/" + place);
       panel.appendChild(a);
     }
-    panelFindings(panel, findingsUnder(place));
+    panelFindings(panel, findingsUnder(place), place);
   });
 }
 
@@ -518,20 +524,27 @@ function pipeline(view) {
     o.check === "stale-generated" || o.check === "inter-language-break");
   const checks = [...new Set(DATA.outcomes.map(o => o.check))].sort();
   const unanswered = DATA.brief ? DATA.brief.needs.filter(n => n.state === "unanswered").length : 0;
+  const timed = name => {
+    const step = (DATA.pipeline || []).find(s => s.name === name);
+    if (!step) return "";
+    return " · " + (step.seconds < 0.05 ? "<0.1s" : step.seconds.toFixed(1) + "s");
+  };
+  const contractSeconds = contracts.filter(o => !o.warm).reduce((sum, o) => sum + o.seconds, 0);
   const steps = [
-    { name: "scan", sub: DATA.units + " units, " + DATA.files + " files", cls: "green" },
-    { name: "resolve", sub: DATA.resolved + " edges", cls: "green" },
-    { name: "judge", sub: DATA.findings.length + " findings · in process",
-      cls: DATA.findings.length ? "red" : "green", act: () => scrollTo("docketbox") },
-    { name: "dials", sub: dials + " findings", cls: dials ? "red" : "green" },
-    { name: "tools", sub: checks.join(" ") || "—", cls: failed ? "red" : "green",
+    { name: "scan", sub: DATA.units + " units, " + DATA.files + " files" + timed("scan"), cls: "green" },
+    { name: "resolve", sub: DATA.resolved + " edges" + timed("resolve"), cls: "green" },
+    { name: "judge", sub: DATA.findings.length + " findings" + timed("judge"),
+      cls: DATA.findings.length ? "red" : "green", act: () => go("findings") },
+    { name: "dials", sub: dials + " findings · with tools", cls: dials ? "red" : "green" },
+    { name: "tools", sub: (checks.join(" ") || "—") + timed("tools"), cls: failed ? "red" : "green",
       act: () => scrollTo("outcomesbox") },
-    { name: "contracts", sub: contracts.length ? contracts.length + " checked" : "none here",
+    { name: "contracts", sub: contracts.length
+        ? contracts.length + " checked · " + contractSeconds.toFixed(1) + "s" : "none here",
       cls: contracts.some(o => !o.passed) ? "red" : "green" },
-    { name: "claims", sub: DATA.claims + " heard", cls: unanswered ? "red" : "green",
+    { name: "claims", sub: DATA.claims + " heard" + timed("claims"), cls: unanswered ? "red" : "green",
       act: () => go("brief") },
-    { name: "ledger", sub: DATA.suppressions.counted.length + " counted", cls: "green",
-      act: () => go("ledger") },
+    { name: "ledger", sub: DATA.suppressions.counted.length + " counted" + timed("ledger"),
+      cls: "green", act: () => go("ledger") },
   ];
   const stepw = name => Math.max(86, name.length * 8 + 30);
   const gap = 34, h = 46, pad = 14;
@@ -575,11 +588,13 @@ function overview(view) {
     c.appendChild(el("b", null, String(value)));
     c.appendChild(el("div", null, label));
     chips.appendChild(c);
+    return c;
   };
   const failed = DATA.outcomes.filter(o => !o.passed).length;
   chip(failed, "failed checks", failed > 0);
-  chip(DATA.findings.length, "findings", DATA.findings.length > 0);
-  chip(DATA.tangles.length, "tangles", DATA.tangles.length > 0);
+  const fchip = chip(DATA.findings.length, "findings", DATA.findings.length > 0);
+  fchip.style.cursor = "pointer";
+  fchip.onclick = () => go("findings");
   chip(DATA.suppressions.counted.length, "suppressions"
     + (DATA.suppressions.added === null ? "" : " (+" + DATA.suppressions.added + ")"), false);
   chip(DATA.third.locked, "third parties", false);
@@ -621,7 +636,9 @@ function overview(view) {
     summary.appendChild(el("span", "dim", seconds.toFixed(1) + "s" + (mine.every(o => o.warm) ? " (warm)" : "")));
     if (alarms) {
       const hint = el("span", "hint", "findings " + alarms);
-      hint.title = alarms + " findings under " + name + " — the docket and the graph hold them";
+      hint.title = alarms + " findings under " + name + " — click for the scoped list";
+      hint.style.cursor = "pointer";
+      hint.onclick = e => { e.stopPropagation(); e.preventDefault(); go("findings/" + name); };
       summary.appendChild(hint);
     }
     if (runMode === "unit") {
@@ -659,22 +676,59 @@ function overview(view) {
   taught.textContent = "the stage set is each pack's pinned adapter — " + sets.join(" · ")
     + ". rules are never stages: laws are judged on the graph, in process, and land as findings.";
   view.appendChild(taught);
-  docket(view);
 }
-function docket(view) {
-  const box = el("div"); box.id = "docketbox";
+
+// ---- findings: the one home, filterable, scope-aware ----
+function findings(view, scope) {
+  const bar = el("div", "card");
+  bar.style.display = "flex"; bar.style.gap = "1rem"; bar.style.flexWrap = "wrap";
+  const scopeIn = document.createElement("input");
+  scopeIn.placeholder = "scope — a unit, folder or file; empty is everything";
+  scopeIn.value = scope || "";
+  const ruleIn = document.createElement("select");
+  const opt = (v, label) => { const o = document.createElement("option"); o.value = v; o.textContent = label; ruleIn.appendChild(o); };
+  opt("", "every rule");
+  [...new Set(DATA.findings.map(f => f.rule))].sort().forEach(r =>
+    opt(r, r + " (" + DATA.findings.filter(f => f.rule === r).length + ")"));
+  const textIn = document.createElement("input");
+  textIn.placeholder = "search reasons and ids";
+  for (const input of [scopeIn, textIn]) {
+    input.style.cssText = "background:#10141a;border:1px solid #272f3b;border-radius:4px;color:#d9dfe7;font:inherit;padding:.25rem .5rem;flex:1;min-width:180px";
+  }
+  ruleIn.style.cssText = "background:#10141a;border:1px solid #272f3b;border-radius:4px;color:#d9dfe7;font:inherit;padding:.25rem .5rem";
+  bar.append(scopeIn, ruleIn, textIn);
+  view.appendChild(bar);
+  const count = el("div", "legend");
+  view.appendChild(count);
+  const box = el("div");
   view.appendChild(box);
-  if (!DATA.findings.length) {
+  const render = () => {
+    box.textContent = "";
+    const at = scopeIn.value.trim();
+    const needle = textIn.value.trim().toLowerCase();
+    const mine = DATA.findings.filter(f =>
+      (!at || f.file === at || f.file.startsWith(at + "/"))
+      && (!ruleIn.value || f.rule === ruleIn.value)
+      && (!needle || f.reason.toLowerCase().includes(needle) || f.id.includes(needle)));
+    count.textContent = mine.length + " of " + DATA.findings.length + " findings"
+      + (at ? " under " + at : "") + " — click one to see it in place";
+    docketInto(box, mine, true);
+  };
+  scopeIn.oninput = ruleIn.onchange = textIn.oninput = render;
+  render();
+}
+function docketInto(box, list, openAll) {
+  if (!list.length) {
     const card = el("div", "card");
-    card.appendChild(el("div", "empty", "the docket is empty"));
+    card.appendChild(el("div", "empty", "nothing here — the docket is empty at this scope"));
     box.appendChild(card);
     return;
   }
   const byRule = {};
-  for (const f of DATA.findings) (byRule[f.rule] = byRule[f.rule] || []).push(f);
+  for (const f of list) (byRule[f.rule] = byRule[f.rule] || []).push(f);
   for (const rule of Object.keys(byRule).sort()) {
     const group = el("details", "group");
-    if (Object.keys(byRule).length <= 2) group.open = true;
+    if (openAll || Object.keys(byRule).length <= 2) group.open = true;
     const summary = el("summary");
     summary.appendChild(el("b", "bad", rule));
     summary.appendChild(el("span", "hint", String(byRule[rule].length)));
@@ -838,7 +892,7 @@ function servicePanel(name) {
     }));
     panelList(panel, "doors", DATA.plans.doors.filter(d => d.via === name)
       .map(d => d.domain + ":" + d.port + " -> " + d.to));
-    panelFindings(panel, DATA.findings.filter(f => f.file.endsWith("plans.toml") && f.line === service.line));
+    panelFindings(panel, DATA.findings.filter(f => f.file.endsWith("plans.toml") && f.line === service.line), ".arbiter/plans.toml");
   });
 }
 

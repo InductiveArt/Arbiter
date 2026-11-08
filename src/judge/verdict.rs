@@ -45,6 +45,8 @@ pub struct Run {
     pub third: usize,
     // Third parties added since the reference; None when none was recorded yet.
     pub third_added: Option<usize>,
+    // The run's trace: every pipeline step with its seconds, end to end.
+    pub steps: Vec<crate::core::trace::Step>,
 }
 
 // Judges everything: the units' tools, then the graph. A fixing run repairs first,
@@ -85,6 +87,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         );
         (outcomes, notes, dialed, found)
     };
+    let mut trace = crate::core::trace::Trace::start();
     let commissioned = brief::commissioned(&found);
     let (winnowed, nascent) =
         findings::winnow(&found.defs, &found.edges, &found.repo, &commissioned);
@@ -94,6 +97,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
     all.extend(findings::integrity(&found));
     all.extend(ledger::blanket_findings(&found));
     all.extend(ledger::broken_record(&found.root));
+    trace.step("judge");
     let brief = if briefless {
         BriefLine::Skipped
     } else {
@@ -125,6 +129,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
     let claims = claims::identities(&found).len();
     let claims_vanished = claims::recorded(&found.root).map(|_| gone.len());
     all.extend(gone);
+    trace.step("claims");
     all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     let counted = ledger::counted(&found);
     let added =
@@ -138,6 +143,17 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
             .count()
     });
     let third = packages.len();
+    trace.step("ledger");
+    trace.note("scan", found.scan_seconds);
+    trace.note("resolve", found.resolve_seconds);
+    trace.note(
+        "tools",
+        outcomes
+            .iter()
+            .filter(|outcome| !outcome.warm)
+            .map(|outcome| outcome.seconds)
+            .sum(),
+    );
     let units = found.repo.units.len();
     let files = found.repo.files.len();
     Some(Run {
@@ -155,6 +171,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         added,
         third,
         third_added,
+        steps: trace.steps(),
     })
 }
 

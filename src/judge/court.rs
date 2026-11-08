@@ -173,6 +173,9 @@ fn snapshot(run: &Run) -> serde_json::Value {
         "outcomes": outcomes,
         "adapters": adapters,
         "resolved": found.edges.len(),
+        "pipeline": run.steps.iter().map(|step| {
+            serde_json::json!({ "name": step.name, "seconds": step.seconds })
+        }).collect::<Vec<serde_json::Value>>(),
         "unitsList": units_list,
         "findings": found_findings,
         "rules": rules,

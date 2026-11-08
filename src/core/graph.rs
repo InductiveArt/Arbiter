@@ -14,13 +14,17 @@ pub struct Graph {
     pub defs: Vec<Def>,
     pub edges: Vec<Edge>,
     pub packs: Vec<Box<dyn Pack>>,
+    pub scan_seconds: f64,
+    pub resolve_seconds: f64,
 }
 
 // The engine receives the packs: which packs exist is composition knowledge,
 // and the base never knows the registry of its implementors.
 pub fn graph(asked: &str, mut packs: Vec<Box<dyn Pack>>) -> Option<Graph> {
+    let clock = std::time::Instant::now();
     let root = PathBuf::from(asked).canonicalize().ok()?;
     let mut repo = units::scan(&root, &packs);
+    let scan_seconds = clock.elapsed().as_secs_f64();
     let rooted: Vec<PathBuf> = packs
         .iter()
         .flat_map(|pack| pack.roots(&root, &repo))
@@ -67,6 +71,8 @@ pub fn graph(asked: &str, mut packs: Vec<Box<dyn Pack>>) -> Option<Graph> {
         defs,
         edges,
         packs,
+        scan_seconds,
+        resolve_seconds: clock.elapsed().as_secs_f64() - scan_seconds,
     })
 }
 
