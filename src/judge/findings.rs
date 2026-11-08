@@ -8,7 +8,7 @@ use crate::core::pack::Def;
 use crate::core::pack::Edge;
 use crate::core::pack::Finding;
 use crate::core::pack::Pack;
-use crate::core::units::Repo;
+use crate::core::pack::Repo;
 
 use crate::core::units::fits;
 use crate::core::units::DECLARATIONS;
@@ -86,22 +86,27 @@ pub fn integrity(found: &Graph) -> Vec<Finding> {
     findings.extend(licenses(found));
     let (subjects, guards) = crate::core::record::read(&found.root);
     findings.extend(guards);
+    let (cycles_found, cycles_live) = sibling_cycles(found, &subjects);
+    findings.extend(cycles_found);
+    findings.extend(crate::core::record::stale_cycles(&subjects, &cycles_live));
     // A subject no pack judges would never go stale from inside a pack.
     for subject in &subjects {
-        if !found
-            .packs
-            .iter()
-            .any(|pack| pack.label() == subject.language)
-        {
+        let crate::core::record::Subject::Dependency {
+            language,
+            package,
+            line,
+            ..
+        } = subject
+        else {
+            continue;
+        };
+        if !found.packs.iter().any(|pack| pack.label() == language) {
             findings.push(Finding {
                 check: "integrity",
                 file: PathBuf::from(crate::core::record::SUPPRESSIONS),
-                line: subject.line,
+                line: *line,
                 name: "stale-suppression".to_string(),
-                reason: format!(
-                    "{} is suppressed for {}, which no pack judges",
-                    subject.package, subject.language
-                ),
+                reason: format!("{package} is suppressed for {language}, which no pack judges"),
             });
         }
     }
@@ -279,7 +284,7 @@ fn cycles(defs: &[Def], edges: &[Edge], repo: &Repo) -> Vec<Finding> {
             check: "integrity",
             file: PathBuf::from(&names[0]),
             line: 0,
-            name: "cycle".to_string(),
+            name: "unit-cycle".to_string(),
             reason: format!("units import each other: {}", names.join(", ")),
         });
     }
@@ -652,6 +657,161 @@ fn folder_boundaries(found: &Graph) -> Vec<Finding> {
         }
     }
     findings
+}
+
+// Every folder's sibling graph: the edges between its immediate children,
+// found by landing each same-unit edge at the deepest folder holding both
+// ends. An edge wholly inside one child is that child's interior.
+fn sibling_graphs(
+    found: &Graph,
+) -> std::collections::BTreeMap<(usize, String), std::collections::BTreeMap<String, BTreeSet<String>>>
+{
+    let mut graphs: std::collections::BTreeMap<
+        (usize, String),
+        std::collections::BTreeMap<String, BTreeSet<String>>,
+    > = Default::default();
+    for edge in &found.edges {
+        let unit = edge.unit;
+        if unit != found.defs[edge.def].unit {
+            continue;
+        }
+        let home = found.repo.units[unit].path.clone();
+        if found.repo.is_test(unit, &home) {
+            continue;
+        }
+        let s = edge.file.strip_prefix(&home).unwrap_or(&edge.file);
+        let t = found.defs[edge.def].file.clone();
+        let t = t.strip_prefix(&home).unwrap_or(&t).to_path_buf();
+        if s == t {
+            continue;
+        }
+        let source: Vec<String> = s
+            .components()
+            .map(|part| part.as_os_str().to_string_lossy().to_string())
+            .collect();
+        let target: Vec<String> = t
+            .components()
+            .map(|part| part.as_os_str().to_string_lossy().to_string())
+            .collect();
+        let mut shared = 0;
+        while shared < source.len() && shared < target.len() && source[shared] == target[shared] {
+            shared += 1;
+        }
+        if shared >= source.len() || shared >= target.len() {
+            continue;
+        }
+        let folder = source[..shared].join("/");
+        let from = source[..=shared].join("/");
+        let to = target[..=shared].join("/");
+        graphs
+            .entry((unit, folder))
+            .or_default()
+            .entry(from)
+            .or_default()
+            .insert(to);
+    }
+    graphs
+}
+
+// The sibling law: within every folder, the children form an order. A cycle
+// is named with its whole member set; the user's record may quiet one exact
+// set, and a quieting entry is proven alive or named stale.
+fn sibling_cycles(
+    found: &Graph,
+    subjects: &[crate::core::record::Subject],
+) -> (Vec<Finding>, std::collections::HashSet<usize>) {
+    let mut findings = Vec::new();
+    let mut live = std::collections::HashSet::new();
+    for ((unit, folder), children) in sibling_graphs(found) {
+        let names: Vec<&String> = children.keys().collect();
+        let index: std::collections::BTreeMap<&str, usize> = names
+            .iter()
+            .enumerate()
+            .map(|(at, name)| (name.as_str(), at))
+            .collect();
+        let mut adjacency = vec![BTreeSet::new(); names.len()];
+        for (from, reached) in &children {
+            for to in reached {
+                if let (Some(&a), Some(&b)) = (index.get(from.as_str()), index.get(to.as_str())) {
+                    adjacency[a].insert(b);
+                }
+            }
+        }
+        for group in strongly_connected(&adjacency) {
+            if group.len() < 2 {
+                continue;
+            }
+            let members: BTreeSet<String> = group.iter().map(|&at| names[at].clone()).collect();
+            let spoken = found.repo.unit_name(unit);
+            if let Some(at) = crate::core::record::quiets_cycle(subjects, &spoken, &members) {
+                live.insert(at);
+                continue;
+            }
+            let home = &found.repo.units[unit].path;
+            let place = if folder.is_empty() {
+                if home.as_os_str().is_empty() {
+                    ".".to_string()
+                } else {
+                    home.to_string_lossy().to_string()
+                }
+            } else {
+                home.join(&folder).to_string_lossy().to_string()
+            };
+            let listed: Vec<&str> = members.iter().map(String::as_str).collect();
+            findings.push(Finding::integrity(
+                Path::new(&place),
+                0,
+                "sibling-cycle",
+                format!(
+                    "the children of {place} form a cycle: {}",
+                    listed.join(" <-> ")
+                ),
+            ));
+        }
+    }
+    (findings, live)
+}
+
+// The tangles read: every sibling cycle the facts hold, suppressed or not,
+// largest first - a measure, never findings.
+pub fn tangles(found: &Graph) -> Vec<(String, Vec<String>)> {
+    let mut groups = Vec::new();
+    for ((unit, folder), children) in sibling_graphs(found) {
+        let names: Vec<&String> = children.keys().collect();
+        let index: std::collections::BTreeMap<&str, usize> = names
+            .iter()
+            .enumerate()
+            .map(|(at, name)| (name.as_str(), at))
+            .collect();
+        let mut adjacency = vec![BTreeSet::new(); names.len()];
+        for (from, reached) in &children {
+            for to in reached {
+                if let (Some(&a), Some(&b)) = (index.get(from.as_str()), index.get(to.as_str())) {
+                    adjacency[a].insert(b);
+                }
+            }
+        }
+        for group in strongly_connected(&adjacency) {
+            if group.len() < 2 {
+                continue;
+            }
+            let home = &found.repo.units[unit].path;
+            let place = if folder.is_empty() {
+                if home.as_os_str().is_empty() {
+                    ".".to_string()
+                } else {
+                    home.to_string_lossy().to_string()
+                }
+            } else {
+                home.join(&folder).to_string_lossy().to_string()
+            };
+            let mut members: Vec<String> = group.iter().map(|&at| names[at].clone()).collect();
+            members.sort();
+            groups.push((place, members));
+        }
+    }
+    groups.sort_by(|a, b| b.1.len().cmp(&a.1.len()).then(a.0.cmp(&b.0)));
+    groups
 }
 
 // Every resolved cross-unit edge of the code units, with whether it breaks

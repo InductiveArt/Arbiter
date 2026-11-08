@@ -9,7 +9,7 @@
 # deps = ["libs/other"]
 
 [units.".".inner."src/core"]
-deps = ["src/packs"]
+deps = []
 
 [units.".".inner."src/judge"]
 deps = ["src/core", "src/packs"]

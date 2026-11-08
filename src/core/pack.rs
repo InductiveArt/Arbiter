@@ -1,7 +1,66 @@
+use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::units::Repo;
+pub struct Unit {
+    pub path: PathBuf,
+    pub test_files: HashSet<PathBuf>,
+    pub root_files: HashSet<PathBuf>,
+}
+
+pub struct Repo {
+    pub units: Vec<Unit>,
+    pub files: Vec<PathBuf>,
+    pub manifests: Vec<PathBuf>,
+    pub lockfiles: Vec<PathBuf>,
+    // Folders holding a PUBLISHED marker: that unit's surface serves users
+    // the repository cannot see.
+    pub published: HashSet<PathBuf>,
+}
+
+impl Repo {
+    // The BUILD file's word when it gives one; the naming convention where no target claims the file.
+    pub fn is_test(&self, unit: usize, file: &Path) -> bool {
+        if self.units[unit].test_files.contains(file) {
+            return true;
+        }
+        let stem = file
+            .file_stem()
+            .map(|stem| stem.to_string_lossy().to_string())
+            .unwrap_or_default();
+        stem.starts_with("test_")
+            || stem.ends_with("_test")
+            || stem.ends_with(".test")
+            || stem == "conftest"
+            || file
+                .components()
+                .any(|part| part.as_os_str() == "tests" || part.as_os_str() == "__tests__")
+    }
+
+    pub fn is_published(&self, unit: usize) -> bool {
+        self.published.contains(&self.units[unit].path)
+    }
+
+    pub fn unit_of(&self, file: &Path) -> usize {
+        self.units
+            .iter()
+            .enumerate()
+            .filter(|(_, unit)| file.starts_with(&unit.path))
+            .max_by_key(|(_, unit)| unit.path.components().count())
+            .map(|(index, _)| index)
+            .unwrap_or(0)
+    }
+
+    // The name a declaration uses for the unit: its path, or "." at the root.
+    pub fn unit_name(&self, unit: usize) -> String {
+        let path = &self.units[unit].path;
+        if path.as_os_str().is_empty() {
+            ".".to_string()
+        } else {
+            path.to_string_lossy().to_string()
+        }
+    }
+}
 
 pub struct Def {
     pub name: String,
@@ -164,7 +223,7 @@ pub const CORE: &[(&str, &str)] = &[
         "a test keeps nothing alive: a symbol only tests reach is scaffolding or dead",
     ),
     (
-        "cycle",
+        "unit-cycle",
         "units form an order; no two import each other, however long the loop",
     ),
     (
@@ -204,6 +263,10 @@ pub const CORE: &[(&str, &str)] = &[
         "a declared folder dep is used; one never used is deleted",
     ),
     (
+        "sibling-cycle",
+        "every folder's children form an order; two siblings reaching each other are one concept split, or a representation unfinished",
+    ),
+    (
         "unallowed-license",
         "a written allowlist holds every third party's license; no list is no policy yet",
     ),
@@ -234,6 +297,39 @@ pub const CORE: &[(&str, &str)] = &[
     ),
 ];
 
+// Where each law detains its power: the facts alone, or a record the user
+// wrote - a record-powered law waits until its record exists.
+pub enum Power {
+    Facts,
+    Record(&'static str),
+}
+
+const RECORDED: &[(&str, &str)] = &[
+    ("uninvited-unit-use", ".arbiter/units.toml"),
+    ("stale-unit-grant", ".arbiter/units.toml"),
+    ("undeclared-unit-use", ".arbiter/units.toml"),
+    ("stale-unit-declaration", ".arbiter/units.toml"),
+    ("uninvited-folder-use", ".arbiter/units.toml"),
+    ("stale-folder-grant", ".arbiter/units.toml"),
+    ("undeclared-folder-use", ".arbiter/units.toml"),
+    ("stale-folder-declaration", ".arbiter/units.toml"),
+    ("unallowed-license", ".arbiter/licenses.toml"),
+    ("blanket-suppression", ".arbiter/suppressions.toml"),
+    ("stale-suppression", ".arbiter/suppressions.toml"),
+    ("unwired-claim", ".arbiter/brief.toml"),
+    ("unanswered-need", ".arbiter/brief.toml"),
+    ("stale-binding", ".arbiter/brief.toml"),
+    ("empty-case", ".arbiter/brief.toml"),
+    ("vanished-claim", ".arbiter/reference.json"),
+];
+
+pub fn power(rule: &str) -> Power {
+    RECORDED
+        .iter()
+        .find(|(name, _)| *name == rule)
+        .map_or(Power::Facts, |(_, file)| Power::Record(file))
+}
+
 // The matrix's groups: each rule sits in exactly one, and a group's name
 // answers arbiter rules with every law it holds. A group is a shelf the
 // matrix prints by; it is never part of a rule's name.
@@ -258,12 +354,13 @@ pub const GROUPS: &[(&str, &[&str])] = &[
             "stale-folder-grant",
             "undeclared-folder-use",
             "stale-folder-declaration",
+            "sibling-cycle",
         ],
     ),
     (
         "units",
         &[
-            "cycle",
+            "unit-cycle",
             "uninvited-unit-use",
             "stale-unit-grant",
             "undeclared-unit-use",

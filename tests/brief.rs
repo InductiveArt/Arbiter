@@ -1,12 +1,12 @@
-use arbiter::core::graph::graph;
 use arbiter::judge::brief::read;
 use arbiter::judge::brief::State;
+use arbiter::packs::graphed;
 
 const CLAIMS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/claims");
 
 #[test]
 fn the_brief_states_each_need_and_roars_at_the_unwired() {
-    let found = graph(CLAIMS).expect("the fixture folder exists");
+    let found = graphed(CLAIMS).expect("the fixture folder exists");
     let reading = read(&found).expect("the fixture writes a brief");
     assert_eq!(reading.cases, 4);
     assert_eq!(reading.claims, 8);
@@ -59,7 +59,7 @@ fn the_brief_states_each_need_and_roars_at_the_unwired() {
 
 #[test]
 fn a_binding_typed_with_one_space_wires_a_claim_printed_with_two() {
-    let found = graph(CLAIMS).expect("the fixture folder exists");
+    let found = graphed(CLAIMS).expect("the fixture folder exists");
     let reading = read(&found).expect("the fixture writes a brief");
     let need = reading
         .needs
@@ -71,7 +71,7 @@ fn a_binding_typed_with_one_space_wires_a_claim_printed_with_two() {
 
 #[test]
 fn a_brief_finding_points_at_its_own_line() {
-    let found = graph(CLAIMS).expect("the fixture folder exists");
+    let found = graphed(CLAIMS).expect("the fixture folder exists");
     let reading = read(&found).expect("the fixture writes a brief");
     let at = |name: &str| {
         reading

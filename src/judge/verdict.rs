@@ -59,7 +59,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         for pack in &packs {
             mended.extend(pack.mend(&root, &repo));
         }
-        let found = graph::graph(asked)?;
+        let found = graph::graph(asked, packs)?;
         let warmth = heated(&found, cold);
         let (outcomes, mut notes, dialed) = outcomes::judged(
             &found.root,
@@ -72,7 +72,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         notes.extend(mended);
         (outcomes, notes, dialed, found)
     } else {
-        let found = graph::graph(asked)?;
+        let found = crate::packs::graphed(asked)?;
         let warmth = heated(&found, cold);
         let (outcomes, notes, dialed) = outcomes::judged(
             &found.root,
@@ -286,7 +286,13 @@ const SUPPRESSIONS_SEED: &str = "\
 # rule = \"unused-dependency\"\n\
 # language = \"python\"\n\
 # packages = [\"coverage\"]\n\
-# units = [\"*\"]\n";
+# units = [\"*\"]\n\
+#\n\
+# [[suppression]]\n\
+# rule = \"sibling-cycle\"\n\
+# unit = \".\"\n\
+# # The whole member set, exactly: a third member joining the cycle fires fresh.\n\
+# members = [\"src/a\", \"src/b\"]\n";
 
 const BRIEF_SEED: &str = "\
 # The brief: the needs this software answers, as cases of activity, each need\n\

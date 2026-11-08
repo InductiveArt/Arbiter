@@ -43,7 +43,10 @@ the facts is proven and reported, never accused.
 the license allowlist, the declared boundaries. Laws move alone: a
 language column can hold every import law as `open` — laws stated, no
 facts-engine under them yet. An open cell is law-without-facts: a
-coordinate, not an anomaly.
+coordinate, not an anomaly. Each law detains its power from one of two
+spaces: the code space — the facts alone, the bar from day one — or the
+user space, a record whose law waits until the record is written; the
+drill names each rule's power.
 
 **Authority.** Who may decide: packs state laws, agents work inside them,
 the user signs what crosses them — suppressions, boundaries, the brief's

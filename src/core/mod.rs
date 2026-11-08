@@ -1,3 +1,4 @@
+pub mod digest;
 pub mod graph;
 pub mod pack;
 pub mod prose;

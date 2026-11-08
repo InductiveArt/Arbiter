@@ -11,10 +11,10 @@ use crate::core::pack::Drift;
 use crate::core::pack::Edge;
 use crate::core::pack::Finding;
 use crate::core::pack::Pack;
+use crate::core::pack::Repo;
 use crate::core::pack::Suppression;
 use crate::core::record;
 use crate::core::trees;
-use crate::core::units::Repo;
 
 const BUF: [&str; 3] = ["npx", "--yes", "@bufbuild/buf@1.74.0"];
 

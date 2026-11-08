@@ -42,6 +42,17 @@ story = "a unit's inner graph holds its own law, and a child only tightens"
   need = "a file is a leaf of the folder tree, not a third grain"
   claims = [". |  | a file declares as a leaf of the folder tree"]
 
+  [[case.need]]
+  need = "every folder's children form an order; a deliberate cycle is one signed exact set"
+  claims = [
+    ". |  | a folder whose children cycle is named",
+    ". |  | an exact member set quiets one cycle and stales when it dissolves",
+  ]
+
+  [[case.need]]
+  need = "the tangles are readable before they are judged"
+  claims = [". |  | the tangles read lists entangled siblings largest first"]
+
 [[case]]
 name = "resolution"
 story = "an import reaches the file its module path names, in every language"

@@ -8,8 +8,8 @@ use crate::core::pack::Def;
 use crate::core::pack::Definition;
 use crate::core::pack::Edge;
 use crate::core::pack::Pack;
+use crate::core::pack::Repo;
 use crate::core::trees;
-use crate::core::units::Repo;
 
 const DEFINITIONS: &str = include_str!("../../packs/cpp/definitions.scm");
 const USES: &str = include_str!("../../packs/cpp/uses.scm");

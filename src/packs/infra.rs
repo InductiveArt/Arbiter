@@ -6,8 +6,8 @@ use crate::core::pack::Definition;
 use crate::core::pack::Edge;
 use crate::core::pack::Finding;
 use crate::core::pack::Pack;
+use crate::core::pack::Repo;
 use crate::core::prose;
-use crate::core::units::Repo;
 
 // Deployment manifests as judged text: the pack defines no symbols and runs
 // no tools; it holds the written state to the laws text alone can prove.

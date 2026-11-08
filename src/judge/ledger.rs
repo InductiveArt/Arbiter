@@ -21,7 +21,7 @@ pub fn counted(found: &Graph) -> Vec<Suppression> {
     for subject in crate::core::record::read(&found.root).0 {
         all.push(Suppression {
             file: PathBuf::from(crate::core::record::SUPPRESSIONS),
-            line: subject.line,
+            line: subject.line(),
             text: subject.identity(),
             blanket: false,
         });

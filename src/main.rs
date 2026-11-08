@@ -3,7 +3,6 @@ use std::fs;
 use std::path::Path;
 use std::process::ExitCode;
 
-use arbiter::core::graph::graph;
 use arbiter::core::pack;
 use arbiter::core::pack::Def;
 use arbiter::core::pack::Edge;
@@ -18,6 +17,7 @@ use arbiter::judge::ledger;
 use arbiter::judge::outcomes;
 use arbiter::judge::rhyme;
 use arbiter::judge::verdict;
+use arbiter::packs::graphed;
 use arbiter::verbs;
 
 fn main() -> ExitCode {
@@ -171,7 +171,7 @@ fn main() -> ExitCode {
             ),
             (first, _) => (None, first.cloned().unwrap_or_else(|| ".".to_string())),
         };
-        let Some(found) = graph(&asked) else {
+        let Some(found) = graphed(&asked) else {
             eprintln!("brief: no folder at {asked}");
             return ExitCode::from(2);
         };
@@ -261,7 +261,7 @@ fn main() -> ExitCode {
     if arguments.first().map(String::as_str) == Some("ledger") {
         if arguments.get(1).map(String::as_str) == Some("sign") {
             let asked = arguments.get(2).cloned().unwrap_or_else(|| ".".to_string());
-            let Some(found) = graph(&asked) else {
+            let Some(found) = graphed(&asked) else {
                 eprintln!("sign: no folder at {asked}");
                 return ExitCode::from(2);
             };
@@ -302,7 +302,7 @@ fn main() -> ExitCode {
             }
         }
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
-        let Some(found) = graph(&asked) else {
+        let Some(found) = graphed(&asked) else {
             eprintln!("ledger: no folder at {asked}");
             return ExitCode::from(2);
         };
@@ -326,7 +326,7 @@ fn found(rest: &[String]) -> ExitCode {
                 return ExitCode::from(2);
             };
             let asked = folder(2);
-            let Some(found) = graph(&asked) else {
+            let Some(found) = graphed(&asked) else {
                 eprintln!("find: no folder at {asked}");
                 return ExitCode::from(2);
             };
@@ -335,14 +335,14 @@ fn found(rest: &[String]) -> ExitCode {
         }
         Some("deps") => {
             let Some(name) = rest.get(1) else {
-                let Some(found) = graph(".") else {
+                let Some(found) = graphed(".") else {
                     eprintln!("find: no folder at .");
                     return ExitCode::from(2);
                 };
                 return drawn_graph(&found);
             };
             let asked = folder(2);
-            let Some(found) = graph(&asked) else {
+            let Some(found) = graphed(&asked) else {
                 eprintln!("find: no folder at {asked}");
                 return ExitCode::from(2);
             };
@@ -350,11 +350,19 @@ fn found(rest: &[String]) -> ExitCode {
         }
         Some("rhymes") => {
             let asked = folder(1);
-            let Some(found) = graph(&asked) else {
+            let Some(found) = graphed(&asked) else {
                 eprintln!("find: no folder at {asked}");
                 return ExitCode::from(2);
             };
             rhymed(&found)
+        }
+        Some("tangles") => {
+            let scope = rest.get(1).cloned();
+            let Some(found) = graphed(".") else {
+                eprintln!("find: no folder at .");
+                return ExitCode::from(2);
+            };
+            tangled(scope.as_deref(), &found)
         }
         first => {
             let (rule, asked) = match first {
@@ -371,12 +379,12 @@ fn found(rest: &[String]) -> ExitCode {
                 Some(word) => {
                     eprintln!(
                         "find: nothing named {word}; find takes a rule from arbiter rules, \
-                         fallout <name>, deps <unit> or rhymes"
+                         fallout <name>, deps [unit], rhymes or tangles"
                     );
                     return ExitCode::from(2);
                 }
             };
-            let Some(found) = graph(&asked) else {
+            let Some(found) = graphed(&asked) else {
                 eprintln!("find: no folder at {asked}");
                 return ExitCode::from(2);
             };
@@ -640,6 +648,24 @@ fn emit(findings: &[Finding], rule: Option<&str>) {
     }
 }
 
+// Every sibling cycle the facts hold, suppressed or not, largest first: the
+// map an agent reads before representing - a measure, never findings.
+fn tangled(scope: Option<&str>, found: &arbiter::core::graph::Graph) -> ExitCode {
+    let groups = arbiter::judge::findings::tangles(found);
+    let mut shown = 0;
+    for (place, members) in &groups {
+        if scope.is_some_and(|asked| !(place == asked || place.starts_with(&format!("{asked}/")))) {
+            continue;
+        }
+        println!("{place}: {}", members.join(" <-> "));
+        shown += 1;
+    }
+    if shown == 0 {
+        println!("tangles: none");
+    }
+    ExitCode::SUCCESS
+}
+
 // The whole resolved unit graph as one mermaid fence, declared against real:
 // an edge the declarations refuse is drawn dashed and named undeclared. A
 // measure, never findings, so the fence pastes into any page the host draws.
@@ -897,6 +923,7 @@ fn ruled(asked: &str) -> ExitCode {
     }
     if let Some((rule, law)) = pack::RULES.iter().find(|(rule, _)| *rule == asked) {
         println!("{rule}: {law}");
+        empowered(asked);
         println!();
         for pack in arbiter::packs::all() {
             let answer = pack
@@ -918,12 +945,24 @@ fn ruled(asked: &str) -> ExitCode {
     }
     if let Some((name, law)) = pack::CORE.iter().find(|(name, _)| *name == asked) {
         println!("{name}: {law}");
+        empowered(asked);
         println!();
         println!("  core: judged on one graph — every unit and import, all languages together");
         return ExitCode::SUCCESS;
     }
     eprintln!("rules: no rule or group named {asked}; arbiter rules prints the matrix");
     ExitCode::from(2)
+}
+
+// One line naming where the law detains its power: the facts alone, or a
+// record the user wrote - a record-powered law waits until its record exists.
+fn empowered(rule: &str) {
+    match pack::power(rule) {
+        pack::Power::Facts => println!("power: the facts"),
+        pack::Power::Record(file) => {
+            println!("power: the user's record ({file}); without the record, the law waits");
+        }
+    }
 }
 
 // The agent layer, installed where agents will look. The judge's own files

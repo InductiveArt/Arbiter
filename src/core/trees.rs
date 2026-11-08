@@ -112,8 +112,8 @@ pub fn shapes(language: &Language, source: &str) -> Vec<Shape> {
 
 fn collected(node: tree_sitter::Node, source: &str, found: &mut Vec<Shape>) {
     if node.kind().contains("function") || node.kind().contains("method") {
-        let mut bones = crate::core::warm::Digest::new();
-        let mut flesh = crate::core::warm::Digest::new();
+        let mut bones = crate::core::digest::Digest::new();
+        let mut flesh = crate::core::digest::Digest::new();
         let leaves = eaten(node, source, &mut bones, &mut flesh);
         if leaves >= LEAST_LEAVES {
             found.push(Shape {
@@ -137,8 +137,8 @@ fn collected(node: tree_sitter::Node, source: &str, found: &mut Vec<Shape>) {
 fn eaten(
     node: tree_sitter::Node,
     source: &str,
-    bones: &mut crate::core::warm::Digest,
-    flesh: &mut crate::core::warm::Digest,
+    bones: &mut crate::core::digest::Digest,
+    flesh: &mut crate::core::digest::Digest,
 ) -> usize {
     if node.kind().contains("comment") {
         return 0;

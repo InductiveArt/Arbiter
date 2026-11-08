@@ -1,7 +1,7 @@
 use std::fs;
 use std::process::Command;
 
-use arbiter::core::graph::graph;
+use arbiter::packs::graphed;
 
 #[test]
 fn a_git_ignored_folder_is_not_the_repository() {
@@ -13,7 +13,7 @@ fn a_git_ignored_folder_is_not_the_repository() {
     fs::write(root.join("scrap/ghost.py"), "ghost = 1\n").expect("the folder is writable");
     let path = root.to_string_lossy();
 
-    let bare = graph(&path).expect("the folder exists");
+    let bare = graphed(&path).expect("the folder exists");
     assert!(
         bare.repo
             .files
@@ -30,7 +30,7 @@ fn a_git_ignored_folder_is_not_the_repository() {
         .expect("git runs");
     assert!(init.success(), "git init succeeds");
 
-    let repo = graph(&path).expect("the folder exists");
+    let repo = graphed(&path).expect("the folder exists");
     assert!(
         repo.repo.files.iter().any(|file| file.ends_with("kept.py")),
         "a file git would carry is judged"
@@ -65,7 +65,7 @@ fn a_published_unit_keeps_its_unused_surface() {
     fs::write(root.join("ghost.py"), "ghost = 1\n").expect("the folder is writable");
     let path = root.to_string_lossy();
 
-    let judged = graph(&path).expect("the folder exists");
+    let judged = graphed(&path).expect("the folder exists");
     let (flagged, _) = arbiter::judge::findings::winnow(
         &judged.defs,
         &judged.edges,
@@ -75,7 +75,7 @@ fn a_published_unit_keeps_its_unused_surface() {
     assert_eq!(flagged.len(), 1, "an unused symbol is a finding");
 
     fs::write(root.join("PUBLISHED"), "").expect("the folder is writable");
-    let declared = graph(&path).expect("the folder exists");
+    let declared = graphed(&path).expect("the folder exists");
     let (kept, _) = arbiter::judge::findings::winnow(
         &declared.defs,
         &declared.edges,
@@ -108,7 +108,7 @@ fn fix_splits_an_import_to_one_per_line() {
     )
     .expect("the folder is writable");
 
-    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
     let pack = judged
         .packs
         .iter()
@@ -123,7 +123,7 @@ fn fix_splits_an_import_to_one_per_line() {
         "import { a } from \"./m\";\nimport type { B } from \"./m\";\nimport d from \"./n\";\nimport { c } from \"./n\";\n\nexport const sum: B = a + c + d;\n"
     );
 
-    let again = graph(&root.to_string_lossy()).expect("the folder exists");
+    let again = graphed(&root.to_string_lossy()).expect("the folder exists");
     let quiet = again
         .packs
         .iter()
@@ -183,7 +183,7 @@ fn a_warm_key_follows_the_dependency_cone() {
     assert!(copied.success());
 
     let keyed = |root: &std::path::Path| {
-        let found = graph(&root.to_string_lossy()).expect("the folder exists");
+        let found = graphed(&root.to_string_lossy()).expect("the folder exists");
         let defs_units: Vec<usize> = found.defs.iter().map(|def| def.unit).collect();
         let warmth = arbiter::core::warm::warmth(
             &found.root,
@@ -232,7 +232,7 @@ fn the_store_answers_the_key_and_forgets_a_failure() {
     .expect("the folder is writable");
     fs::write(root.join("libs/x/src/x.py"), "value = 1\n").expect("the folder is writable");
 
-    let found = graph(&root.to_string_lossy()).expect("the folder exists");
+    let found = graphed(&root.to_string_lossy()).expect("the folder exists");
     let defs_units: Vec<usize> = found.defs.iter().map(|def| def.unit).collect();
     let warmth = arbiter::core::warm::warmth(
         &found.root,
@@ -287,7 +287,7 @@ fn fix_splits_a_use_to_one_per_line() {
     )
     .expect("the folder is writable");
 
-    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
     let pack = judged
         .packs
         .iter()
@@ -302,7 +302,7 @@ fn fix_splits_a_use_to_one_per_line() {
         "use std::collections::BTreeMap;\nuse std::collections::BTreeSet;\nuse std::fmt;\nuse std::fmt::Write as _;\n\npub fn hinge() {}\n"
     );
 
-    let again = graph(&root.to_string_lossy()).expect("the folder exists");
+    let again = graphed(&root.to_string_lossy()).expect("the folder exists");
     let quiet = again
         .packs
         .iter()
@@ -333,7 +333,7 @@ fn a_computed_python_import_is_named_and_a_literal_reaches() {
     )
     .expect("the folder is writable");
 
-    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
     let shown: Vec<String> = judged
         .packs
         .iter()
@@ -375,7 +375,7 @@ fn a_contracts_import_outside_its_module_needs_a_declared_dependency() {
     )
     .expect("the folder is writable");
 
-    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
     let shown: Vec<String> = judged
         .packs
         .iter()
@@ -445,7 +445,7 @@ fn a_symbol_reached_only_by_commissioned_tests_is_nascent_not_dead() {
     )
     .expect("the folder is writable");
 
-    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
     let commissioned = arbiter::judge::brief::commissioned(&judged);
     let (findings, nascent) =
         arbiter::judge::findings::winnow(&judged.defs, &judged.edges, &judged.repo, &commissioned);
@@ -463,7 +463,7 @@ fn a_symbol_reached_only_by_commissioned_tests_is_nascent_not_dead() {
         "[[case]]\nname = \"forging\"\nstory = \"metal is forged\"\n\n  [[case.need]]\n  need = \"forged turns metal\"\n  claims = [\". |  | forged turns metal\"]\n",
     )
     .expect("the folder is writable");
-    let again = graph(&root.to_string_lossy()).expect("the folder exists");
+    let again = graphed(&root.to_string_lossy()).expect("the folder exists");
     let commissioned = arbiter::judge::brief::commissioned(&again);
     let (findings, nascent) =
         arbiter::judge::findings::winnow(&again.defs, &again.edges, &again.repo, &commissioned);
@@ -495,7 +495,7 @@ fn a_class_standing_where_a_protocol_is_asked_names_it() {
     )
     .expect("the folder is writable");
 
-    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
     let shown: Vec<String> = judged
         .packs
         .iter()
@@ -533,7 +533,7 @@ fn a_class_standing_where_an_interface_is_asked_names_it() {
     )
     .expect("the folder is writable");
 
-    let judged = graph(&root.to_string_lossy()).expect("the folder exists");
+    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
     let shown: Vec<String> = judged
         .packs
         .iter()
@@ -562,7 +562,7 @@ fn a_broken_unit_declaration_is_named_never_read_as_virgin() {
     fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
     fs::write(root.join(".arbiter/units.toml"), "[units. not toml")
         .expect("the folder is writable");
-    let found = graph(&root.to_string_lossy()).expect("the folder exists");
+    let found = graphed(&root.to_string_lossy()).expect("the folder exists");
     let findings = arbiter::judge::findings::integrity(&found);
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].name, "unparsable-user-record");

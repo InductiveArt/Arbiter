@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use crate::core::pack::Finding;
 use crate::core::pack::Pack;
-use crate::core::units::Repo;
+use crate::core::pack::Repo;
 
 // The machine's own gaps: every axiom a present pack stands on that does not
 // answer. A gap is a broken machine, so the caller stops before judging anything.

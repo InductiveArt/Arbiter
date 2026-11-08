@@ -16,6 +16,7 @@ what they decide.
 | `arbiter find fallout <name> .` | every definition of a name and each resolved use. | no |
 | `arbiter find deps [unit|path]` | what one unit stands on, declared against resolved; a folder or file at its own grain; bare, the whole graph as mermaid. | no |
 | `arbiter find rhymes .` | structurally equal functions, largest first; a measure, never findings. A perfect rhyme reads identically, a slant rhyme is the same shape in different words. | no |
+| `arbiter find tangles [unit|path]` | entangled siblings per folder, largest first; a measure, never findings. The map to read before representing: each tangle is fixed by a direction, a third thing, or a merge - or signed, one exact set. | no |
 | `arbiter ledger .` | the signature's account: suppressions, third parties and claims against the reference. | no |
 | `arbiter ledger sign .` | record today's account as the reference: the user's signature. **Never run it.** | yes |
 | `arbiter brief [case] .` | every need's state against the claims tree; a case is one slice. Each need held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. | no |
@@ -117,6 +118,7 @@ Each finding has one expected fix. A suppression is never one of them.
 | `stale-unit-grant`, `stale-unit-declaration` | Delete the stale `units.toml` entry, or ask the user - the file is theirs. |
 | `uninvited-folder-use`, `undeclared-folder-use` | Route the edge through the folder's declared doors, or ask the user to amend the inner declaration - a child only tightens what the unit allows. |
 | `stale-folder-grant`, `stale-folder-declaration` | Delete the stale inner entry, or ask the user - the file is theirs. |
+| `unit-cycle`, `sibling-cycle` | Commit a direction, or extract the third thing both sides truly stand on; merging the siblings is honest too. An edge encodes construction, never association. A deliberate cycle is the user's suppression: one exact member set, counted in the ledger. |
 | `unallowed-license` | Ask the user: the allow list is a policy decision. |
 | `unparsable-user-record` | Repair the record's syntax and tell the user what broke - its content is theirs; a broken reference means the signature cannot be read. |
 | `stale-generated` | Regenerate from the contracts, or delete the orphaned output - never hand-edit generated code. |

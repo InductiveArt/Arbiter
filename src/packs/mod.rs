@@ -6,6 +6,11 @@ pub mod rust;
 pub mod typescript;
 
 use crate::core::pack::Pack;
+
+// The repository resolved whole: every pack composed into the one graph.
+pub fn graphed(asked: &str) -> Option<crate::core::graph::Graph> {
+    crate::core::graph::graph(asked, all())
+}
 use crate::packs::cpp::Cpp;
 use crate::packs::infra::Infra;
 use crate::packs::proto::Proto;

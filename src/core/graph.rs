@@ -4,9 +4,8 @@ use std::path::PathBuf;
 use crate::core::pack::Def;
 use crate::core::pack::Edge;
 use crate::core::pack::Pack;
+use crate::core::pack::Repo;
 use crate::core::units;
-use crate::core::units::Repo;
-use crate::packs;
 
 pub struct Graph {
     pub root: PathBuf,
@@ -16,9 +15,10 @@ pub struct Graph {
     pub packs: Vec<Box<dyn Pack>>,
 }
 
-pub fn graph(asked: &str) -> Option<Graph> {
+// The engine receives the packs: which packs exist is composition knowledge,
+// and the base never knows the registry of its implementors.
+pub fn graph(asked: &str, mut packs: Vec<Box<dyn Pack>>) -> Option<Graph> {
     let root = PathBuf::from(asked).canonicalize().ok()?;
-    let mut packs = packs::all();
     let mut repo = units::scan(&root, &packs);
     let rooted: Vec<PathBuf> = packs
         .iter()

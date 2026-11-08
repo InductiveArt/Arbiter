@@ -1,12 +1,12 @@
-use arbiter::core::graph::graph;
 use arbiter::judge::findings::integrity;
 use arbiter::judge::findings::winnow;
+use arbiter::packs::graphed;
 
 const DEMO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/demo");
 
 #[test]
 fn the_fixture_yields_its_known_findings() {
-    let found = graph(DEMO).expect("the fixture folder exists");
+    let found = graphed(DEMO).expect("the fixture folder exists");
     let shown: Vec<String> = winnow(&found.defs, &found.edges, &found.repo, &Default::default())
         .0
         .iter()
@@ -38,7 +38,7 @@ fn the_fixture_yields_its_known_findings() {
 
 #[test]
 fn every_finding_names_a_law_the_matrix_drills() {
-    let found = graph(DEMO).expect("the fixture folder exists");
+    let found = graphed(DEMO).expect("the fixture folder exists");
     let mut all = winnow(&found.defs, &found.edges, &found.repo, &Default::default()).0;
     all.extend(integrity(&found));
     all.extend(arbiter::judge::ledger::blanket_findings(&found));
@@ -56,7 +56,7 @@ fn every_finding_names_a_law_the_matrix_drills() {
 
 #[test]
 fn integrity_names_the_cycle_and_each_reexport() {
-    let found = graph(DEMO).expect("the fixture folder exists");
+    let found = graphed(DEMO).expect("the fixture folder exists");
     let shown: Vec<String> = integrity(&found)
         .iter()
         .map(|finding| format!("{} {}", finding.file.to_string_lossy(), finding.reason))
@@ -142,7 +142,7 @@ fn integrity_names_the_cycle_and_each_reexport() {
 
 #[test]
 fn a_third_party_declared_and_never_reached_is_named() {
-    let found = graph(DEMO).expect("the fixture folder exists");
+    let found = graphed(DEMO).expect("the fixture folder exists");
     let shown: Vec<String> = integrity(&found)
         .iter()
         .filter(|finding| finding.name == "unused-dependency")
@@ -162,7 +162,7 @@ fn a_third_party_declared_and_never_reached_is_named() {
 
 #[test]
 fn a_used_symbol_keeps_its_resolved_user() {
-    let found = graph(DEMO).expect("the fixture folder exists");
+    let found = graphed(DEMO).expect("the fixture folder exists");
     let value = found
         .defs
         .iter()
@@ -176,7 +176,7 @@ fn a_used_symbol_keeps_its_resolved_user() {
 
 #[test]
 fn every_manifest_declares_a_unit() {
-    let found = graph(DEMO).expect("the fixture folder exists");
+    let found = graphed(DEMO).expect("the fixture folder exists");
     let paths: Vec<String> = found
         .repo
         .units
@@ -193,7 +193,7 @@ fn every_manifest_declares_a_unit() {
 
 #[test]
 fn a_whole_module_import_reaches_the_name_through_its_chain() {
-    let found = graph(DEMO).expect("the fixture folder exists");
+    let found = graphed(DEMO).expect("the fixture folder exists");
     let value = found
         .defs
         .iter()
@@ -207,7 +207,7 @@ fn a_whole_module_import_reaches_the_name_through_its_chain() {
 
 #[test]
 fn a_name_crosses_units_through_the_route_and_its_barrels() {
-    let found = graph(DEMO).expect("the fixture folder exists");
+    let found = graphed(DEMO).expect("the fixture folder exists");
     for name in ["Button", "Chip"] {
         let def = found
             .defs
@@ -226,7 +226,7 @@ fn a_name_crosses_units_through_the_route_and_its_barrels() {
 
 #[test]
 fn a_namespace_import_keeps_the_whole_surface() {
-    let found = graph(DEMO).expect("the fixture folder exists");
+    let found = graphed(DEMO).expect("the fixture folder exists");
     let badge = found
         .defs
         .iter()
@@ -240,7 +240,7 @@ fn a_namespace_import_keeps_the_whole_surface() {
 
 #[test]
 fn the_ledger_counts_a_named_suppression_and_refuses_a_blanket() {
-    let found = graph(DEMO).expect("the fixture folder exists");
+    let found = graphed(DEMO).expect("the fixture folder exists");
     let counted = arbiter::judge::ledger::counted(&found);
     let texts: Vec<&str> = counted
         .iter()
@@ -264,7 +264,7 @@ fn the_ledger_counts_a_named_suppression_and_refuses_a_blanket() {
 
 #[test]
 fn a_contract_is_reached_through_generated_code_in_both_languages() {
-    let found = graph(DEMO).expect("the fixture folder exists");
+    let found = graphed(DEMO).expect("the fixture folder exists");
     let invoice = found
         .defs
         .iter()
@@ -298,7 +298,7 @@ fn a_record_suppression_quiets_the_package_it_names() {
     .expect("the folder is writable");
     fs::write(root.join("app.py"), "value = 1\n").expect("the folder is writable");
 
-    let bare = graph(&root.to_string_lossy()).expect("the folder exists");
+    let bare = graphed(&root.to_string_lossy()).expect("the folder exists");
     assert!(
         integrity(&bare)
             .iter()
@@ -313,7 +313,7 @@ fn a_record_suppression_quiets_the_package_it_names() {
          packages = [\"coverage\"]\nunits = [\".\"]\n",
     )
     .expect("the folder is writable");
-    let quieted = graph(&root.to_string_lossy()).expect("the folder exists");
+    let quieted = graphed(&root.to_string_lossy()).expect("the folder exists");
     let findings = integrity(&quieted);
     assert!(
         !findings
@@ -349,7 +349,7 @@ fn a_suppression_that_quiets_nothing_is_stale() {
     )
     .expect("the folder is writable");
 
-    let found = graph(&root.to_string_lossy()).expect("the folder exists");
+    let found = graphed(&root.to_string_lossy()).expect("the folder exists");
     let stale: Vec<String> = integrity(&found)
         .iter()
         .filter(|finding| finding.name == "stale-suppression")
@@ -410,7 +410,7 @@ fn a_record_suppression_is_counted_in_the_account() {
     )
     .expect("the folder is writable");
 
-    let found = graph(&root.to_string_lossy()).expect("the folder exists");
+    let found = graphed(&root.to_string_lossy()).expect("the folder exists");
     let counted = arbiter::judge::ledger::counted(&found);
     assert_eq!(counted.len(), 1);
     assert_eq!(counted[0].text, "unused-dependency python coverage .");
@@ -438,7 +438,7 @@ fn the_resolved_graph_draws_itself_declared_against_real() {
     )
     .expect("writable");
 
-    let bare = graph(&root.to_string_lossy()).expect("the folder exists");
+    let bare = graphed(&root.to_string_lossy()).expect("the folder exists");
     assert_eq!(
         drawn(&bare),
         [("app".to_string(), "lib".to_string(), false)],
@@ -451,7 +451,7 @@ fn the_resolved_graph_draws_itself_declared_against_real() {
         "[units.\"lib\"]\nvisibility = [\"web\"]\n",
     )
     .expect("writable");
-    let refused = graph(&root.to_string_lossy()).expect("the folder exists");
+    let refused = graphed(&root.to_string_lossy()).expect("the folder exists");
     assert_eq!(
         drawn(&refused),
         [("app".to_string(), "lib".to_string(), true)],
@@ -490,7 +490,7 @@ fn a_declared_folder_consents_both_ways_inside_its_unit() {
     )
     .expect("the folder is writable");
 
-    let consenting = graph(&root.to_string_lossy()).expect("the folder exists");
+    let consenting = graphed(&root.to_string_lossy()).expect("the folder exists");
     let folder_findings = |found: &arbiter::core::graph::Graph| -> Vec<(String, String)> {
         integrity(found)
             .iter()
@@ -510,7 +510,7 @@ fn a_declared_folder_consents_both_ways_inside_its_unit() {
          [units.\".\".inner.\"api\"]\ndeps = [\"domain\"]\n",
     )
     .expect("the folder is writable");
-    let refused = graph(&root.to_string_lossy()).expect("the folder exists");
+    let refused = graphed(&root.to_string_lossy()).expect("the folder exists");
     let found = folder_findings(&refused);
     let names: Vec<&str> = found.iter().map(|(name, _)| name.as_str()).collect();
     assert!(names.contains(&"undeclared-folder-use"));
@@ -556,7 +556,7 @@ fn a_child_folder_only_tightens_what_the_unit_allows() {
          [units.\"app\".inner.\"src/app\"]\ndeps = [\"//lib\"]\n",
     )
     .expect("writable");
-    let consenting = graph(&root.to_string_lossy()).expect("the folder exists");
+    let consenting = graphed(&root.to_string_lossy()).expect("the folder exists");
     assert!(
         !integrity(&consenting)
             .iter()
@@ -570,7 +570,7 @@ fn a_child_folder_only_tightens_what_the_unit_allows() {
          [units.\"app\".inner.\"src/app\"]\ndeps = [\"src/other\"]\n",
     )
     .expect("writable");
-    let tightened = graph(&root.to_string_lossy()).expect("the folder exists");
+    let tightened = graphed(&root.to_string_lossy()).expect("the folder exists");
     let reasons: Vec<String> = integrity(&tightened)
         .iter()
         .filter(|finding| finding.name == "undeclared-folder-use")
@@ -613,7 +613,7 @@ fn a_file_declares_as_a_leaf_of_the_folder_tree() {
         "[units.\".\".inner.\"infra/db.py\"]\nvisibility = [\"api/handler.py\"]\n",
     )
     .expect("the folder is writable");
-    let door = graph(&root.to_string_lossy()).expect("the folder exists");
+    let door = graphed(&root.to_string_lossy()).expect("the folder exists");
     assert!(
         !integrity(&door)
             .iter()
@@ -626,7 +626,7 @@ fn a_file_declares_as_a_leaf_of_the_folder_tree() {
         "[units.\".\".inner.\"infra/db.py\"]\nvisibility = [\"api/other.py\"]\n",
     )
     .expect("the folder is writable");
-    let barred = graph(&root.to_string_lossy()).expect("the folder exists");
+    let barred = graphed(&root.to_string_lossy()).expect("the folder exists");
     let mut names: Vec<String> = integrity(&barred)
         .iter()
         .filter(|finding| finding.name.contains("folder"))
@@ -634,5 +634,133 @@ fn a_file_declares_as_a_leaf_of_the_folder_tree() {
         .collect();
     names.sort();
     assert_eq!(names, ["stale-folder-grant", "uninvited-folder-use"]);
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_folder_whose_children_cycle_is_named() {
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-sibling-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    for folder in ["api", "infra"] {
+        fs::create_dir_all(root.join(folder)).expect("the folder is writable");
+    }
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("api/a.py"),
+        "from infra.b import value\n\nmirror = value\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("infra/b.py"),
+        "from api.a import mirror\n\nvalue = mirror\n",
+    )
+    .expect("the folder is writable");
+
+    let found = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let cycles: Vec<String> = integrity(&found)
+        .iter()
+        .filter(|finding| finding.name == "sibling-cycle")
+        .map(|finding| finding.reason.clone())
+        .collect();
+    assert_eq!(cycles, ["the children of . form a cycle: api <-> infra"]);
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn an_exact_member_set_quiets_one_cycle_and_stales_when_it_dissolves() {
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-signedcycle-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    for folder in ["api", "infra", ".arbiter"] {
+        fs::create_dir_all(root.join(folder)).expect("the folder is writable");
+    }
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("api/a.py"),
+        "from infra.b import value\n\nmirror = value\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("infra/b.py"),
+        "from api.a import mirror\n\nvalue = mirror\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join(".arbiter/suppressions.toml"),
+        "[[suppression]]\nrule = \"sibling-cycle\"\nunit = \".\"\nmembers = [\"api\", \"infra\"]\n",
+    )
+    .expect("the folder is writable");
+
+    let signed = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let findings = integrity(&signed);
+    assert!(
+        !findings
+            .iter()
+            .any(|finding| finding.name == "sibling-cycle"),
+        "the exact set is quiet"
+    );
+    assert!(
+        !findings
+            .iter()
+            .any(|finding| finding.name == "stale-suppression"),
+        "a quieting entry is alive"
+    );
+
+    fs::write(root.join("infra/b.py"), "value = 1\n").expect("the folder is writable");
+    let dissolved = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let stale: Vec<String> = integrity(&dissolved)
+        .iter()
+        .filter(|finding| finding.name == "stale-suppression")
+        .map(|finding| finding.reason.clone())
+        .collect();
+    assert_eq!(
+        stale,
+        ["the suppression of sibling-cycle in . quiets nothing"]
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_tangles_read_lists_entangled_siblings_largest_first() {
+    use arbiter::judge::findings::tangles;
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-tangles-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    for folder in ["api", "infra"] {
+        fs::create_dir_all(root.join(folder)).expect("the folder is writable");
+    }
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("api/a.py"),
+        "from infra.b import value\n\nmirror = value\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("infra/b.py"),
+        "from api.a import mirror\n\nvalue = mirror\n",
+    )
+    .expect("the folder is writable");
+
+    let found = graphed(&root.to_string_lossy()).expect("the folder exists");
+    assert_eq!(
+        tangles(&found),
+        [(
+            ".".to_string(),
+            vec!["api".to_string(), "infra".to_string()]
+        )]
+    );
     let _ = fs::remove_dir_all(&root);
 }

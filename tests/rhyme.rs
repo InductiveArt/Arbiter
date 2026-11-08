@@ -1,11 +1,11 @@
-use arbiter::core::graph::graph;
 use arbiter::judge::rhyme::rhymes;
+use arbiter::packs::graphed;
 
 const RHYME: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/rhyme");
 
 #[test]
 fn bones_group_the_shapes_and_flesh_splits_perfect_from_slant() {
-    let found = graph(RHYME).expect("the fixture folder exists");
+    let found = graphed(RHYME).expect("the fixture folder exists");
     let shown: Vec<String> = rhymes(&found)
         .iter()
         .map(|group| {

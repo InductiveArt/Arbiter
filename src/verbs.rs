@@ -22,6 +22,10 @@ pub const VERBS: &[(&str, &str)] = &[
         "structurally equal functions, largest first; a measure, never findings",
     ),
     (
+        "find tangles [unit|path]",
+        "entangled siblings per folder, largest first; a measure, never findings",
+    ),
+    (
         "ledger",
         "the signature's account: suppressions, third parties and claims against the reference",
     ),

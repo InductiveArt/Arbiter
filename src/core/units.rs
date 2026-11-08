@@ -8,67 +8,9 @@ use tree_sitter::Language;
 use tree_sitter::Node;
 
 use crate::core::pack::Pack;
+use crate::core::pack::Repo;
+use crate::core::pack::Unit;
 use crate::core::trees;
-
-pub struct Unit {
-    pub path: PathBuf,
-    pub test_files: HashSet<PathBuf>,
-    pub root_files: HashSet<PathBuf>,
-}
-
-pub struct Repo {
-    pub units: Vec<Unit>,
-    pub files: Vec<PathBuf>,
-    pub manifests: Vec<PathBuf>,
-    pub lockfiles: Vec<PathBuf>,
-    // Folders holding a PUBLISHED marker: that unit's surface serves users
-    // the repository cannot see.
-    pub published: HashSet<PathBuf>,
-}
-
-impl Repo {
-    // The BUILD file's word when it gives one; the naming convention where no target claims the file.
-    pub fn is_test(&self, unit: usize, file: &Path) -> bool {
-        if self.units[unit].test_files.contains(file) {
-            return true;
-        }
-        let stem = file
-            .file_stem()
-            .map(|stem| stem.to_string_lossy().to_string())
-            .unwrap_or_default();
-        stem.starts_with("test_")
-            || stem.ends_with("_test")
-            || stem.ends_with(".test")
-            || stem == "conftest"
-            || file
-                .components()
-                .any(|part| part.as_os_str() == "tests" || part.as_os_str() == "__tests__")
-    }
-
-    pub fn is_published(&self, unit: usize) -> bool {
-        self.published.contains(&self.units[unit].path)
-    }
-
-    pub fn unit_of(&self, file: &Path) -> usize {
-        self.units
-            .iter()
-            .enumerate()
-            .filter(|(_, unit)| file.starts_with(&unit.path))
-            .max_by_key(|(_, unit)| unit.path.components().count())
-            .map(|(index, _)| index)
-            .unwrap_or(0)
-    }
-
-    // The name a declaration uses for the unit: its path, or "." at the root.
-    pub fn unit_name(&self, unit: usize) -> String {
-        let path = &self.units[unit].path;
-        if path.as_os_str().is_empty() {
-            ".".to_string()
-        } else {
-            path.to_string_lossy().to_string()
-        }
-    }
-}
 
 pub const DECLARATIONS: &str = ".arbiter/units.toml";
 

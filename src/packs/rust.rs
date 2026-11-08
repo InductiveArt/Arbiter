@@ -12,11 +12,11 @@ use crate::core::pack::Definition;
 use crate::core::pack::Edge;
 use crate::core::pack::Finding;
 use crate::core::pack::Pack;
+use crate::core::pack::Repo;
 use crate::core::pack::Suppression;
 use crate::core::prose;
 use crate::core::record;
 use crate::core::trees;
-use crate::core::units::Repo;
 
 const DEFINITIONS: &str = include_str!("../../packs/rust/definitions.scm");
 const USES: &str = include_str!("../../packs/rust/uses.scm");
