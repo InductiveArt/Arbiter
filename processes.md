@@ -71,6 +71,8 @@ law-register handle was renamed in one release and no behavior moved.
 - Nascent code: dead by law, commissioned by authority through a planned
   need.
 - A `PUBLISHED` unit: unused in facts, kept by the user's marker.
+- A named tool: unreached in the import facts, reached by invocation,
+  kept by the user's naming in `units.toml`.
 - A planned need: law without facts yet, signed by being written.
 - An open matrix cell: a law waiting for its facts-engine.
 

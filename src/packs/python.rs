@@ -19,6 +19,8 @@ use crate::core::pack::Pack;
 use crate::core::pack::Suppression;
 use crate::core::prose;
 use crate::core::trees;
+use crate::core::units::named_tools;
+use crate::core::units::rotten_tools;
 use crate::core::units::Repo;
 
 const DEFINITIONS: &str = include_str!("../../packs/python/definitions.scm");
@@ -82,7 +84,10 @@ impl Pack for Python {
             ("undeclared-protocol", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
-            ("ecosystem-dials", "held"),
+            ("stale-tool", "held"),
+            ("unset-dial", "held"),
+            ("lowered-dial", "held"),
+            ("off-channel-dependency", "held"),
             ("tautology", "held"),
             (
                 "stray-test",
@@ -528,15 +533,18 @@ impl Pack for Python {
                 coded.insert(repo.unit_of(file));
             }
         }
+        let tooled = named_tools(root);
         for (unit, entry) in &declared {
             let home = repo.units[*unit].path.clone();
             if repo.is_test(*unit, &home) || !coded.contains(unit) {
                 continue;
             }
+            let named = tooled.get(&repo.unit_name(*unit));
+            let tool = |name: &str| named.is_some_and(|set| set.contains(name));
             let seen = reached.get(unit);
             let within = |name: &str| seen.is_some_and(|set| set.contains(name));
             for distribution in entry.dev.iter().collect::<std::collections::BTreeSet<_>>() {
-                if provided.contains(distribution) || within(distribution) {
+                if provided.contains(distribution) || within(distribution) || tool(distribution) {
                     continue;
                 }
                 // A stub distribution serves the type checker of the library it types,
@@ -560,6 +568,11 @@ impl Pack for Python {
                     ),
                 });
             }
+            findings.extend(rotten_tools(
+                named,
+                |name| entry.dev.contains(name),
+                &entry.manifest,
+            ));
         }
         // A class standing where a protocol is asked names the protocol:
         // a shape satisfied silently is an edge the graph cannot see.

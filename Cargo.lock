@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "arbiter"
-version = "0.8.4"
+version = "0.9.0"
 dependencies = [
  "serde_json",
  "streaming-iterator",

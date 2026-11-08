@@ -61,6 +61,10 @@ impl Pack for Proto {
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
             (
+                "stale-tool",
+                "never: a buf dependency names a contract module, never a binary to invoke",
+            ),
+            (
                 "phantom-import",
                 "never: the contract is the source others generate from",
             ),

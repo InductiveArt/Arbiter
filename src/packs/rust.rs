@@ -15,6 +15,8 @@ use crate::core::pack::Pack;
 use crate::core::pack::Suppression;
 use crate::core::prose;
 use crate::core::trees;
+use crate::core::units::named_tools;
+use crate::core::units::rotten_tools;
 use crate::core::units::Repo;
 
 const DEFINITIONS: &str = include_str!("../../packs/rust/definitions.scm");
@@ -70,7 +72,10 @@ impl Pack for Rust {
             ("comment-overreach", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
-            ("ecosystem-dials", "held"),
+            ("stale-tool", "held"),
+            ("unset-dial", "held"),
+            ("lowered-dial", "held"),
+            ("off-channel-dependency", "held"),
             ("tautology", "held"),
             (
                 "stray-test",
@@ -414,11 +419,14 @@ impl Pack for Rust {
                 coded.insert(repo.unit_of(file));
             }
         }
+        let tooled = named_tools(root);
         for (unit, entry) in &declared {
             let home = repo.units[*unit].path.clone();
             if repo.is_test(*unit, &home) || !coded.contains(unit) {
                 continue;
             }
+            let named = tooled.get(&repo.unit_name(*unit));
+            let tool = |name: &str| named.is_some_and(|set| set.contains(name));
             let seen = reached.get(unit);
             for name in entry
                 .names
@@ -428,7 +436,7 @@ impl Pack for Rust {
                 if Some(name.as_str()) == entry.own.as_deref() {
                     continue;
                 }
-                if seen.is_some_and(|set| set.contains(name)) {
+                if seen.is_some_and(|set| set.contains(name)) || tool(name) {
                     continue;
                 }
                 findings.push(Finding {
@@ -439,6 +447,11 @@ impl Pack for Rust {
                     reason: format!("{name} is declared, and nothing in the unit reaches it"),
                 });
             }
+            findings.extend(rotten_tools(
+                named,
+                |name| entry.names.contains(name),
+                &entry.manifest,
+            ));
         }
         findings
     }

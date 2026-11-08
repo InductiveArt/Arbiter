@@ -10,7 +10,8 @@ use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::units::Repo;
 
-const DECLARATIONS: &str = ".arbiter/units.toml";
+use crate::core::units::DECLARATIONS;
+
 const LICENSES: &str = ".arbiter/licenses.toml";
 
 // A public symbol no file but its own uses is named, inviting deletion.
@@ -354,33 +355,39 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
             witness.push((user, owned, edge.file.clone(), edge.line));
         }
     }
-    for (name, declaration) in units {
-        if let Some(allowed) = declaration
-            .get("visibility")
-            .and_then(toml::Value::as_array)
-        {
-            let patterns: Vec<&str> = allowed.iter().filter_map(toml::Value::as_str).collect();
-            for (user, owned, file, line) in &witness {
-                if owned == name && !patterns.iter().any(|pattern| fits(pattern, user)) {
-                    findings.push(Finding::integrity(
-                        file,
-                        *line,
-                        "uninvited-use",
-                        format!(
-                            "{user} uses {owned}, which only {} may",
-                            patterns.join(", ")
-                        ),
-                    ));
-                }
-            }
+    for (user, owned, file, line) in &witness {
+        let (invited, declared) = sanctioned(units, user, owned);
+        if !invited {
+            let patterns = listed(units, owned, "visibility").unwrap_or_default();
+            findings.push(Finding::integrity(
+                file,
+                *line,
+                "uninvited-use",
+                format!(
+                    "{user} uses {owned}, which only {} may",
+                    patterns.join(", ")
+                ),
+            ));
+        }
+        if !declared {
+            findings.push(Finding::integrity(
+                file,
+                *line,
+                "undeclared-unit",
+                format!("{user} uses {owned} and does not declare it"),
+            ));
+        }
+    }
+    for (name, _) in units {
+        if let Some(patterns) = listed(units, name, "visibility") {
             // A starred grant spans units that may not exist yet; only a named one can be stale.
-            for pattern in &patterns {
+            for pattern in patterns {
                 if pattern.contains('*') {
                     continue;
                 }
                 let used = between
                     .iter()
-                    .any(|(user, owned)| owned == name && user == pattern);
+                    .any(|(user, owned)| owned == name && *user == pattern);
                 if !used {
                     findings.push(Finding::integrity(
                         Path::new(DECLARATIONS),
@@ -391,20 +398,9 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
                 }
             }
         }
-        if let Some(deps) = declaration.get("deps").and_then(toml::Value::as_array) {
-            let declared: Vec<&str> = deps.iter().filter_map(toml::Value::as_str).collect();
-            for (user, owned, file, line) in &witness {
-                if user == name && !declared.contains(&owned.as_str()) {
-                    findings.push(Finding::integrity(
-                        file,
-                        *line,
-                        "undeclared-unit",
-                        format!("{user} uses {owned} and does not declare it"),
-                    ));
-                }
-            }
-            for dependency in &declared {
-                let used = between.contains(&(name.clone(), (*dependency).to_string()));
+        if let Some(declared) = listed(units, name, "deps") {
+            for dependency in declared {
+                let used = between.contains(&(name.clone(), dependency.clone()));
                 if !used {
                     findings.push(Finding::integrity(
                         Path::new(DECLARATIONS),
@@ -419,13 +415,65 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
     findings
 }
 
-fn shown(found: &Graph, unit: usize) -> String {
-    let path = &found.repo.units[unit].path;
-    if path.as_os_str().is_empty() {
-        ".".to_string()
-    } else {
-        path.to_string_lossy().to_string()
+// One field of one unit's declaration, as the written list; None where the
+// unit or the field stays undeclared, which binds nothing.
+fn listed(units: &toml::value::Table, name: &str, field: &str) -> Option<Vec<String>> {
+    let list = units.get(name)?.get(field)?.as_array()?;
+    Some(
+        list.iter()
+            .filter_map(toml::Value::as_str)
+            .map(str::to_string)
+            .collect(),
+    )
+}
+
+// Whether one resolved edge stands inside the declarations, both ways: the
+// owner's visibility invites the user, and the user's deps name the owner.
+// An undeclared side binds nothing, so the edge passes it.
+fn sanctioned(units: &toml::value::Table, user: &str, owner: &str) -> (bool, bool) {
+    let invited = listed(units, owner, "visibility")
+        .is_none_or(|patterns| patterns.iter().any(|pattern| fits(pattern, user)));
+    let declared =
+        listed(units, user, "deps").is_none_or(|declared| declared.contains(&owner.to_string()));
+    (invited, declared)
+}
+
+// Every resolved cross-unit edge of the code units, with whether it breaks
+// the declarations: the drawable truth, declared against real.
+pub fn drawn(found: &Graph) -> Vec<(String, String, bool)> {
+    let empty = toml::value::Table::new();
+    let units = fs::read_to_string(found.root.join(DECLARATIONS))
+        .ok()
+        .and_then(|text| text.parse::<toml::Value>().ok())
+        .and_then(|parsed| parsed.get("units").and_then(toml::Value::as_table).cloned())
+        .unwrap_or(empty);
+    let mut pairs: BTreeSet<(String, String)> = BTreeSet::new();
+    for edge in &found.edges {
+        let owner = found.defs[edge.def].unit;
+        if owner == edge.unit {
+            continue;
+        }
+        let test = |unit: usize| {
+            let home = found.repo.units[unit].path.clone();
+            found.repo.is_test(unit, &home)
+        };
+        if test(owner) || test(edge.unit) {
+            continue;
+        }
+        pairs.insert((shown(found, edge.unit), shown(found, owner)));
     }
+    pairs
+        .into_iter()
+        .map(|(user, owner)| {
+            let (invited, declared) = sanctioned(&units, &user, &owner);
+            let breaks = !(invited && declared);
+            (user, owner, breaks)
+        })
+        .collect()
+}
+
+fn shown(found: &Graph, unit: usize) -> String {
+    found.repo.unit_name(unit)
 }
 
 // An exact unit path, or a folder and star covering every unit below it.

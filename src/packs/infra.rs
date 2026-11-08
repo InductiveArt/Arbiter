@@ -41,6 +41,10 @@ impl Pack for Infra {
                 "never: a manifest's third parties are images, judged by digest",
             ),
             (
+                "stale-tool",
+                "never: a manifest's third parties are images, judged by digest",
+            ),
+            (
                 "undeclared-protocol",
                 "never: a manifest declares state; it names no classes",
             ),

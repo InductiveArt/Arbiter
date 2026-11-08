@@ -13,6 +13,10 @@ story = "manifests carve a repository into units before anything is judged"
   ]
 
   [[case.need]]
+  need = "the resolved unit graph is drawable, declared against real"
+  claims = [". |  | the resolved graph draws itself declared against real"]
+
+  [[case.need]]
   need = "tests, fixtures, ignored folders and containers are told apart from code"
   claims = [
     ". |  | a test is told by its name or its folder",
@@ -135,6 +139,13 @@ story = "dependencies come from the locked registry, at one version, licensed"
   [[case.need]]
   need = "a third party declared and never reached is named for deletion"
   claims = [". |  | a third party declared and never reached is named"]
+
+  [[case.need]]
+  need = "a dependency reached by invocation is the user's to name, and the naming cannot rot"
+  claims = [
+    ". |  | a named tool is reached by invocation never unused",
+    ". |  | a rotten tool entry is named",
+  ]
 
   [[case.need]]
   need = "a contract's import outside its module needs a declared dependency"

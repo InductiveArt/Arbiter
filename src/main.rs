@@ -11,6 +11,7 @@ use arbiter::core::pack::Finding;
 use arbiter::core::pack::Suppression;
 use arbiter::judge::brief;
 use arbiter::judge::claims;
+use arbiter::judge::findings::drawn;
 use arbiter::judge::findings::integrity;
 use arbiter::judge::findings::winnow;
 use arbiter::judge::ledger;
@@ -334,8 +335,11 @@ fn found(rest: &[String]) -> ExitCode {
         }
         Some("deps") => {
             let Some(name) = rest.get(1) else {
-                eprintln!("find deps: name the unit to describe");
-                return ExitCode::from(2);
+                let Some(found) = graph(".") else {
+                    eprintln!("find: no folder at .");
+                    return ExitCode::from(2);
+                };
+                return drawn_graph(&found);
             };
             let asked = folder(2);
             let Some(found) = graph(&asked) else {
@@ -634,6 +638,40 @@ fn emit(findings: &[Finding], rule: Option<&str>) {
             })
         );
     }
+}
+
+// The whole resolved unit graph as one mermaid fence, declared against real:
+// an edge the declarations refuse is drawn dashed and named undeclared. A
+// measure, never findings, so the fence pastes into any page the host draws.
+fn drawn_graph(found: &arbiter::core::graph::Graph) -> ExitCode {
+    let edges = drawn(found);
+    let mut ids: std::collections::BTreeMap<&str, usize> = Default::default();
+    for (user, owner, _) in &edges {
+        let next = ids.len();
+        ids.entry(user.as_str()).or_insert(next);
+        let next = ids.len();
+        ids.entry(owner.as_str()).or_insert(next);
+    }
+    println!("```mermaid");
+    println!("flowchart TD");
+    for (name, id) in &ids {
+        println!("  u{id}[\"{name}\"]");
+    }
+    for (user, owner, breaks) in &edges {
+        let from = ids[user.as_str()];
+        let to = ids[owner.as_str()];
+        if *breaks {
+            println!("  u{from} -. undeclared .-> u{to}");
+        } else {
+            println!("  u{from} --> u{to}");
+        }
+    }
+    if edges.is_empty() {
+        println!("  %% no cross-unit edges resolved");
+    }
+    println!("  %% test units are not drawn");
+    println!("```");
+    ExitCode::SUCCESS
 }
 
 // One unit's whole dependency picture, every language in the one format: the

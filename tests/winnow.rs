@@ -284,3 +284,119 @@ fn a_contract_is_reached_through_generated_code_in_both_languages() {
         );
     }
 }
+
+#[test]
+fn a_named_tool_is_reached_by_invocation_never_unused() {
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-tool-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\ndependencies = [\"coverage>=7\"]\n",
+    )
+    .expect("the folder is writable");
+    fs::write(root.join("app.py"), "value = 1\n").expect("the folder is writable");
+
+    let bare = graph(&root.to_string_lossy()).expect("the folder exists");
+    assert!(
+        integrity(&bare)
+            .iter()
+            .any(|finding| finding.name == "unused-dependency"
+                && finding.reason.starts_with("coverage is declared")),
+        "an invoked tool nothing imports is unused until the user names it"
+    );
+
+    fs::write(
+        root.join(".arbiter/units.toml"),
+        "[units.\".\"]\ntools = [\"coverage\"]\n",
+    )
+    .expect("the folder is writable");
+    let named = graph(&root.to_string_lossy()).expect("the folder exists");
+    let findings = integrity(&named);
+    assert!(
+        !findings
+            .iter()
+            .any(|finding| finding.name == "unused-dependency"),
+        "a named tool is reached"
+    );
+    assert!(
+        !findings.iter().any(|finding| finding.name == "stale-tool"),
+        "a declared tool is not stale"
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_rotten_tool_entry_is_named() {
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-rot-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(root.join("app.py"), "value = 1\n").expect("the folder is writable");
+    fs::write(
+        root.join(".arbiter/units.toml"),
+        "[units.\".\"]\ntools = [\"ghost-tool\"]\n",
+    )
+    .expect("the folder is writable");
+
+    let found = graph(&root.to_string_lossy()).expect("the folder exists");
+    let rotten: Vec<String> = integrity(&found)
+        .iter()
+        .filter(|finding| finding.name == "stale-tool")
+        .map(|finding| finding.reason.clone())
+        .collect();
+    assert_eq!(
+        rotten,
+        ["ghost-tool is named a tool, and pyproject.toml does not declare it"]
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_resolved_graph_draws_itself_declared_against_real() {
+    use arbiter::judge::findings::drawn;
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-drawn-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    for unit in ["app", "lib"] {
+        fs::create_dir_all(root.join(unit).join("src").join(unit)).expect("writable");
+        fs::write(
+            root.join(unit).join("pyproject.toml"),
+            format!("[project]\nname = \"{unit}\"\nversion = \"0\"\n"),
+        )
+        .expect("writable");
+    }
+    fs::write(root.join("lib/src/lib/core.py"), "value = 1\n").expect("writable");
+    fs::write(
+        root.join("app/src/app/main.py"),
+        "from lib.core import value\n\nprint(value)\n",
+    )
+    .expect("writable");
+
+    let bare = graph(&root.to_string_lossy()).expect("the folder exists");
+    assert_eq!(
+        drawn(&bare),
+        [("app".to_string(), "lib".to_string(), false)],
+        "an undeclared repository draws its facts unbroken"
+    );
+
+    fs::create_dir_all(root.join(".arbiter")).expect("writable");
+    fs::write(
+        root.join(".arbiter/units.toml"),
+        "[units.\"lib\"]\nvisibility = [\"web\"]\n",
+    )
+    .expect("writable");
+    let refused = graph(&root.to_string_lossy()).expect("the folder exists");
+    assert_eq!(
+        drawn(&refused),
+        [("app".to_string(), "lib".to_string(), true)],
+        "an edge the declarations refuse is drawn as a break"
+    );
+    let _ = fs::remove_dir_all(&root);
+}

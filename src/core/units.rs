@@ -58,6 +58,73 @@ impl Repo {
             .map(|(index, _)| index)
             .unwrap_or(0)
     }
+
+    // The name a declaration uses for the unit: its path, or "." at the root.
+    pub fn unit_name(&self, unit: usize) -> String {
+        let path = &self.units[unit].path;
+        if path.as_os_str().is_empty() {
+            ".".to_string()
+        } else {
+            path.to_string_lossy().to_string()
+        }
+    }
+}
+
+pub const DECLARATIONS: &str = ".arbiter/units.toml";
+
+// The tools each declared unit names: dependencies reached by invocation,
+// which no import edge can witness. Naming one is the user's signature; a
+// file that does not parse is judged where the declarations are read.
+pub fn named_tools(
+    root: &Path,
+) -> std::collections::BTreeMap<String, std::collections::BTreeSet<String>> {
+    let mut named = std::collections::BTreeMap::new();
+    let Ok(text) = fs::read_to_string(root.join(DECLARATIONS)) else {
+        return named;
+    };
+    let Ok(parsed) = text.parse::<toml::Value>() else {
+        return named;
+    };
+    let Some(units) = parsed.get("units").and_then(toml::Value::as_table) else {
+        return named;
+    };
+    for (name, declaration) in units {
+        let Some(list) = declaration.get("tools").and_then(toml::Value::as_array) else {
+            continue;
+        };
+        let tools: std::collections::BTreeSet<String> = list
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .map(str::to_string)
+            .collect();
+        named.insert(name.clone(), tools);
+    }
+    named
+}
+
+// A named tool its manifest no longer declares, so the signed list cannot rot.
+pub fn rotten_tools(
+    named: Option<&std::collections::BTreeSet<String>>,
+    declares: impl Fn(&str) -> bool,
+    manifest: &Path,
+) -> Vec<crate::core::pack::Finding> {
+    let Some(named) = named else {
+        return Vec::new();
+    };
+    named
+        .iter()
+        .filter(|tool| !declares(tool))
+        .map(|tool| crate::core::pack::Finding {
+            check: "integrity",
+            file: PathBuf::from(DECLARATIONS),
+            line: 0,
+            name: "stale-tool".to_string(),
+            reason: format!(
+                "{tool} is named a tool, and {} does not declare it",
+                manifest.display()
+            ),
+        })
+        .collect()
 }
 
 const BUILD_NAMES: [&str; 3] = ["BUILD.bazel", "BUILD.bazel.held", "BUILD"];
