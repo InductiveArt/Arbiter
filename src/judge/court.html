@@ -296,14 +296,15 @@ function scopePanel(scope) {
         panel.appendChild(el("div", "row dim", "(nothing declared — binds nothing)"));
       }
     }
-    if (scopeFacts.tangle) {
-      const line = el("div", "row bad", "tangle: " + scopeFacts.tangle.members.join(" <-> "));
-      line.style.cursor = "pointer";
+    if (scopeFacts.tangles && scopeFacts.tangles.length) {
+      panel.appendChild(el("h4", null, "tangles " + scopeFacts.tangles.length));
       const owner = ownerOf(scope === "units" ? "." : scope);
-      line.onmouseenter = () => glowMembers(scopeFacts.tangle.members.map(m => fullOf(owner, m)));
-      line.onmouseleave = unglow;
-      panel.appendChild(el("h4", null, "tangle"));
-      panel.appendChild(line);
+      for (const tangle of scopeFacts.tangles) {
+        const line = el("div", "row bad link", tangle.members.join(" <-> "));
+        line.onmouseenter = () => glowMembers(tangle.members.map(m => fullOf(owner, m)));
+        line.onmouseleave = restoreGlow;
+        panel.appendChild(line);
+      }
     }
     const mine = scope === "units" ? DATA.findings : findingsUnder(scope);
     panelFindings(panel, mine.slice(0, 12), scope === "units" ? "" : scope);
@@ -345,16 +346,10 @@ function panelFindings(panel, mine, place) {
 }
 // A finding that names a tangle isolates it on hover, wherever it is shown.
 function hoverFor(f) {
-  if (f.rule === "sibling-cycle") {
-    const tangle = DATA.tangles.find(t => t.place === f.file);
-    if (tangle) {
-      const owner = ownerOf(f.file);
-      return () => glowMembers(tangle.members.map(m => fullOf(owner, m)));
-    }
-  }
   if (f.rule.endsWith("-cycle") && f.reason.includes(" <-> ")) {
+    const owner = ownerOf(f.file);
     const members = f.reason.split(": ").pop().replace(/ form a cycle.*/, "")
-      .split(" <-> ").map(s => s.trim());
+      .split(" <-> ").map(s => fullOf(owner, s.trim()));
     return () => glowMembers(members);
   }
   if (f.rule.endsWith("-use")) {
@@ -510,7 +505,7 @@ function graph(view, scope) {
   }
   view.appendChild(crumbs);
 
-  let nodes = [], edges = [], tangleMembers = new Set();
+  let nodes = [], edges = [], tangleMembers = new Set(), tangleSets = [];
   if (scope === "units") {
     nodes = childrenOf("units");
     if (UNITS.length > 1) nodes = nodes.filter(n => n !== ".");
@@ -520,8 +515,10 @@ function graph(view, scope) {
     const unit = ownerOf(scope);
     const fam = DATA.families.find(f => f.place === scope);
     if (fam) edges = fam.edges.map(e => ({ from: fullOf(fam.unit, e.from), to: fullOf(fam.unit, e.to) }));
-    const tangle = DATA.tangles.find(t => t.place === scope);
-    if (tangle) tangleMembers = new Set(tangle.members.map(m => fullOf(unit, m)));
+    for (const tangle of DATA.tangles.filter(t => t.place === scope)) {
+      tangleSets.push(new Set(tangle.members.map(m => fullOf(unit, m))));
+    }
+    for (const set of tangleSets) for (const m of set) tangleMembers.add(m);
   }
   for (const e of edges) { if (!nodes.includes(e.from)) nodes.push(e.from); if (!nodes.includes(e.to)) nodes.push(e.to); }
 
@@ -537,11 +534,14 @@ function graph(view, scope) {
   const legend = el("div", "legend",
     "blue = source, purple = sink · red border = findings or a failed stage · dashed = enterable · hover shows links, click pins · double-click descends · drag pans, wheel zooms");
   view.appendChild(legend);
-  const tangle = DATA.tangles.find(t => t.place === scope);
-  scopeFacts = { nodes: nodes.length, edges: edges.length, tangle: tangle || null };
+  scopeFacts = {
+    nodes: nodes.length,
+    edges: edges.length,
+    tangles: DATA.tangles.filter(t => t.place === (scope === "units" ? "." : scope)),
+  };
   const want = pending;
   pending = null;
-  if (nodes.length && window.ELK) drawDeps(holder, scope, nodes, edges, tangleMembers, want);
+  if (nodes.length && window.ELK) drawDeps(holder, scope, nodes, edges, tangleMembers, tangleSets, want);
   else scopePanel(scope);
 }
 function unitPanel(name) {
@@ -970,7 +970,7 @@ function flowColor(nodes, edges) {
     return PLAIN;
   };
 }
-function drawDeps(holder, scope, nodes, edges, tangleMembers, want) {
+function drawDeps(holder, scope, nodes, edges, tangleMembers, tangleSets, want) {
   const label = place => {
     const short = place === "." ? "." : place.split("/").pop();
     const alarms = findingsUnder(place).length;
@@ -1004,7 +1004,7 @@ function drawDeps(holder, scope, nodes, edges, tangleMembers, want) {
     for (const e of done.edges || []) {
       const spec = edges[Number(e.id.slice(1))];
       const cls = "gedge" + (spec.breaks ? " breaks" : "")
-        + (tangleMembers.has(spec.from) && tangleMembers.has(spec.to) ? " tangled" : "");
+        + (tangleSets.some(set => set.has(spec.from) && set.has(spec.to)) ? " tangled" : "");
       const sections = e.sections || [];
       sections.forEach((section, at) => {
         const points = [section.startPoint, ...(section.bendPoints || []), section.endPoint];
