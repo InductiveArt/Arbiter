@@ -88,6 +88,9 @@ tr.click:hover td { background: var(--sel); }
                 width: min(950px, 92vw); max-height: 86vh; display: flex; flex-direction: column; }
 #overlay .head { padding: .6rem 1rem; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
 #overlay pre { overflow: auto; padding: 1rem; font-size: .8rem; white-space: pre-wrap; }
+#filterbar { position: sticky; top: 0; z-index: 3; background: var(--paper);
+             padding: .2rem 0 .6rem; }
+#filterbar .card { margin-bottom: 0; }
 details.group { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
                 padding: .4rem .8rem; margin-bottom: .55rem; }
 details.group > summary { cursor: pointer; list-style: none; display: flex; gap: .8rem;
@@ -680,11 +683,35 @@ function overview(view) {
 
 // ---- findings: the one home, filterable, scope-aware ----
 function findings(view, scope) {
+  const hold = el("div"); hold.id = "filterbar";
   const bar = el("div", "card");
   bar.style.display = "flex"; bar.style.gap = "1rem"; bar.style.flexWrap = "wrap";
   const scopeIn = document.createElement("input");
   scopeIn.placeholder = "scope — a unit, folder or file; empty is everything";
   scopeIn.value = scope || "";
+  scopeIn.setAttribute("list", "scopelist");
+  const suggestions = document.createElement("datalist");
+  suggestions.id = "scopelist";
+  const places = [...new Set([
+    ...Object.keys(CHILDREN).filter(k => k !== "units"),
+    ...[].concat(...Object.values(CHILDREN).map(s => [...s])),
+  ])];
+  const depth = p => p.split("/").length;
+  const suggest = () => {
+    suggestions.textContent = "";
+    const typed = scopeIn.value.trim();
+    const pool = typed
+      ? places.filter(p => p.startsWith(typed) && p !== typed)
+      : UNITS.slice();
+    pool.sort((a, b) => depth(a) - depth(b) || a.localeCompare(b));
+    for (const p of pool.slice(0, 40)) {
+      const option = document.createElement("option");
+      option.value = p;
+      suggestions.appendChild(option);
+    }
+  };
+  suggest();
+  bar.appendChild(suggestions);
   const ruleIn = document.createElement("select");
   const opt = (v, label) => { const o = document.createElement("option"); o.value = v; o.textContent = label; ruleIn.appendChild(o); };
   opt("", "every rule");
@@ -697,7 +724,8 @@ function findings(view, scope) {
   }
   ruleIn.style.cssText = "background:#10141a;border:1px solid #272f3b;border-radius:4px;color:#d9dfe7;font:inherit;padding:.25rem .5rem";
   bar.append(scopeIn, ruleIn, textIn);
-  view.appendChild(bar);
+  hold.appendChild(bar);
+  view.appendChild(hold);
   const count = el("div", "legend");
   view.appendChild(count);
   const box = el("div");
@@ -714,7 +742,8 @@ function findings(view, scope) {
       + (at ? " under " + at : "") + " — click one to see it in place";
     docketInto(box, mine, true);
   };
-  scopeIn.oninput = ruleIn.onchange = textIn.oninput = render;
+  ruleIn.onchange = textIn.oninput = render;
+  scopeIn.oninput = () => { suggest(); render(); };
   render();
 }
 function docketInto(box, list, openAll) {

@@ -1,7 +1,6 @@
 use std::time::Instant;
 
-// One run's pipeline, timed end to end: every step leaves its seconds, the
-// graph laws included. The trace is evidence - it changes no judgment.
+// Named steps with their seconds, in the order they were marked.
 pub struct Trace {
     clock: Instant,
     last: f64,
@@ -32,8 +31,7 @@ impl Trace {
         self.last = now;
     }
 
-    // Records a step measured elsewhere, such as the engine's own phases or
-    // a sum the outcomes already carry.
+    // Records a step whose seconds were measured elsewhere.
     pub fn note(&mut self, name: &'static str, seconds: f64) {
         self.steps.push(Step { name, seconds });
     }
