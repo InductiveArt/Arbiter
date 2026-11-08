@@ -57,6 +57,13 @@ story = "deployment is declared before it is possible: judged intent, actuator l
   need = "the bring-up reads as a ladder before anything exists to run"
   claims = [". |  | the bringup ladder reads in order"]
 
+  [[case.need]]
+  need = "a service multiplies by replicas and serves through declared doors"
+  claims = [
+    ". |  | a replica count scales the plans load",
+    ". |  | a door routes to a declared service",
+  ]
+
 [[case]]
 name = "folders"
 story = "a unit's inner graph holds its own law, and a child only tightens"
@@ -288,6 +295,10 @@ story = "structurally equivalent code is named, never judged"
 [[case]]
 name = "the-run"
 story = "a gate runs pinned tools, warm where nothing moved, repairing first when fixing"
+
+  [[case.need]]
+  need = "every run leaves the court: one page, one snapshot, beside the report"
+  claims = [". |  | the court page embeds the snapshot whole"]
 
   [[case.need]]
   need = "outcomes are tallied per check and a missing binary is a broken machine"

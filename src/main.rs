@@ -138,6 +138,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
         let place = verdict::written(&run);
+        let _ = arbiter::judge::court::write(&run);
         let failed = run
             .outcomes
             .iter()
@@ -676,15 +677,37 @@ fn planned(asked: Option<&str>, found: &arbiter::core::graph::Graph) -> ExitCode
         }
         shown += 1;
         println!("plan {}", plan.name);
-        for (rung, services) in arbiter::judge::plans::ladder(&reading, plan)
-            .iter()
-            .enumerate()
-        {
+        let spoken = |name: &str| -> String {
+            let count = reading
+                .services
+                .iter()
+                .find(|service| service.name == name)
+                .map_or(1, |service| service.replicas.max(1));
+            if count > 1 {
+                format!("{name} x{count}")
+            } else {
+                name.to_string()
+            }
+        };
+        let rungs = arbiter::judge::plans::ladder(&reading, plan);
+        for (rung, services) in rungs.iter().enumerate() {
             let step: Vec<String> = services
                 .iter()
-                .map(|(service, machine)| format!("{service} on {machine}"))
+                .map(|(service, machine)| format!("{} on {machine}", spoken(service)))
                 .collect();
-            println!("  {}  {}", rung + 1, step.join(", "));
+            println!("  up   {}  {}", rung + 1, step.join(", "));
+        }
+        for (rung, services) in rungs.iter().enumerate().rev() {
+            let step: Vec<String> = services
+                .iter()
+                .map(|(service, _)| spoken(service))
+                .collect();
+            println!("  down {}  {}", rungs.len() - rung, step.join(", "));
+        }
+        for service in &reading.services {
+            for (domain, port, to) in &service.serves {
+                println!("  door {domain}:{port} -> {to}  via {}", service.name);
+            }
         }
         for service in &reading.services {
             for (to, contract) in &service.channels {

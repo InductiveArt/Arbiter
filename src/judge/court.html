@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>arbiter court</title>
+<style>
+:root {
+  --paper: #11151a; --panel: #171c23; --line: #262d37; --ink: #d7dde5;
+  --dim: #8a94a1; --good: #7dc87d; --bad: #e07a7a; --warn: #d8b45f;
+  --accent: #7aa7d8; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; }
+body { background: var(--paper); color: var(--ink); font: 14px/1.55 var(--mono); padding: 0 0 6rem; }
+header { padding: 2.2rem 2.5rem 1.4rem; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: .02em; }
+header .verdict { margin-top: .4rem; }
+header .meta { color: var(--dim); margin-top: .3rem; font-size: .85rem; }
+.good { color: var(--good); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+.dim { color: var(--dim); } .accent { color: var(--accent); }
+nav { position: sticky; top: 0; background: var(--paper); border-bottom: 1px solid var(--line);
+      padding: .55rem 2.5rem; display: flex; gap: 1.4rem; flex-wrap: wrap; z-index: 2; }
+nav a { color: var(--dim); text-decoration: none; }
+nav a:hover { color: var(--ink); }
+nav a b { color: var(--ink); font-weight: 600; }
+section { padding: 1.6rem 2.5rem 0; max-width: 1100px; }
+section h2 { font-size: .95rem; text-transform: lowercase; letter-spacing: .06em;
+             color: var(--accent); margin-bottom: .8rem; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+         padding: .9rem 1.1rem; margin-bottom: .8rem; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th { text-align: left; color: var(--dim); font-weight: 500; padding: .15rem .9rem .35rem 0; }
+td { padding: .15rem .9rem .15rem 0; vertical-align: top; }
+.tag { display: inline-block; font-size: .72rem; padding: 0 .45rem; border-radius: 3px;
+       border: 1px solid var(--line); color: var(--dim); margin-left: .5rem; }
+.tag.core { color: var(--accent); border-color: var(--accent); }
+.tag.record { color: var(--warn); border-color: var(--warn); }
+.finding { border-left: 3px solid var(--bad); padding-left: .85rem; margin: .55rem 0; }
+.finding .where { color: var(--dim); font-size: .85rem; }
+.rung { margin: .1rem 0; }
+.rung .step { color: var(--dim); display: inline-block; width: 4.2rem; }
+.edge-break { color: var(--bad); }
+.law { color: var(--dim); font-size: .85rem; }
+.state-held { color: var(--good); } .state-open { color: var(--warn); }
+.state-never, .state-planned, .state-manual { color: var(--dim); }
+.state-unanswered { color: var(--bad); }
+.empty { color: var(--dim); font-style: italic; }
+footer { padding: 2rem 2.5rem; color: var(--dim); font-size: .8rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>arbiter court</h1>
+  <div class="verdict" id="verdict"></div>
+  <div class="meta" id="meta"></div>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+<footer>written by the gate; evidence, never committed. the desired side of the control plane.</footer>
+<script id="data" type="application/json">/*ARBITER_DATA*/</script>
+<script>
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const el = (tag, cls, text) => {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+};
+const section = (id, title) => {
+  const box = el("section"); box.id = id;
+  box.appendChild(el("h2", null, title));
+  document.getElementById("main").appendChild(box);
+  return box;
+};
+const panel = (parent) => { const p = el("div", "panel"); parent.appendChild(p); return p; };
+
+// Header: the verdict, said once.
+{
+  const failed = DATA.outcomes.filter(o => !o.passed).length;
+  const verdict = document.getElementById("verdict");
+  if (failed === 0 && DATA.findings.length === 0) {
+    verdict.appendChild(el("span", "good", "clean — " + DATA.outcomes.length + " checks, no findings"));
+  } else {
+    verdict.appendChild(el("span", "bad",
+      failed + " checks failed, " + DATA.findings.length + " findings"));
+  }
+  document.getElementById("meta").textContent =
+    DATA.root + " · arbiter " + DATA.version + " · " + DATA.units + " units, " + DATA.files + " files";
+}
+
+// Nav with counts.
+{
+  const nav = document.getElementById("nav");
+  const entries = [
+    ["docket", "docket", DATA.findings.length],
+    ["graph", "graph", DATA.edges.length],
+    ["tangles", "tangles", DATA.tangles.length],
+    ["plans", "plans", DATA.plans.plans.length],
+    ["brief", "brief", DATA.brief ? DATA.brief.cases : 0],
+    ["ledger", "ledger", DATA.suppressions.counted.length],
+    ["rules", "rules", DATA.rules.length],
+  ];
+  for (const [id, name, count] of entries) {
+    const a = el("a"); a.href = "#" + id;
+    a.appendChild(el("b", null, name));
+    a.appendChild(document.createTextNode(" " + count));
+    nav.appendChild(a);
+  }
+}
+
+// Docket: findings grouped by the law they break.
+{
+  const box = section("docket", "the docket");
+  if (!DATA.findings.length) panel(box).appendChild(el("div", "empty", "no findings"));
+  const byRule = {};
+  for (const f of DATA.findings) (byRule[f.rule] = byRule[f.rule] || []).push(f);
+  for (const rule of Object.keys(byRule).sort()) {
+    const p = panel(box);
+    const head = el("div");
+    head.appendChild(el("b", null, rule));
+    const meta = DATA.rules.find(r => r.name === rule);
+    if (meta) {
+      if (meta.core) head.appendChild(el("span", "tag core", "core"));
+      head.appendChild(el("span", "tag" + (meta.record ? " record" : ""), meta.record ? "record" : "facts"));
+      head.appendChild(el("div", "law", meta.law));
+    }
+    p.appendChild(head);
+    for (const f of byRule[rule]) {
+      const node = el("div", "finding");
+      node.appendChild(el("div", null, f.reason));
+      node.appendChild(el("div", "where", f.file + (f.line ? ":" + f.line : "")));
+      p.appendChild(node);
+    }
+  }
+}
+
+// The graph: declared against real, breaks first.
+{
+  const box = section("graph", "the unit graph — declared against real");
+  const p = panel(box);
+  if (!DATA.edges.length) p.appendChild(el("div", "empty", "no cross-unit edges resolved"));
+  const sorted = [...DATA.edges].sort((a, b) => (b.breaks | 0) - (a.breaks | 0));
+  for (const e of sorted) {
+    const row = el("div", e.breaks ? "edge-break" : null,
+      e.user + "  ->  " + e.owner + (e.breaks ? "   (undeclared)" : ""));
+    p.appendChild(row);
+  }
+}
+
+// Tangles: the knots, largest first.
+{
+  const box = section("tangles", "tangles");
+  const p = panel(box);
+  if (!DATA.tangles.length) p.appendChild(el("div", "empty", "none — every family forms an order"));
+  for (const t of DATA.tangles) p.appendChild(el("div", "edge-break", t.place + ":  " + t.members.join(" <-> ")));
+}
+
+// Plans: ladders up and down, doors, channels.
+{
+  const box = section("plans", "plans — the desired side");
+  const plans = DATA.plans;
+  if (!plans.services.length) panel(box).appendChild(el("div", "empty", "no plans written"));
+  for (const plan of plans.plans) {
+    const p = panel(box);
+    p.appendChild(el("b", null, "plan " + plan.name));
+    plan.ladder.forEach((rung, i) => {
+      const row = el("div", "rung");
+      row.appendChild(el("span", "step", "up " + (i + 1)));
+      row.appendChild(document.createTextNode(rung.map(s => s.service +
+        (s.replicas > 1 ? " x" + s.replicas : "") + " on " + s.machine).join(", ")));
+      p.appendChild(row);
+    });
+    [...plan.ladder].reverse().forEach((rung, i) => {
+      const row = el("div", "rung dim");
+      row.appendChild(el("span", "step", "down " + (i + 1)));
+      row.appendChild(document.createTextNode(rung.map(s => s.service).join(", ")));
+      p.appendChild(row);
+    });
+  }
+  if (plans.doors.length || plans.channels.length) {
+    const p = panel(box);
+    for (const d of plans.doors)
+      p.appendChild(el("div", "accent", "door  " + d.domain + ":" + d.port + " -> " + d.to + "  via " + d.via));
+    for (const c of plans.channels)
+      p.appendChild(el("div", null, "channel  " + c.from + " -> " + c.to + (c.contract ? "  " + c.contract : "")));
+  }
+}
+
+// Brief: intent and its states.
+{
+  const box = section("brief", "the brief — intent");
+  const p = panel(box);
+  if (!DATA.brief) p.appendChild(el("div", "empty", "no brief written"));
+  else for (const need of DATA.brief.needs) {
+    const row = el("div");
+    row.appendChild(el("span", "state-" + need.state, need.state.padEnd(10)));
+    row.appendChild(document.createTextNode(" " + need.case + " · " + need.need));
+    p.appendChild(row);
+  }
+}
+
+// Ledger: every signed exception, visible forever.
+{
+  const box = section("ledger", "the ledger");
+  const p = panel(box);
+  const s = DATA.suppressions;
+  p.appendChild(el("div", null, s.counted.length + " suppressions counted" +
+    (s.added === null ? ", no reference recorded" : ", " + s.added + " added since the signature")));
+  for (const entry of s.counted) p.appendChild(el("div", "dim", entry));
+}
+
+// The matrix, tagged.
+{
+  const box = section("rules", "the matrix");
+  const p = panel(box);
+  const table = el("table");
+  const head = el("tr");
+  for (const h of ["rule", "power", "group", "law"]) head.appendChild(el("th", null, h));
+  table.appendChild(head);
+  for (const r of DATA.rules) {
+    const row = el("tr");
+    const name = el("td", null, r.name);
+    row.appendChild(name);
+    row.appendChild(el("td", r.record ? "warn" : "dim", (r.core ? "core, " : "") + (r.record ? "record" : "facts")));
+    row.appendChild(el("td", "dim", r.group));
+    row.appendChild(el("td", "law", r.law));
+    table.appendChild(row);
+  }
+  p.appendChild(table);
+}
+</script>
+</body>
+</html>

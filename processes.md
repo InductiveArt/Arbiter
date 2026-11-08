@@ -54,8 +54,8 @@ meaning, a claim's removal. Authority moves alone: same facts, same law,
 and the signature turns a counted suppression from debt into reference.
 
 **Evidence.** Every step proves it happened: the dashboard's line per
-step, the findings, `.arbiter/last/`, the reference, the stamps adopted
-files carry. Evidence moves alone: the same judgment can leave a richer
+step, the findings, `.arbiter/last/` - the report, the court page and
+its snapshot - the reference, the stamps adopted files carry. Evidence moves alone: the same judgment can leave a richer
 or leaner trace.
 
 **Economy.** Judge only what moved: the warm cone, the pinned versions,

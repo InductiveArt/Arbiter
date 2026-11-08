@@ -165,3 +165,46 @@ fn the_bringup_ladder_reads_in_order() {
     );
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_replica_count_scales_the_plans_load() {
+    let root = std::env::temp_dir().join(format!("arbiter-replicas-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"backend\"\ncpu = 3.0\nreplicas = 3\n\n\
+         [[machine]]\nname = \"cell\"\ncpu = 8\n\n\
+         [[plan]]\nname = \"local\"\nplace = [{ service = \"backend\", on = \"cell\" }]\n",
+    );
+    assert_eq!(
+        named(&root, "overcommitted-machine"),
+        ["plan local loads cell past its declared capacity"]
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_door_routes_to_a_declared_service() {
+    let root = std::env::temp_dir().join(format!("arbiter-door-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"edge\"\n\
+         serves = [{ domain = \"$DOMAIN\", port = 443, to = \"web\" }]\n",
+    );
+    assert_eq!(
+        named(&root, "phantom-service"),
+        ["edge serves web, which no service declares"]
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_court_page_embeds_the_snapshot_whole() {
+    let data = serde_json::json!({ "marker": "the-whole-snapshot-7193" });
+    let page = arbiter::judge::court::page(&data);
+    assert!(page.starts_with("<!doctype html"));
+    assert!(page.contains("the-whole-snapshot-7193"));
+    assert!(
+        !page.contains("/*ARBITER_DATA*/"),
+        "the placeholder is replaced"
+    );
+}

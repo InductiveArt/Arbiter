@@ -170,7 +170,9 @@ services, state, machines and plans, consumed by any actuator or none),
 suppressions, one rule each), `licenses.toml` (the license allow list),
 `reference.json` and `contracts/` (what `ledger sign` recorded) - all
 committed. `last/` is the newest run, overwritten every time, never
-committed. `warm/` is the store the gate heats by running; `--cold` reads
+committed: the report, the findings as JSON lines, the court page
+(`court.html`, self-contained) and its snapshot (`graph.json`) - the one
+contract any console draws from. `warm/` is the store the gate heats by running; `--cold` reads
 none of it, and deleting the folder is the full chill. The first gate seeds
 the toml files as comments; writing the first real entry in any is the
 user's ruling.

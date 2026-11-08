@@ -30,6 +30,7 @@ pub enum BriefLine {
 
 pub struct Run {
     pub root: PathBuf,
+    pub graph: crate::core::graph::Graph,
     pub units: usize,
     pub files: usize,
     pub outcomes: Vec<Outcome>,
@@ -137,10 +138,13 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
             .count()
     });
     let third = packages.len();
+    let units = found.repo.units.len();
+    let files = found.repo.files.len();
     Some(Run {
-        root: found.root,
-        units: found.repo.units.len(),
-        files: found.repo.files.len(),
+        root: found.root.clone(),
+        graph: found,
+        units,
+        files,
         outcomes,
         notes,
         findings: all,

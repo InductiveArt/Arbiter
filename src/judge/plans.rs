@@ -23,6 +23,11 @@ pub struct Service {
     pub volumes: Vec<String>,
     pub cpu: Option<f64>,
     pub memory_mb: Option<i64>,
+    // How many of this service a plan runs; absent is one.
+    pub replicas: i64,
+    // The doors: what this service serves to the world, routed to a declared
+    // service. A domain may be a site-filled placeholder; no law reads it.
+    pub serves: Vec<(String, i64, String)>,
     pub line: usize,
 }
 
@@ -127,6 +132,23 @@ pub fn read(root: &Path) -> Option<Result<Reading, Finding>> {
                     .map(str::to_string)
                     .collect()
             });
+        let serves = entry
+            .get("serves")
+            .and_then(toml::Value::as_array)
+            .map(|list| {
+                list.iter()
+                    .filter_map(|door| {
+                        Some((
+                            word(door, "domain")?,
+                            door.get("port")
+                                .and_then(toml::Value::as_integer)
+                                .unwrap_or(443),
+                            word(door, "to")?,
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         services.push(Service {
             line: line_of(&format!("\"{name}\"")),
             unit: word(&entry, "unit"),
@@ -136,6 +158,10 @@ pub fn read(root: &Path) -> Option<Result<Reading, Finding>> {
             volumes: listed(&entry, "volumes"),
             cpu: number(&entry, "cpu"),
             memory_mb: number(&entry, "memory_mb").map(|value| value as i64),
+            replicas: number(&entry, "replicas")
+                .map(|value| value as i64)
+                .unwrap_or(1),
+            serves,
             name,
         });
     }
@@ -246,6 +272,15 @@ pub fn findings(found: &Graph) -> Vec<Finding> {
                         "{} mounts {volume}, which the record does not declare",
                         service.name
                     ),
+                ));
+            }
+        }
+        for (_, _, to) in &service.serves {
+            if !services.contains_key(to.as_str()) {
+                findings.push(at(
+                    service.line,
+                    "phantom-service",
+                    format!("{} serves {to}, which no service declares", service.name),
                 ));
             }
         }
@@ -387,8 +422,9 @@ pub fn findings(found: &Graph) -> Vec<Finding> {
                     continue;
                 };
                 let load = loads.entry(machine.as_str()).or_insert((0.0, 0));
-                load.0 += service.cpu.unwrap_or(0.0);
-                load.1 += service.memory_mb.unwrap_or(0);
+                let count = service.replicas.max(1) as f64;
+                load.0 += service.cpu.unwrap_or(0.0) * count;
+                load.1 += service.memory_mb.unwrap_or(0) * service.replicas.max(1);
             }
             for (machine, (cpu, memory)) in loads {
                 let Some(known) = reading.machines.iter().find(|known| known.name == machine)
