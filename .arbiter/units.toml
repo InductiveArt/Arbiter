@@ -7,3 +7,12 @@
 # # The units this one uses, held both ways: using an undeclared unit is a
 # # finding, and so is declaring one never used.
 # deps = ["libs/other"]
+
+[units.".".inner."src/core"]
+deps = ["src/packs"]
+
+[units.".".inner."src/judge"]
+deps = ["src/core", "src/packs"]
+
+[units.".".inner."src/packs"]
+deps = ["src/core"]
