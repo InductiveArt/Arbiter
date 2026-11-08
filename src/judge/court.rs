@@ -40,12 +40,27 @@ fn snapshot(run: &Run) -> serde_json::Value {
         .outcomes
         .iter()
         .map(|outcome| {
+            let mut output = outcome.output.clone();
+            if output.len() > 30_000 {
+                output.truncate(30_000);
+                output.push_str("\n… truncated; the whole output is in the report");
+            }
             serde_json::json!({
-                "unit": outcome.unit,
+                "unit": if outcome.unit.is_empty() { "." } else { &outcome.unit },
                 "check": outcome.check,
                 "passed": outcome.passed,
                 "warm": outcome.warm,
                 "seconds": outcome.seconds,
+                "output": output,
+            })
+        })
+        .collect();
+    let units_list: Vec<serde_json::Value> = (0..found.repo.units.len())
+        .map(|index| {
+            let home = found.repo.units[index].path.clone();
+            serde_json::json!({
+                "name": found.repo.unit_name(index),
+                "test": found.repo.is_test(index, &home),
             })
         })
         .collect();
@@ -53,7 +68,16 @@ fn snapshot(run: &Run) -> serde_json::Value {
         .findings
         .iter()
         .map(|finding| {
+            // The id hashes what the finding is, never where its line drifted:
+            // the same offense yields the same id run after run.
+            let mut digest = crate::core::digest::Digest::new();
+            digest.eat(finding.name.as_bytes());
+            digest.eat(&[0]);
+            digest.eat(finding.file.to_string_lossy().as_bytes());
+            digest.eat(&[0]);
+            digest.eat(finding.reason.as_bytes());
             serde_json::json!({
+                "id": digest.hex()[..12].to_string(),
                 "check": finding.check,
                 "file": finding.file.to_string_lossy(),
                 "line": finding.line,
@@ -115,15 +139,14 @@ fn snapshot(run: &Run) -> serde_json::Value {
             .collect();
         serde_json::json!({ "cases": reading.cases, "claims": reading.claims, "needs": needs })
     });
-    let counted: Vec<String> = ledger::counted(found)
+    let counted: Vec<serde_json::Value> = ledger::counted(found)
         .iter()
         .map(|suppression| {
-            format!(
-                "{}:{}  {}",
-                suppression.file.to_string_lossy(),
-                suppression.line,
-                suppression.text
-            )
+            serde_json::json!({
+                "file": suppression.file.to_string_lossy(),
+                "line": suppression.line,
+                "text": suppression.text,
+            })
         })
         .collect();
     serde_json::json!({
@@ -132,6 +155,7 @@ fn snapshot(run: &Run) -> serde_json::Value {
         "units": run.units,
         "files": run.files,
         "outcomes": outcomes,
+        "unitsList": units_list,
         "findings": found_findings,
         "rules": rules,
         "edges": edges,
