@@ -88,6 +88,27 @@ tr.click:hover td { background: var(--sel); }
                 width: min(950px, 92vw); max-height: 86vh; display: flex; flex-direction: column; }
 #overlay .head { padding: .6rem 1rem; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
 #overlay pre { overflow: auto; padding: 1rem; font-size: .8rem; white-space: pre-wrap; }
+details.group { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+                padding: .4rem .8rem; margin-bottom: .55rem; }
+details.group > summary { cursor: pointer; list-style: none; display: flex; gap: .8rem;
+                          align-items: baseline; flex-wrap: wrap; }
+details.group > summary::before { content: "▸ "; color: var(--dim); }
+details.group[open] > summary::before { content: "▾ "; }
+details.group .body { margin-top: .5rem; border-top: 1px solid var(--line); padding-top: .4rem; }
+.hint { display: inline-block; font-size: .72rem; padding: 0 .45rem; border-radius: 3px;
+        border: 1px solid var(--bad); color: var(--bad); }
+.stagechip { font-size: .78rem; margin-right: .35rem; }
+#pipe { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+        margin-bottom: .9rem; overflow-x: auto; }
+#pipe svg { display: block; }
+#pipe .step rect { fill: #1d242e; stroke: var(--line); rx: 6; cursor: pointer; }
+#pipe .step:hover rect { stroke: var(--accent); }
+#pipe .step text { fill: var(--ink); font: 12px var(--mono); pointer-events: none; }
+#pipe .step text.sub { fill: var(--dim); font-size: 10px; }
+#pipe .step.red rect { stroke: var(--bad); }
+#pipe .step.green rect { stroke: #4f7d4f; }
+#pipe .flow { stroke: var(--dim); fill: none; marker-end: url(#parrow); opacity: .7; }
+.legend { color: var(--dim); font-size: .78rem; margin: .4rem 0 .8rem; }
 .planpick a { color: var(--dim); margin-right: .9rem; cursor: pointer; text-decoration: none; }
 .planpick a.on { color: var(--ink); border-bottom: 2px solid var(--accent); }
 svg.board { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; margin-bottom: .8rem; }
@@ -488,6 +509,63 @@ function jump(f) {
   go("graph/units");
 }
 
+// ---- the pipeline: how a run flows, told with this run's numbers ----
+function pipeline(view) {
+  const box = el("div"); box.id = "pipe";
+  const failed = DATA.outcomes.filter(o => !o.passed).length;
+  const dials = DATA.findings.filter(f => f.check === "ecosystem-dials").length;
+  const contracts = DATA.outcomes.filter(o =>
+    o.check === "stale-generated" || o.check === "inter-language-break");
+  const checks = [...new Set(DATA.outcomes.map(o => o.check))].sort();
+  const unanswered = DATA.brief ? DATA.brief.needs.filter(n => n.state === "unanswered").length : 0;
+  const steps = [
+    { name: "scan", sub: DATA.units + " units, " + DATA.files + " files", cls: "green" },
+    { name: "resolve", sub: DATA.resolved + " edges", cls: "green" },
+    { name: "judge", sub: DATA.findings.length + " findings · in process",
+      cls: DATA.findings.length ? "red" : "green", act: () => scrollTo("docketbox") },
+    { name: "dials", sub: dials + " findings", cls: dials ? "red" : "green" },
+    { name: "tools", sub: checks.join(" ") || "—", cls: failed ? "red" : "green",
+      act: () => scrollTo("outcomesbox") },
+    { name: "contracts", sub: contracts.length ? contracts.length + " checked" : "none here",
+      cls: contracts.some(o => !o.passed) ? "red" : "green" },
+    { name: "claims", sub: DATA.claims + " heard", cls: unanswered ? "red" : "green",
+      act: () => go("brief") },
+    { name: "ledger", sub: DATA.suppressions.counted.length + " counted", cls: "green",
+      act: () => go("ledger") },
+  ];
+  const stepw = name => Math.max(86, name.length * 8 + 30);
+  const gap = 34, h = 46, pad = 14;
+  let x = pad;
+  const places = steps.map(s => { const at = x; x += stepw(s.name) + gap; return at; });
+  const svg = svgel("svg", { width: x + pad, height: h + 42 });
+  const defs = svgel("defs", {});
+  const marker = svgel("marker", { id: "parrow", viewBox: "0 0 10 10", refX: 9, refY: 5,
+    markerWidth: 6, markerHeight: 6, orient: "auto" });
+  marker.appendChild(svgel("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "#8b95a3" }));
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+  steps.forEach((s, i) => {
+    if (i) svg.appendChild(svgel("path", { class: "flow",
+      d: `M ${places[i - 1] + stepw(steps[i - 1].name)} ${pad + h / 2} L ${places[i] - 4} ${pad + h / 2}` }));
+    const g = svgel("g", { class: "step " + s.cls });
+    g.appendChild(svgel("rect", { x: places[i], y: pad, width: stepw(s.name), height: h }));
+    const label = svgel("text", { x: places[i] + 12, y: pad + 19 });
+    label.textContent = s.name;
+    g.appendChild(label);
+    const sub = svgel("text", { x: places[i] + 12, y: pad + 35, class: "sub" });
+    sub.textContent = s.sub;
+    g.appendChild(sub);
+    if (s.act) g.onclick = s.act;
+    svg.appendChild(g);
+  });
+  box.appendChild(svg);
+  view.appendChild(box);
+}
+function scrollTo(id) {
+  const target = document.getElementById(id);
+  if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 // ---- overview ----
 let runMode = "unit";
 function overview(view) {
@@ -507,6 +585,7 @@ function overview(view) {
   chip(DATA.third.locked, "third parties", false);
   chip(DATA.claims, "claims", false);
   view.appendChild(chips);
+  pipeline(view);
 
   const mode = el("div", "mode");
   for (const m of ["unit", "stage"]) {
@@ -514,9 +593,8 @@ function overview(view) {
     a.onclick = () => { runMode = m; route(); };
     mode.appendChild(a);
   }
+  mode.id = "outcomesbox";
   view.appendChild(mode);
-  const card = el("div", "card");
-  const table = el("table");
   const groups = {};
   const key = o => runMode === "unit" ? o.unit : o.check;
   for (const o of DATA.outcomes) (groups[key(o)] = groups[key(o)] || []).push(o);
@@ -525,64 +603,89 @@ function overview(view) {
     const anyFail = mine.some(o => !o.passed);
     const seconds = mine.reduce((sum, o) => sum + (o.warm ? 0 : o.seconds), 0);
     const alarms = runMode === "unit" ? findingsUnder(name).length : 0;
-    const row = el("tr", "grouprow");
-    row.appendChild(el("td", anyFail ? "bad" : "good", name + (alarms ? "  ●" + alarms : "")));
-    const summary = el("td", "dim");
+    const box = el("details", "group");
+    if (anyFail) box.open = true;
+    const summary = el("summary");
+    summary.appendChild(el("b", anyFail ? "bad" : "good", name));
     if (runMode === "unit") {
+      const stages = el("span");
       mine.forEach(o => {
-        summary.appendChild(el("span", o.passed ? "stage-ok" : "stage-fail", o.check));
-        summary.appendChild(document.createTextNode(o.warm ? "· " : " "));
+        stages.appendChild(el("span", "stagechip " + (o.passed ? "stage-ok" : "stage-fail"),
+          o.check + (o.warm ? "·" : "")));
       });
-    } else summary.textContent = mine.filter(o => o.passed).length + " ok" +
-      (anyFail ? ", " + mine.filter(o => !o.passed).length + " failed" : "") +
-      " of " + mine.length;
-    row.appendChild(summary);
-    row.appendChild(el("td", "dim", seconds.toFixed(1) + "s" + (mine.every(o => o.warm) ? " (warm)" : "")));
-    table.appendChild(row);
-    const details = mine.map(o => {
-      const d = el("tr", "detail"); d.style.display = "none";
+      summary.appendChild(stages);
+    } else {
+      summary.appendChild(el("span", "dim", mine.filter(o => o.passed).length + " ok" +
+        (anyFail ? ", " + mine.filter(o => !o.passed).length + " failed" : "") + " of " + mine.length));
+    }
+    summary.appendChild(el("span", "dim", seconds.toFixed(1) + "s" + (mine.every(o => o.warm) ? " (warm)" : "")));
+    if (alarms) {
+      const hint = el("span", "hint", "findings " + alarms);
+      hint.title = alarms + " findings under " + name + " — the docket and the graph hold them";
+      summary.appendChild(hint);
+    }
+    if (runMode === "unit") {
+      const open = el("a", "accent", "graph ↗");
+      open.style.cursor = "pointer";
+      open.onclick = e => { e.stopPropagation(); e.preventDefault(); pending = { select: name }; go("graph/units"); };
+      summary.appendChild(open);
+    }
+    box.appendChild(summary);
+    const body = el("div", "body");
+    const table = el("table");
+    for (const o of mine) {
+      const d = el("tr");
       d.appendChild(el("td", o.passed ? "stage-ok" : "stage-fail",
-        "   " + (runMode === "unit" ? o.check : o.unit)));
+        runMode === "unit" ? o.check : o.unit));
+      d.appendChild(el("td", "dim", o.pack));
       const cell = el("td");
       if (o.output && o.output.trim()) {
         const out = el("span", "outlink", "output");
-        out.onclick = e => { e.stopPropagation(); showOverlay((runMode === "unit" ? name : o.unit) + " · " + o.check, o.output); };
+        out.onclick = () => showOverlay((runMode === "unit" ? name : o.unit) + " · " + o.check, o.output);
         cell.appendChild(out);
       } else cell.appendChild(el("span", "dim", "—"));
       d.appendChild(cell);
       d.appendChild(el("td", "dim", o.warm ? "warm" : o.seconds.toFixed(1) + "s"));
       table.appendChild(d);
-      return d;
-    });
-    row.onclick = () => { const show = details[0].style.display === "none"; details.forEach(d => d.style.display = show ? "" : "none"); };
-    if (runMode === "unit") {
-      row.ondblclick = () => { pending = { select: name }; go("graph/units"); };
     }
+    body.appendChild(table);
+    box.appendChild(body);
+    view.appendChild(box);
   }
-  card.appendChild(table);
-  view.appendChild(card);
+  const taught = el("div", "legend");
+  const present = [...new Set(DATA.outcomes.map(o => o.pack))];
+  const sets = DATA.adapters.filter(a => present.includes(a.pack))
+    .map(a => a.pack + ": " + a.checks.join(", "));
+  taught.textContent = "the stage set is each pack's pinned adapter — " + sets.join(" · ")
+    + ". rules are never stages: laws are judged on the graph, in process, and land as findings.";
+  view.appendChild(taught);
   docket(view);
 }
 function docket(view) {
+  const box = el("div"); box.id = "docketbox";
+  view.appendChild(box);
   if (!DATA.findings.length) {
     const card = el("div", "card");
     card.appendChild(el("div", "empty", "the docket is empty"));
-    view.appendChild(card);
+    box.appendChild(card);
     return;
   }
   const byRule = {};
   for (const f of DATA.findings) (byRule[f.rule] = byRule[f.rule] || []).push(f);
   for (const rule of Object.keys(byRule).sort()) {
-    const card = el("div", "card");
-    const head = el("div");
-    head.appendChild(el("b", null, rule));
+    const group = el("details", "group");
+    if (Object.keys(byRule).length <= 2) group.open = true;
+    const summary = el("summary");
+    summary.appendChild(el("b", "bad", rule));
+    summary.appendChild(el("span", "hint", String(byRule[rule].length)));
     const meta = ruleMeta(rule);
     if (meta) {
-      if (meta.core) head.appendChild(el("span", "tag core", "core"));
-      head.appendChild(el("span", "tag" + (meta.record ? " record" : ""), meta.record ? "record" : "facts"));
-      head.appendChild(el("div", "law", meta.law));
+      if (meta.core) summary.appendChild(el("span", "tag core", "core"));
+      summary.appendChild(el("span", "tag" + (meta.record ? " record" : ""), meta.record ? "record" : "facts"));
     }
-    card.appendChild(head);
+    group.appendChild(summary);
+    const body = el("div", "body");
+    if (meta) body.appendChild(el("div", "law", meta.law));
     for (const f of byRule[rule]) {
       const node = el("div", "finding");
       node.appendChild(el("div", null, f.reason));
@@ -592,9 +695,10 @@ function docket(view) {
       where.appendChild(el("span", "go", "  ↗ see it"));
       node.appendChild(where);
       node.onclick = () => jump(f);
-      card.appendChild(node);
+      body.appendChild(node);
     }
-    view.appendChild(card);
+    group.appendChild(body);
+    box.appendChild(group);
   }
 }
 
@@ -766,8 +870,12 @@ function ledger(view) {
   const byFile = {};
   for (const entry of s.counted) (byFile[entry.file] = byFile[entry.file] || []).push(entry);
   for (const file of Object.keys(byFile).sort()) {
-    const card = el("div", "card");
-    card.appendChild(el("h3", null, file + "  ·  " + byFile[file].length));
+    const group = el("details", "group");
+    const summary = el("summary");
+    summary.appendChild(el("b", null, file));
+    summary.appendChild(el("span", "dim", String(byFile[file].length)));
+    group.appendChild(summary);
+    const body = el("div", "body");
     const table = el("table");
     for (const entry of byFile[file]) {
       const row = el("tr");
@@ -775,8 +883,9 @@ function ledger(view) {
       row.appendChild(el("td", null, entry.text));
       table.appendChild(row);
     }
-    card.appendChild(table);
-    view.appendChild(card);
+    body.appendChild(table);
+    group.appendChild(body);
+    view.appendChild(group);
   }
   const third = el("div", "card");
   third.appendChild(el("div", null, DATA.third.locked + " third parties locked" +

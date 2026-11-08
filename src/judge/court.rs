@@ -47,12 +47,28 @@ fn snapshot(run: &Run) -> serde_json::Value {
             }
             serde_json::json!({
                 "unit": if outcome.unit.is_empty() { "." } else { &outcome.unit },
+                "pack": outcome.pack,
                 "check": outcome.check,
                 "passed": outcome.passed,
                 "warm": outcome.warm,
                 "seconds": outcome.seconds,
                 "output": output,
             })
+        })
+        .collect();
+    let adapters: Vec<serde_json::Value> = crate::packs::all()
+        .iter()
+        .filter_map(|pack| {
+            let adapter = pack.adapter()?;
+            let parsed = adapter.parse::<toml::Value>().ok()?;
+            let checks: Vec<String> = parsed
+                .get("check")?
+                .as_array()?
+                .iter()
+                .filter_map(|check| check.get("name").and_then(toml::Value::as_str))
+                .map(str::to_string)
+                .collect();
+            Some(serde_json::json!({ "pack": pack.label(), "checks": checks }))
         })
         .collect();
     let units_list: Vec<serde_json::Value> = (0..found.repo.units.len())
@@ -155,6 +171,8 @@ fn snapshot(run: &Run) -> serde_json::Value {
         "units": run.units,
         "files": run.files,
         "outcomes": outcomes,
+        "adapters": adapters,
+        "resolved": found.edges.len(),
         "unitsList": units_list,
         "findings": found_findings,
         "rules": rules,
