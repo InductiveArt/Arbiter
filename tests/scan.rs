@@ -556,6 +556,23 @@ fn a_class_standing_where_an_interface_is_asked_names_it() {
 }
 
 #[test]
+fn a_broken_unit_declaration_is_named_never_read_as_virgin() {
+    let root = std::env::temp_dir().join(format!("arbiter-units-record-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
+    fs::write(root.join(".arbiter/units.toml"), "[units. not toml")
+        .expect("the folder is writable");
+    let found = graph(&root.to_string_lossy()).expect("the folder exists");
+    let findings = arbiter::judge::findings::integrity(&found);
+    assert_eq!(findings.len(), 1);
+    assert_eq!(findings[0].name, "unparsable-user-record");
+    assert!(findings[0]
+        .reason
+        .contains("the declared boundaries cannot be read"));
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
 fn a_broken_reference_is_named_never_read_as_virgin() {
     let root = std::env::temp_dir().join(format!("arbiter-record-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);

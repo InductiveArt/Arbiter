@@ -332,8 +332,8 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
         return vec![Finding::integrity(
             Path::new(DECLARATIONS),
             0,
-            "unparsed",
-            format!("{DECLARATIONS} does not parse"),
+            "unparsable-user-record",
+            format!("{DECLARATIONS} does not parse; the declared boundaries cannot be read"),
         )];
     };
     let Some(units) = parsed.get("units").and_then(toml::Value::as_table) else {

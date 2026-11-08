@@ -177,7 +177,10 @@ story = "every suppression is counted against the user's signature"
 
   [[case.need]]
   need = "a record the user wrote never silently degrades"
-  claims = [". |  | a broken reference is named never read as virgin"]
+  claims = [
+    ". |  | a broken reference is named never read as virgin",
+    ". |  | a broken unit declaration is named never read as virgin",
+  ]
 
 [[case]]
 name = "claims"
