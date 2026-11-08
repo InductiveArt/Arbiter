@@ -16,9 +16,8 @@ use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::pack::Suppression;
 use crate::core::prose;
+use crate::core::record;
 use crate::core::trees;
-use crate::core::units::named_tools;
-use crate::core::units::rotten_tools;
 use crate::core::units::Repo;
 
 const DEFINITIONS: &str = include_str!("../../packs/typescript/definitions.scm");
@@ -87,7 +86,7 @@ impl Pack for TypeScript {
             ("comment-overreach", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
-            ("stale-tool", "held"),
+            ("stale-suppression", "held"),
             ("unset-dial", "held"),
             ("lowered-dial", "held"),
             ("off-channel-dependency", "held"),
@@ -547,14 +546,14 @@ impl Pack for TypeScript {
             .values()
             .filter_map(|entry| entry.own.clone())
             .collect();
-        let tooled = named_tools(root);
+        let (subjects, _) = record::read(root);
+        let mut live: std::collections::HashSet<usize> = Default::default();
         for (unit, entry) in &declared {
             let home = repo.units[*unit].path.clone();
             if repo.is_test(*unit, &home) || !coded.contains(unit) {
                 continue;
             }
-            let named = tooled.get(&repo.unit_name(*unit));
-            let tool = |package: &str| named.is_some_and(|set| set.contains(package));
+            let name = repo.unit_name(*unit);
             let seen = reached.get(unit);
             let within = |package: &str| seen.is_some_and(|set| set.contains(package));
             for package in entry.dev.iter().collect::<std::collections::BTreeSet<_>>() {
@@ -563,7 +562,6 @@ impl Pack for TypeScript {
                     || within(package)
                     || entry.peers.contains(package)
                     || entry.scripts.contains(package)
-                    || tool(package)
                 {
                     continue;
                 }
@@ -576,6 +574,10 @@ impl Pack for TypeScript {
                         continue;
                     }
                 }
+                if let Some(at) = record::quiets(&subjects, "typescript", &name, package) {
+                    live.insert(at);
+                    continue;
+                }
                 findings.push(Finding {
                     check: "integrity",
                     file: entry.manifest.clone(),
@@ -584,12 +586,8 @@ impl Pack for TypeScript {
                     reason: format!("{package} is declared, and nothing in the unit reaches it"),
                 });
             }
-            findings.extend(rotten_tools(
-                named,
-                |package| entry.dev.contains(package),
-                &entry.manifest,
-            ));
         }
+        findings.extend(record::stale(&subjects, "typescript", &live));
         // A class standing where an interface is asked names the interface:
         // a shape satisfied silently is an edge the graph cannot see.
         let doors: std::collections::HashSet<&String> = self.interfaces.iter().collect();

@@ -18,9 +18,8 @@ use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::pack::Suppression;
 use crate::core::prose;
+use crate::core::record;
 use crate::core::trees;
-use crate::core::units::named_tools;
-use crate::core::units::rotten_tools;
 use crate::core::units::Repo;
 
 const DEFINITIONS: &str = include_str!("../../packs/python/definitions.scm");
@@ -84,7 +83,7 @@ impl Pack for Python {
             ("undeclared-protocol", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
-            ("stale-tool", "held"),
+            ("stale-suppression", "held"),
             ("unset-dial", "held"),
             ("lowered-dial", "held"),
             ("off-channel-dependency", "held"),
@@ -533,18 +532,18 @@ impl Pack for Python {
                 coded.insert(repo.unit_of(file));
             }
         }
-        let tooled = named_tools(root);
+        let (subjects, _) = record::read(root);
+        let mut live: std::collections::HashSet<usize> = Default::default();
         for (unit, entry) in &declared {
             let home = repo.units[*unit].path.clone();
             if repo.is_test(*unit, &home) || !coded.contains(unit) {
                 continue;
             }
-            let named = tooled.get(&repo.unit_name(*unit));
-            let tool = |name: &str| named.is_some_and(|set| set.contains(name));
+            let name = repo.unit_name(*unit);
             let seen = reached.get(unit);
             let within = |name: &str| seen.is_some_and(|set| set.contains(name));
             for distribution in entry.dev.iter().collect::<std::collections::BTreeSet<_>>() {
-                if provided.contains(distribution) || within(distribution) || tool(distribution) {
+                if provided.contains(distribution) || within(distribution) {
                     continue;
                 }
                 // A stub distribution serves the type checker of the library it types,
@@ -558,6 +557,10 @@ impl Pack for Python {
                 if distribution.starts_with("pytest-") && provided.contains("pytest") {
                     continue;
                 }
+                if let Some(at) = record::quiets(&subjects, "python", &name, distribution) {
+                    live.insert(at);
+                    continue;
+                }
                 findings.push(Finding {
                     check: "integrity",
                     file: entry.manifest.clone(),
@@ -568,12 +571,8 @@ impl Pack for Python {
                     ),
                 });
             }
-            findings.extend(rotten_tools(
-                named,
-                |name| entry.dev.contains(name),
-                &entry.manifest,
-            ));
         }
+        findings.extend(record::stale(&subjects, "python", &live));
         // A class standing where a protocol is asked names the protocol:
         // a shape satisfied silently is an edge the graph cannot see.
         let doors: HashSet<&String> = self.protocols.iter().collect();

@@ -10,12 +10,24 @@ use crate::core::pack::Suppression;
 
 const REFERENCE: &str = ".arbiter/reference.json";
 
-// Named suppressions of the repository's own units; a fixture's belong to some test.
-pub fn counted(found: &Graph) -> Vec<&Suppression> {
-    kept(found)
+// Named suppressions of the repository's own units, the record's subjects
+// among them; a fixture's belong to some test.
+pub fn counted(found: &Graph) -> Vec<Suppression> {
+    let mut all: Vec<Suppression> = kept(found)
         .into_iter()
         .filter(|suppression| !suppression.blanket)
-        .collect()
+        .cloned()
+        .collect();
+    for subject in crate::core::record::read(&found.root).0 {
+        all.push(Suppression {
+            file: PathBuf::from(crate::core::record::SUPPRESSIONS),
+            line: subject.line,
+            text: subject.identity(),
+            blanket: false,
+        });
+    }
+    all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
+    all
 }
 
 pub fn blankets(found: &Graph) -> Vec<&Suppression> {
@@ -134,7 +146,7 @@ pub fn reference(root: &Path) -> Option<Vec<(String, String)>> {
 
 pub fn record(
     root: &Path,
-    current: &[&Suppression],
+    current: &[Suppression],
     packages: &[String],
     claims: &[String],
 ) -> io::Result<PathBuf> {
@@ -163,7 +175,7 @@ pub fn record(
 
 // The entries beyond what the reference holds; each known pair absorbs one occurrence.
 pub fn added<'found>(
-    current: &[&'found Suppression],
+    current: &'found [Suppression],
     reference: &[(String, String)],
 ) -> Vec<&'found Suppression> {
     let mut remaining: HashMap<(String, String), usize> = HashMap::new();
@@ -182,7 +194,7 @@ pub fn added<'found>(
                 continue;
             }
         }
-        extra.push(*suppression);
+        extra.push(suppression);
     }
     extra
 }
@@ -205,9 +217,7 @@ mod tests {
 
     #[test]
     fn the_reference_absorbs_known_entries_and_names_the_extra() {
-        let first = one(3);
-        let second = one(9);
-        let current = vec![&first, &second];
+        let current = vec![one(3), one(9)];
         let reference = vec![("a.rs".to_string(), "#[allow(clippy::x)]".to_string())];
         let extra = added(&current, &reference);
         assert_eq!(extra.len(), 1);

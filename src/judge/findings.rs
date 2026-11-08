@@ -10,6 +10,7 @@ use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::units::Repo;
 
+use crate::core::units::fits;
 use crate::core::units::DECLARATIONS;
 
 const LICENSES: &str = ".arbiter/licenses.toml";
@@ -82,6 +83,27 @@ pub fn integrity(found: &Graph) -> Vec<Finding> {
     findings.extend(split_version(&found.root, &found.repo, &found.packs));
     findings.extend(boundaries(found));
     findings.extend(licenses(found));
+    let (subjects, guards) = crate::core::record::read(&found.root);
+    findings.extend(guards);
+    // A subject no pack judges would never go stale from inside a pack.
+    for subject in &subjects {
+        if !found
+            .packs
+            .iter()
+            .any(|pack| pack.label() == subject.language)
+        {
+            findings.push(Finding {
+                check: "integrity",
+                file: PathBuf::from(crate::core::record::SUPPRESSIONS),
+                line: subject.line,
+                name: "stale-suppression".to_string(),
+                reason: format!(
+                    "{} is suppressed for {}, which no pack judges",
+                    subject.package, subject.language
+                ),
+            });
+        }
+    }
     findings.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     findings
 }
@@ -476,21 +498,10 @@ fn shown(found: &Graph, unit: usize) -> String {
     found.repo.unit_name(unit)
 }
 
-// An exact unit path, or a folder and star covering every unit below it.
-fn fits(pattern: &str, unit: &str) -> bool {
-    if pattern == "*" {
-        return true;
-    }
-    match pattern.strip_suffix("/*") {
-        Some(base) => unit == base || unit.starts_with(&format!("{base}/")),
-        None => unit == pattern,
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::fits;
     use super::permitted;
+    use crate::core::units::fits;
 
     #[test]
     fn one_allowed_branch_of_an_or_passes() {

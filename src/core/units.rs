@@ -72,59 +72,15 @@ impl Repo {
 
 pub const DECLARATIONS: &str = ".arbiter/units.toml";
 
-// The tools each declared unit names: dependencies reached by invocation,
-// which no import edge can witness. Naming one is the user's signature; a
-// file that does not parse is judged where the declarations are read.
-pub fn named_tools(
-    root: &Path,
-) -> std::collections::BTreeMap<String, std::collections::BTreeSet<String>> {
-    let mut named = std::collections::BTreeMap::new();
-    let Ok(text) = fs::read_to_string(root.join(DECLARATIONS)) else {
-        return named;
-    };
-    let Ok(parsed) = text.parse::<toml::Value>() else {
-        return named;
-    };
-    let Some(units) = parsed.get("units").and_then(toml::Value::as_table) else {
-        return named;
-    };
-    for (name, declaration) in units {
-        let Some(list) = declaration.get("tools").and_then(toml::Value::as_array) else {
-            continue;
-        };
-        let tools: std::collections::BTreeSet<String> = list
-            .iter()
-            .filter_map(toml::Value::as_str)
-            .map(str::to_string)
-            .collect();
-        named.insert(name.clone(), tools);
+// An exact unit path, or a folder and star covering every unit below it.
+pub fn fits(pattern: &str, unit: &str) -> bool {
+    if pattern == "*" {
+        return true;
     }
-    named
-}
-
-// A named tool its manifest no longer declares, so the signed list cannot rot.
-pub fn rotten_tools(
-    named: Option<&std::collections::BTreeSet<String>>,
-    declares: impl Fn(&str) -> bool,
-    manifest: &Path,
-) -> Vec<crate::core::pack::Finding> {
-    let Some(named) = named else {
-        return Vec::new();
-    };
-    named
-        .iter()
-        .filter(|tool| !declares(tool))
-        .map(|tool| crate::core::pack::Finding {
-            check: "integrity",
-            file: PathBuf::from(DECLARATIONS),
-            line: 0,
-            name: "stale-tool".to_string(),
-            reason: format!(
-                "{tool} is named a tool, and {} does not declare it",
-                manifest.display()
-            ),
-        })
-        .collect()
+    match pattern.strip_suffix("/*") {
+        Some(base) => unit == base || unit.starts_with(&format!("{base}/")),
+        None => unit == pattern,
+    }
 }
 
 const BUILD_NAMES: [&str; 3] = ["BUILD.bazel", "BUILD.bazel.held", "BUILD"];

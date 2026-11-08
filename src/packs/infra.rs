@@ -41,7 +41,7 @@ impl Pack for Infra {
                 "never: a manifest's third parties are images, judged by digest",
             ),
             (
-                "stale-tool",
+                "stale-suppression",
                 "never: a manifest's third parties are images, judged by digest",
             ),
             (

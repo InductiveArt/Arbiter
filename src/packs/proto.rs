@@ -12,6 +12,7 @@ use crate::core::pack::Edge;
 use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::pack::Suppression;
+use crate::core::record;
 use crate::core::trees;
 use crate::core::units::Repo;
 
@@ -60,10 +61,7 @@ impl Pack for Proto {
             ),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
-            (
-                "stale-tool",
-                "never: a buf dependency names a contract module, never a binary to invoke",
-            ),
+            ("stale-suppression", "held"),
             (
                 "phantom-import",
                 "never: the contract is the source others generate from",
@@ -241,6 +239,8 @@ impl Pack for Proto {
                 }
             }
         }
+        let (subjects, _) = record::read(root);
+        let mut live: std::collections::HashSet<usize> = Default::default();
         for (unit, (manifest, deps)) in &declared {
             let home = repo.units[*unit].path.clone();
             if repo.is_test(*unit, &home) || deps.is_empty() {
@@ -249,7 +249,12 @@ impl Pack for Proto {
             if externals.get(unit).is_some_and(|paths| !paths.is_empty()) {
                 continue;
             }
+            let name = repo.unit_name(*unit);
             for dep in deps.iter().collect::<std::collections::BTreeSet<_>>() {
+                if let Some(at) = record::quiets(&subjects, "proto", &name, dep) {
+                    live.insert(at);
+                    continue;
+                }
                 findings.push(Finding {
                     check: "integrity",
                     file: manifest.clone(),
@@ -259,6 +264,7 @@ impl Pack for Proto {
                 });
             }
         }
+        findings.extend(record::stale(&subjects, "proto", &live));
         findings
     }
 

@@ -41,6 +41,7 @@ impl Finding {
     }
 }
 
+#[derive(Clone)]
 pub struct Suppression {
     pub file: PathBuf,
     pub line: usize,
@@ -102,8 +103,8 @@ pub const RULES: &[(&str, &str)] = &[
         "a third party a manifest declares and nothing reaches is named for deletion",
     ),
     (
-        "stale-tool",
-        "a tool the user names in units.toml is reached by invocation imports cannot see; one its manifest no longer declares is named, so the list cannot rot",
+        "stale-suppression",
+        "a recorded suppression quiets one finding this run, or is named: one that suppresses nothing is stale",
     ),
     (
         "undeclared-protocol",
@@ -249,7 +250,6 @@ pub const GROUPS: &[(&str, &[&str])] = &[
         &[
             "undeclared-dependency",
             "unused-dependency",
-            "stale-tool",
             "off-channel-dependency",
             "split-version",
             "unallowed-license",
@@ -259,7 +259,10 @@ pub const GROUPS: &[(&str, &[&str])] = &[
         "tooling",
         &["unset-dial", "lowered-dial", "untested-branch"],
     ),
-    ("suppressions", &["blanket-suppression"]),
+    (
+        "suppressions",
+        &["blanket-suppression", "stale-suppression"],
+    ),
     (
         "claims",
         &[

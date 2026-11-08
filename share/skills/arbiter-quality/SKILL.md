@@ -106,8 +106,8 @@ Each finding has one expected fix. A suppression is never one of them.
 | `hidden-name` | Import under the symbol's own name; a genuine collision takes a namespace import named for its module. A computed dynamic import becomes a literal. |
 | `comment-overreach` | Reword the comment to name only what its file defines, uses or quotes - keep the meaning, lose the foreign names. |
 | `undeclared-dependency` | Declare it in the importing unit's own manifest - another unit's declaration never counts. Shipped code takes a real dependency; development code (a test, a toolchain config file, a type-only import) may rest on a development table. Dynamic, default, namespace and bare side-effect imports all count. |
-| `unused-dependency` | Delete the declaration, or make the use real. A peer contract, a script-run tool, a stub of an imported library, a runner's plugin and the adapter's own packages already count as reached. |
-| `stale-tool` | Remove the stale `tools` entry in `units.toml`, or declare the dependency it names - the list is the user's. A dependency reached only by invocation (a Makefile, a shell step) is named there by the user, and `unused-dependency` honors the naming. |
+| `unused-dependency` | Delete the declaration, or make the use real. A peer contract, a script-run tool, a stub of an imported library, a runner's plugin and the adapter's own packages already count as reached. A dependency reached only by invocation the manifest cannot show (a Makefile, a shell step) is quieted by the user in `.arbiter/suppressions.toml`, one rule, named packages, stated units - counted in the ledger like any suppression. |
+| `stale-suppression` | Delete the record entry that quiets nothing - the package left, or is imported after all. The record is the user's. |
 | `undeclared-protocol` | Name the door: the python class subclasses its Protocol, the TypeScript class writes `implements`. Conformance stays structural; the edge becomes one the graph resolves. |
 | `phantom-import` | Point the import at the module its contract generates, or regenerate - and a resolver gap is reported with evidence, never fixed by deleting. |
 | `stray-test` | Name the test with a literal sentence; a title built at run time cannot be heard as a claim. |
@@ -138,7 +138,7 @@ Each finding has one expected fix. A suppression is never one of them.
 - Any suppression, in any language. Ask, with the why.
 - `arbiter ledger sign .` - recording suppressions, third parties and claims.
 - A `PUBLISHED` marker (a unit whose unused surface is deliberate).
-- Entries in `.arbiter/units.toml` (visibility, deps, tools), `licenses.toml`, and the meaning of `brief.toml` - agents draft and wire; the user signs by committing.
+- Entries in `.arbiter/units.toml` (visibility, deps), `suppressions.toml` (each quiets one rule for named packages in stated units), `licenses.toml`, and the meaning of `brief.toml` - agents draft and wire; the user signs by committing.
 - Deleting a test, skipping a test, or mocking away a service a test needs. A skip form (`it.skip`, `it.only`, `test.todo`, `#[ignore]`, `@pytest.mark.skip`) is a counted suppression, and a focused test fails the run.
 
 ## When to stop and tell the user
@@ -153,12 +153,14 @@ Each finding has one expected fix. A suppression is never one of them.
 ## The decision files
 
 `.arbiter/` holds the written decisions beside the computed facts:
-`units.toml` (the declared unit graph), `licenses.toml` (the license allow
-list), `reference.json` and `contracts/` (what `ledger sign` recorded) - all
+`units.toml` (the declared unit graph), `suppressions.toml` (the record
+suppressions, one rule each), `licenses.toml` (the license allow list),
+`reference.json` and `contracts/` (what `ledger sign` recorded) - all
 committed. `last/` is the newest run, overwritten every time, never
 committed. `warm/` is the store the gate heats by running; `--cold` reads
-none of it, and deleting the folder is the full chill. The first gate seeds the three toml files as comments; writing the
-first real entry in either is the user's ruling.
+none of it, and deleting the folder is the full chill. The first gate seeds
+the toml files as comments; writing the first real entry in any is the
+user's ruling.
 
 A unit being born follows the arbiter-genesis skill; arbiter newly arrived
 on an existing codebase follows arbiter-arrival.

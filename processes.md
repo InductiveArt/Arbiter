@@ -7,9 +7,7 @@ means justifying every step, including the gate steps; explaining why each
 thing is named as it is; and stating exactly what each thing provides.
 
 To do that, we need the axes on which our work stands: independent
-dimensions that together describe everything we do. Religion is a useful
-example. It is not one block but three axes: croire (belief), pratique
-(practice) and appartenance (belonging). Seen through those three axes,
+dimensions that together describe everything we do. Seen through those three axes,
 even actions that look incoherent become exactly what they are: positions
 in the space.
 
@@ -67,12 +65,11 @@ law-register handle was renamed in one release and no behavior moved.
 
 ## Coordinates, not anomalies
 
-- A suppression: violation in facts, law held, exception in authority.
+- A suppression, on a line or in the record: violation in facts, law
+  held, exception in authority - and counted, either way.
 - Nascent code: dead by law, commissioned by authority through a planned
   need.
 - A `PUBLISHED` unit: unused in facts, kept by the user's marker.
-- A named tool: unreached in the import facts, reached by invocation,
-  kept by the user's naming in `units.toml`.
 - A planned need: law without facts yet, signed by being written.
 - An open matrix cell: a law waiting for its facts-engine.
 

@@ -268,10 +268,19 @@ const UNITS_SEED: &str = "\
 # visibility = [\"apps/*\"]\n\
 # # The units this one uses, held both ways: using an undeclared unit is a\n\
 # # finding, and so is declaring one never used.\n\
-# deps = [\"libs/other\"]\n\
-# # Dependencies this unit reaches by invocation, not import: naming one is\n\
-# # the user's signature, and one the manifest drops goes stale.\n\
-# tools = [\"coverage\"]\n";
+# deps = [\"libs/other\"]\n";
+
+const SUPPRESSIONS_SEED: &str = "\
+# Record suppressions. Each entry quiets one rule for the packages it names,\n\
+# in the units it states, and is counted in the ledger like any suppression.\n\
+# An entry that quiets nothing is stale; a form wider than its named subjects\n\
+# is a blanket, refused and never recorded.\n\
+#\n\
+# [[suppression]]\n\
+# rule = \"unused-dependency\"\n\
+# language = \"python\"\n\
+# packages = [\"coverage\"]\n\
+# units = [\"*\"]\n";
 
 const BRIEF_SEED: &str = "\
 # The brief: the needs this software answers, as cases of activity, each need\n\
@@ -312,6 +321,7 @@ pub fn seeded(root: &std::path::Path) {
     for (name, seed) in [
         ("units.toml", UNITS_SEED),
         ("licenses.toml", LICENSES_SEED),
+        ("suppressions.toml", SUPPRESSIONS_SEED),
         ("brief.toml", BRIEF_SEED),
     ] {
         let path = folder.join(name);

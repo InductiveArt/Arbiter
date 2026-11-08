@@ -141,10 +141,11 @@ story = "dependencies come from the locked registry, at one version, licensed"
   claims = [". |  | a third party declared and never reached is named"]
 
   [[case.need]]
-  need = "a dependency reached by invocation is the user's to name, and the naming cannot rot"
+  need = "a recorded suppression quiets unused-dependency alone, scoped and counted, and one quieting nothing is stale"
   claims = [
-    ". |  | a named tool is reached by invocation never unused",
-    ". |  | a rotten tool entry is named",
+    ". |  | a record suppression quiets the package it names",
+    ". |  | a suppression that quiets nothing is stale",
+    ". |  | a record blanket is refused never recorded",
   ]
 
   [[case.need]]
@@ -183,6 +184,7 @@ story = "every suppression is counted against the user's signature"
   need = "named suppressions are counted, blankets refused, the reference absorbs the known"
   claims = [
     ". |  | the ledger counts a named suppression and refuses a blanket",
+    ". |  | a record suppression is counted in the account",
     ". |  | the reference absorbs known entries and names the extra",
   ]
 

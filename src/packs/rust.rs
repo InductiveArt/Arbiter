@@ -14,9 +14,8 @@ use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::pack::Suppression;
 use crate::core::prose;
+use crate::core::record;
 use crate::core::trees;
-use crate::core::units::named_tools;
-use crate::core::units::rotten_tools;
 use crate::core::units::Repo;
 
 const DEFINITIONS: &str = include_str!("../../packs/rust/definitions.scm");
@@ -72,7 +71,7 @@ impl Pack for Rust {
             ("comment-overreach", "held"),
             ("undeclared-dependency", "held"),
             ("unused-dependency", "held"),
-            ("stale-tool", "held"),
+            ("stale-suppression", "held"),
             ("unset-dial", "held"),
             ("lowered-dial", "held"),
             ("off-channel-dependency", "held"),
@@ -419,14 +418,14 @@ impl Pack for Rust {
                 coded.insert(repo.unit_of(file));
             }
         }
-        let tooled = named_tools(root);
+        let (subjects, _) = record::read(root);
+        let mut live: std::collections::HashSet<usize> = Default::default();
         for (unit, entry) in &declared {
             let home = repo.units[*unit].path.clone();
             if repo.is_test(*unit, &home) || !coded.contains(unit) {
                 continue;
             }
-            let named = tooled.get(&repo.unit_name(*unit));
-            let tool = |name: &str| named.is_some_and(|set| set.contains(name));
+            let unit_name = repo.unit_name(*unit);
             let seen = reached.get(unit);
             for name in entry
                 .names
@@ -436,7 +435,11 @@ impl Pack for Rust {
                 if Some(name.as_str()) == entry.own.as_deref() {
                     continue;
                 }
-                if seen.is_some_and(|set| set.contains(name)) || tool(name) {
+                if seen.is_some_and(|set| set.contains(name)) {
+                    continue;
+                }
+                if let Some(at) = record::quiets(&subjects, "rust", &unit_name, name) {
+                    live.insert(at);
                     continue;
                 }
                 findings.push(Finding {
@@ -447,12 +450,8 @@ impl Pack for Rust {
                     reason: format!("{name} is declared, and nothing in the unit reaches it"),
                 });
             }
-            findings.extend(rotten_tools(
-                named,
-                |name| entry.names.contains(name),
-                &entry.manifest,
-            ));
         }
+        findings.extend(record::stale(&subjects, "rust", &live));
         findings
     }
 

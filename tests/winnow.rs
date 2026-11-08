@@ -286,9 +286,9 @@ fn a_contract_is_reached_through_generated_code_in_both_languages() {
 }
 
 #[test]
-fn a_named_tool_is_reached_by_invocation_never_unused() {
+fn a_record_suppression_quiets_the_package_it_names() {
     use std::fs;
-    let root = std::env::temp_dir().join(format!("arbiter-tool-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("arbiter-quiet-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
     fs::write(
@@ -304,33 +304,36 @@ fn a_named_tool_is_reached_by_invocation_never_unused() {
             .iter()
             .any(|finding| finding.name == "unused-dependency"
                 && finding.reason.starts_with("coverage is declared")),
-        "an invoked tool nothing imports is unused until the user names it"
+        "an uncovered package nothing imports is unused"
     );
 
     fs::write(
-        root.join(".arbiter/units.toml"),
-        "[units.\".\"]\ntools = [\"coverage\"]\n",
+        root.join(".arbiter/suppressions.toml"),
+        "[[suppression]]\nrule = \"unused-dependency\"\nlanguage = \"python\"\n\
+         packages = [\"coverage\"]\nunits = [\".\"]\n",
     )
     .expect("the folder is writable");
-    let named = graph(&root.to_string_lossy()).expect("the folder exists");
-    let findings = integrity(&named);
+    let quieted = graph(&root.to_string_lossy()).expect("the folder exists");
+    let findings = integrity(&quieted);
     assert!(
         !findings
             .iter()
             .any(|finding| finding.name == "unused-dependency"),
-        "a named tool is reached"
+        "a suppressed package is quiet"
     );
     assert!(
-        !findings.iter().any(|finding| finding.name == "stale-tool"),
-        "a declared tool is not stale"
+        !findings
+            .iter()
+            .any(|finding| finding.name == "stale-suppression"),
+        "a suppression that quiets a finding is alive"
     );
     let _ = fs::remove_dir_all(&root);
 }
 
 #[test]
-fn a_rotten_tool_entry_is_named() {
+fn a_suppression_that_quiets_nothing_is_stale() {
     use std::fs;
-    let root = std::env::temp_dir().join(format!("arbiter-rot-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("arbiter-stale-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
     fs::write(
@@ -340,21 +343,77 @@ fn a_rotten_tool_entry_is_named() {
     .expect("the folder is writable");
     fs::write(root.join("app.py"), "value = 1\n").expect("the folder is writable");
     fs::write(
-        root.join(".arbiter/units.toml"),
-        "[units.\".\"]\ntools = [\"ghost-tool\"]\n",
+        root.join(".arbiter/suppressions.toml"),
+        "[[suppression]]\nrule = \"unused-dependency\"\nlanguage = \"python\"\n\
+         packages = [\"ghost-package\"]\nunits = [\"*\"]\n",
     )
     .expect("the folder is writable");
 
     let found = graph(&root.to_string_lossy()).expect("the folder exists");
-    let rotten: Vec<String> = integrity(&found)
+    let stale: Vec<String> = integrity(&found)
         .iter()
-        .filter(|finding| finding.name == "stale-tool")
+        .filter(|finding| finding.name == "stale-suppression")
         .map(|finding| finding.reason.clone())
         .collect();
     assert_eq!(
-        rotten,
-        ["ghost-tool is named a tool, and pyproject.toml does not declare it"]
+        stale,
+        ["the suppression of unused-dependency on ghost-package quiets nothing"]
     );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_record_blanket_is_refused_never_recorded() {
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-blanket-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
+    fs::write(
+        root.join(".arbiter/suppressions.toml"),
+        "[[suppression]]\nrule = \"dead-symbol\"\nlanguage = \"python\"\n\
+         packages = [\"x\"]\nunits = [\"*\"]\n\n\
+         [[suppression]]\nrule = \"unused-dependency\"\nlanguage = \"python\"\n\
+         packages = [\"*\"]\nunits = [\"*\"]\n",
+    )
+    .expect("the folder is writable");
+
+    let (subjects, findings) = arbiter::core::record::read(&root);
+    assert!(subjects.is_empty(), "a refused entry records nothing");
+    let named: Vec<&str> = findings
+        .iter()
+        .map(|finding| finding.name.as_str())
+        .collect();
+    assert_eq!(named, ["blanket-suppression", "blanket-suppression"]);
+    assert!(findings[0]
+        .reason
+        .contains("dead-symbol is fixed, never recorded"));
+    assert!(findings[1].reason.contains("covers every package"));
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_record_suppression_is_counted_in_the_account() {
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-account-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\ndependencies = [\"coverage>=7\"]\n",
+    )
+    .expect("the folder is writable");
+    fs::write(root.join("app.py"), "value = 1\n").expect("the folder is writable");
+    fs::write(
+        root.join(".arbiter/suppressions.toml"),
+        "[[suppression]]\nrule = \"unused-dependency\"\nlanguage = \"python\"\n\
+         packages = [\"coverage\"]\nunits = [\".\"]\n",
+    )
+    .expect("the folder is writable");
+
+    let found = graph(&root.to_string_lossy()).expect("the folder exists");
+    let counted = arbiter::judge::ledger::counted(&found);
+    assert_eq!(counted.len(), 1);
+    assert_eq!(counted[0].text, "unused-dependency python coverage .");
     let _ = fs::remove_dir_all(&root);
 }
 
