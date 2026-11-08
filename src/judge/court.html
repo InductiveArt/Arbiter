@@ -34,6 +34,16 @@ nav a span.bad { color: var(--bad); }
 #panel { width: 360px; border-left: 1px solid var(--line); overflow: auto;
          padding: 1rem 1.1rem; display: none; background: var(--panel); flex-shrink: 0; }
 #panel.open { display: block; }
+#reopen { display: none; position: absolute; right: 0; top: 40%; background: var(--panel);
+          border: 1px solid var(--line); border-right: none; border-radius: 6px 0 0 6px;
+          padding: .5rem .3rem; cursor: pointer; color: var(--dim); writing-mode: vertical-rl; }
+#reopen.show { display: block; }
+#stage { position: relative; }
+#reopen { display: none; position: absolute; right: 0; top: 40%; background: var(--panel);
+          border: 1px solid var(--line); border-right: none; border-radius: 6px 0 0 6px;
+          padding: .5rem .35rem; cursor: pointer; color: var(--dim); writing-mode: vertical-rl; }
+#reopen.show { display: block; }
+#stage { position: relative; }
 #panel h3 { font-size: .95rem; margin-bottom: .15rem; word-break: break-all; }
 #panel .kind { color: var(--dim); font-size: .78rem; margin-bottom: .7rem; }
 #panel h4 { color: var(--accent); font-size: .78rem; margin: .85rem 0 .25rem; text-transform: lowercase; }
@@ -136,6 +146,7 @@ svg .worldlabel { fill: var(--warn); font: 11px var(--mono); }
 <div id="stage">
   <div id="view"></div>
   <aside id="panel"></aside>
+  <div id="reopen">scope ⟨</div>
 </div>
 <div id="overlay"><div class="box"><div class="head"><b id="overlaytitle"></b><span class="close dim" style="cursor:pointer" onclick="closeOverlay()">x</span></div><pre id="overlaybody"></pre></div></div>
 <script id="data" type="application/json">/*ARBITER_DATA*/</script>
@@ -184,8 +195,9 @@ for (const fam of DATA.families) {
 for (const t of DATA.tangles) { register(t.place); for (const m of t.members) register(fullOf(ownerOf(t.place), m)); }
 for (const e of DATA.edges) { CHILDREN.units.add(e.user); CHILDREN.units.add(e.owner); }
 const childrenOf = scope => [...(CHILDREN[scope] || new Set())].sort();
-const findingsUnder = place => DATA.findings.filter(f =>
-  f.file === place || (place !== "." && f.file.startsWith(place + "/")) || place === ".");
+const within = (f, place) =>
+  !place || place === "." || f.file === place || f.file.startsWith(place + "/");
+const findingsUnder = place => DATA.findings.filter(f => within(f, place));
 const outcomesOf = unit => DATA.outcomes.filter(o => o.unit === unit);
 
 // ---- header ----
@@ -221,6 +233,7 @@ function route() {
     a.appendChild(el("span", alarmed() ? "bad" : null, " " + count()));
     nav.appendChild(a);
   }
+  lastScope = null;
   closePanel();
   const view = document.getElementById("view");
   view.textContent = "";
@@ -249,6 +262,49 @@ function closePanel() {
   const panel = document.getElementById("panel");
   panel.className = ""; panel.textContent = "";
   unglow();
+  const reopen = document.getElementById("reopen");
+  reopen.className = lastScope === null ? "" : "show";
+}
+let lastScope = null;
+document.getElementById("reopen").onclick = () => { if (lastScope !== null) scopePanel(lastScope); };
+let scopeFacts = { nodes: 0, edges: 0, tangle: null };
+function scopePanel(scope) {
+  lastScope = scope;
+  document.getElementById("reopen").className = "";
+  const title = scope === "units" ? "units — the whole quotient" : scope;
+  openPanel(title, "scope — tap a node to drill, the void to come back", panel => {
+    panel.appendChild(el("div", "row dim", scopeFacts.nodes + " nodes, " + scopeFacts.edges + " edges"));
+    if (scope !== "units") {
+      const unit = ownerOf(scope);
+      const declared = DATA.declared.find(d => d.name === unit);
+      const rel = unit === "." ? scope : scope === unit ? "" : scope.slice(unit.length + 1);
+      const inner = declared && rel && declared.inner.find(i => i.path === rel);
+      const intent = scope === unit ? declared : inner;
+      if (intent) {
+        panelList(panel, "deps (intent)", intent.deps.length ? intent.deps : ["(undeclared)"]);
+        panelList(panel, "visibility (intent)", intent.visibility.length ? intent.visibility : ["(undeclared)"]);
+      } else {
+        panel.appendChild(el("h4", null, "intent"));
+        panel.appendChild(el("div", "row dim", "(nothing declared — binds nothing)"));
+      }
+    }
+    if (scopeFacts.tangle) {
+      const line = el("div", "row bad", "tangle: " + scopeFacts.tangle.members.join(" <-> "));
+      line.style.cursor = "pointer";
+      const owner = ownerOf(scope === "units" ? "." : scope);
+      line.onmouseenter = () => glowMembers(scopeFacts.tangle.members.map(m => fullOf(owner, m)));
+      line.onmouseleave = unglow;
+      panel.appendChild(el("h4", null, "tangle"));
+      panel.appendChild(line);
+    }
+    const mine = scope === "units" ? DATA.findings : findingsUnder(scope);
+    panelFindings(panel, mine.slice(0, 12), scope === "units" ? "" : scope);
+    if (mine.length > 12) {
+      const more = el("a", null, mine.length - 12 + " more in findings ↗");
+      more.onclick = () => go("findings" + (scope === "units" ? "" : "/" + scope));
+      panel.appendChild(more);
+    }
+  });
 }
 function panelList(panel, title, items, each) {
   if (!items || !items.length) return;
@@ -267,23 +323,25 @@ function panelList(panel, title, items, each) {
 function panelFindings(panel, mine, place) {
   panel.appendChild(el("h4", null, "findings " + mine.length));
   if (!mine.length) { panel.appendChild(el("div", "row dim", "none")); return; }
-  if (place) {
+  if (place !== undefined) {
     const all = el("a", null, "open in findings ↗");
-    all.onclick = () => go("findings/" + place);
+    all.onclick = () => go("findings" + (place ? "/" + place : ""));
     panel.appendChild(all);
   }
-  for (const f of mine) {
-    const row = el("div", "finding");
-    row.appendChild(el("div", "bad", f.rule));
-    row.appendChild(el("div", null, f.reason));
-    const where = el("div", "where");
-    where.appendChild(document.createTextNode(f.file + (f.line ? ":" + f.line : "") + "  "));
-    where.appendChild(el("span", "tag id", f.id));
-    where.appendChild(el("span", "go", "  ↗ see it"));
-    row.appendChild(where);
-    row.onclick = () => jump(f);
-    panel.appendChild(row);
+  for (const f of mine.slice(0, 10)) panel.appendChild(findingRow(f, hoverFor(f)));
+  if (mine.length > 10) {
+    const more = el("a", null, mine.length - 10 + " more in findings ↗");
+    more.onclick = () => go("findings" + (place ? "/" + place : ""));
+    panel.appendChild(more);
   }
+}
+// A finding that names a tangle isolates it on hover, wherever it is shown.
+function hoverFor(f) {
+  if (f.rule !== "sibling-cycle") return null;
+  const tangle = DATA.tangles.find(t => t.place === f.file);
+  if (!tangle) return null;
+  const owner = ownerOf(f.file);
+  return () => glowMembers(tangle.members.map(m => fullOf(owner, m)));
 }
 function showOverlay(title, body) {
   document.getElementById("overlaytitle").textContent = title;
@@ -342,7 +400,8 @@ function graph(view, scope) {
 
   let nodes = [], edges = [], tangleMembers = new Set();
   if (scope === "units") {
-    nodes = childrenOf("units").filter(n => n !== "." || DATA.edges.length === 0 ? true : true);
+    nodes = childrenOf("units");
+    if (UNITS.length > 1) nodes = nodes.filter(n => n !== ".");
     edges = DATA.edges.map(e => ({ from: e.user, to: e.owner, breaks: e.breaks }));
   } else {
     nodes = childrenOf(scope);
@@ -395,7 +454,8 @@ function graph(view, scope) {
     for (const n of nodes) elements.push({ data: { id: n, label: label(n), flow: flow(n) },
       classes: (tangleMembers.has(n) ? "tangled " : "") + (findingsUnder(n).length ? "alarmed" : "")
         + stageClass(n) + (childrenOf(n).length || DATA.families.some(f => f.place === n) ? " enterable" : "") });
-    edges.forEach((e, i) => elements.push({ data: { id: "e" + i, source: e.from, target: e.to },
+    edges.forEach((e, i) => elements.push({
+      data: { id: "e" + i, source: e.from, target: e.to, turn: 16 + (i % 7) * 11 },
       classes: (e.breaks ? "breaks " : "") + (tangleMembers.has(e.from) && tangleMembers.has(e.to) ? "tangled" : "") }));
     cy = cytoscape({
       container: holder, elements,
@@ -412,7 +472,7 @@ function graph(view, scope) {
         { selector: "node:selected", style: { "background-color": "#2c3a4d", "border-color": "#7aa7d8" } },
         { selector: "node.glow", style: { "background-color": "#2c3a4d", "border-color": "#7aa7d8" } },
         { selector: "edge", style: { width: 1.4, "line-color": "#5c6673", "curve-style": "taxi",
-          "taxi-direction": "downward", "taxi-turn": 24, "taxi-turn-min-distance": 8,
+          "taxi-direction": "downward", "taxi-turn": "data(turn)", "taxi-turn-min-distance": 6,
           "target-arrow-shape": "triangle", "target-arrow-color": "#5c6673", "arrow-scale": .9 } },
         { selector: "edge.breaks, edge.tangled", style: { "line-color": "#e07a7a", "target-arrow-color": "#e07a7a", width: 2 } },
         { selector: "edge.glow", style: { "line-color": "#7aa7d8", "target-arrow-color": "#7aa7d8", width: 2.2 } },
@@ -420,6 +480,11 @@ function graph(view, scope) {
       ],
       layout: { name: "dagre", rankDir: "TB", nodeSep: 26, rankSep: 70, padding: 18 },
       wheelSensitivity: .25,
+    });
+    cy.on("tap", evt => {
+      if (evt.target !== cy) return;
+      cy.$(":selected").unselect();
+      scopePanel(scope);
     });
     cy.on("tap", "node", evt => {
       const place = evt.target.id();
@@ -458,6 +523,8 @@ function graph(view, scope) {
     under.appendChild(card);
   }
   view.appendChild(under);
+  scopeFacts = { nodes: nodes.length, edges: edges.length, tangle: tangle || null };
+  if (!pending || (!pending.select && !pending.members)) scopePanel(scope);
   pending = null;
 }
 function unitPanel(name) {
@@ -592,10 +659,10 @@ function pipeline(view) {
     { name: "ledger", sub: DATA.suppressions.counted.length + " counted" + timed("ledger"),
       cls: "green", act: () => go("ledger") },
   ];
-  const stepw = name => Math.max(86, name.length * 8 + 30);
-  const gap = 34, h = 46, pad = 14;
+  const stepw = s => Math.max(96, s.name.length * 8 + 30, s.sub.length * 6.4 + 24);
+  const gap = 44, h = 46, pad = 14;
   let x = pad;
-  const places = steps.map(s => { const at = x; x += stepw(s.name) + gap; return at; });
+  const places = steps.map(s => { const at = x; x += stepw(s) + gap; return at; });
   const svg = svgel("svg", { width: x + pad, height: h + 42 });
   const defs = svgel("defs", {});
   const marker = svgel("marker", { id: "parrow", viewBox: "0 0 10 10", refX: 9, refY: 5,
@@ -605,9 +672,9 @@ function pipeline(view) {
   svg.appendChild(defs);
   steps.forEach((s, i) => {
     if (i) svg.appendChild(svgel("path", { class: "flow",
-      d: `M ${places[i - 1] + stepw(steps[i - 1].name)} ${pad + h / 2} L ${places[i] - 4} ${pad + h / 2}` }));
+      d: `M ${places[i - 1] + stepw(steps[i - 1])} ${pad + h / 2} L ${places[i] - 4} ${pad + h / 2}` }));
     const g = svgel("g", { class: "step " + s.cls });
-    g.appendChild(svgel("rect", { x: places[i], y: pad, width: stepw(s.name), height: h }));
+    g.appendChild(svgel("rect", { x: places[i], y: pad, width: stepw(s), height: h }));
     const label = svgel("text", { x: places[i] + 12, y: pad + 19 });
     label.textContent = s.name;
     g.appendChild(label);
@@ -673,7 +740,7 @@ function overview(view) {
     const body = el("div", "body");
     const table = el("table");
     for (const unit of UNITS) {
-      const count = findingsUnder(unit).length;
+      const count = DATA.findings.filter(f => ownerOf(f.file) === unit).length;
       if (!count) continue;
       const r = el("tr");
       r.appendChild(el("td", "stage-fail", unit));
@@ -822,7 +889,7 @@ function findings(view, scope) {
     const at = scopeIn.value.trim();
     const needle = textIn.value.trim().toLowerCase();
     const mine = DATA.findings.filter(f =>
-      (!at || f.file === at || f.file.startsWith(at + "/"))
+      within(f, at)
       && (!ruleIn.value || f.rule === ruleIn.value)
       && (!needle || f.reason.toLowerCase().includes(needle) || f.id.includes(needle)));
     count.textContent = mine.length + " of " + DATA.findings.length + " findings"
