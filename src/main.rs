@@ -863,7 +863,8 @@ fn fallout(name: &str, defs: &[Def], edges: &[Edge]) {
 
 // The matrix of rule against language, printed group by group. A cell answers
 // held or never; an open cell is work the matrix keeps visible, never a pass.
-// A core row is judged on one graph, all languages together.
+// The tag column answers origin and power at a glance: a core row is judged
+// on one graph, a record row waits for the user's record.
 fn matrix() {
     let packs = arbiter::packs::all();
     let width = pack::RULES
@@ -872,7 +873,7 @@ fn matrix() {
         .map(|(rule, _)| rule.len())
         .max()
         .unwrap_or(0);
-    print!("  {:width$}", "rule");
+    print!("  {:width$}  {:14}", "rule", "power");
     for pack in &packs {
         print!("  {:10}", pack.label());
     }
@@ -880,32 +881,45 @@ fn matrix() {
     for (group, members) in pack::GROUPS {
         println!("{group}");
         for member in *members {
-            if pack::RULES.iter().any(|(rule, _)| rule == member) {
-                print!("  {member:width$}");
-                for pack in &packs {
-                    let answer = pack
-                        .rules()
-                        .iter()
-                        .find(|(name, _)| name == member)
-                        .map(|(_, answer)| *answer);
-                    let cell = match answer {
-                        Some("held") => "held",
-                        Some(_) => "never",
-                        None => "open",
-                    };
-                    print!("  {cell:10}");
-                }
-                println!();
-            } else {
-                println!("  {member} (core)");
+            if !pack::RULES.iter().any(|(rule, _)| rule == member) {
+                println!("  {member:width$}  {}", tagged(member));
+                continue;
             }
+            print!("  {member:width$}  {:14}", tagged(member));
+            for pack in &packs {
+                let answer = pack
+                    .rules()
+                    .iter()
+                    .find(|(name, _)| name == member)
+                    .map(|(_, answer)| *answer);
+                let cell = match answer {
+                    Some("held") => "held",
+                    Some(_) => "never",
+                    None => "open",
+                };
+                print!("  {cell:10}");
+            }
+            println!();
         }
     }
     println!();
+    println!("core is judged on one graph: every unit and import, all languages together.");
     println!(
-        "a rule marked (core) is judged on one graph: every unit and import, \
-         all languages together."
+        "facts rules are the bar from day one; a record rule waits for the user's \
+         record, and the drill names its file."
     );
+}
+
+// The glance column: origin and power in one word each.
+fn tagged(rule: &str) -> String {
+    let core = pack::CORE.iter().any(|(name, _)| *name == rule);
+    let record = matches!(pack::power(rule), pack::Power::Record(_));
+    match (core, record) {
+        (true, true) => "core, record".to_string(),
+        (true, false) => "core, facts".to_string(),
+        (false, true) => "record".to_string(),
+        (false, false) => "facts".to_string(),
+    }
 }
 
 // One rule whole: its law, then each pack's stance - held, open, or never
@@ -922,8 +936,10 @@ fn ruled(asked: &str) -> ExitCode {
         return ExitCode::SUCCESS;
     }
     if let Some((rule, law)) = pack::RULES.iter().find(|(rule, _)| *rule == asked) {
-        println!("{rule}: {law}");
-        empowered(asked);
+        println!("{rule}");
+        labeled("law", law);
+        labeled("power", &empowered(asked));
+        labeled("judged", "by each language's pack, stance by stance");
         println!();
         for pack in arbiter::packs::all() {
             let answer = pack
@@ -944,24 +960,55 @@ fn ruled(asked: &str) -> ExitCode {
         return ExitCode::SUCCESS;
     }
     if let Some((name, law)) = pack::CORE.iter().find(|(name, _)| *name == asked) {
-        println!("{name}: {law}");
-        empowered(asked);
-        println!();
-        println!("  core: judged on one graph — every unit and import, all languages together");
+        println!("{name}");
+        labeled("law", law);
+        labeled("power", &empowered(asked));
+        labeled(
+            "judged",
+            "on the one graph — every unit and import, all languages at once",
+        );
         return ExitCode::SUCCESS;
     }
     eprintln!("rules: no rule or group named {asked}; arbiter rules prints the matrix");
     ExitCode::from(2)
 }
 
-// One line naming where the law detains its power: the facts alone, or a
-// record the user wrote - a record-powered law waits until its record exists.
-fn empowered(rule: &str) {
+// Where the law detains its power: the facts alone, or a record the user
+// wrote - a record-powered law waits until its record exists.
+fn empowered(rule: &str) -> String {
     match pack::power(rule) {
-        pack::Power::Facts => println!("power: the facts"),
+        pack::Power::Facts => "the facts".to_string(),
         pack::Power::Record(file) => {
-            println!("power: the user's record ({file}); without the record, the law waits");
+            format!("the user's record ({file}); without the record, the law waits")
         }
+    }
+}
+
+// One labeled line of the drill, wrapped at a readable width with a hanging
+// indent so the label column stays a column.
+fn labeled(label: &str, text: &str) {
+    let width = 68;
+    let mut line = String::new();
+    let mut first = true;
+    for word in text.split_whitespace() {
+        if !line.is_empty() && line.len() + 1 + word.len() > width {
+            if first {
+                println!("  {label:7}{line}");
+                first = false;
+            } else {
+                println!("  {:7}{line}", "");
+            }
+            line.clear();
+        }
+        if !line.is_empty() {
+            line.push(' ');
+        }
+        line.push_str(word);
+    }
+    if first {
+        println!("  {label:7}{line}");
+    } else if !line.is_empty() {
+        println!("  {:7}{line}", "");
     }
 }
 
