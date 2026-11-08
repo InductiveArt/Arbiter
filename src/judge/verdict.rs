@@ -268,7 +268,10 @@ const UNITS_SEED: &str = "\
 # visibility = [\"apps/*\"]\n\
 # # The units this one uses, held both ways: using an undeclared unit is a\n\
 # # finding, and so is declaring one never used.\n\
-# deps = [\"libs/other\"]\n";
+# deps = [\"libs/other\"]\n\
+# # Dependencies this unit reaches by invocation, not import: naming one is\n\
+# # the user's signature, and one the manifest drops goes stale.\n\
+# tools = [\"coverage\"]\n";
 
 const BRIEF_SEED: &str = "\
 # The brief: the needs this software answers, as cases of activity, each need\n\
