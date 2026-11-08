@@ -364,6 +364,13 @@ fn found(rest: &[String]) -> ExitCode {
             };
             tangled(scope.as_deref(), &found)
         }
+        Some("plan") => {
+            let Some(found) = graphed(".") else {
+                eprintln!("find: no folder at .");
+                return ExitCode::from(2);
+            };
+            planned(rest.get(1).map(String::as_str), &found)
+        }
         first => {
             let (rule, asked) = match first {
                 None => (None, ".".to_string()),
@@ -379,7 +386,7 @@ fn found(rest: &[String]) -> ExitCode {
                 Some(word) => {
                     eprintln!(
                         "find: nothing named {word}; find takes a rule from arbiter rules, \
-                         fallout <name>, deps [unit], rhymes or tangles"
+                         fallout <name>, deps [unit], plan [name], rhymes or tangles"
                     );
                     return ExitCode::from(2);
                 }
@@ -646,6 +653,60 @@ fn emit(findings: &[Finding], rule: Option<&str>) {
             })
         );
     }
+}
+
+// One plan's bring-up as a ladder - rung by rung, nothing running - and its
+// channels; bare, every plan the record holds. The view of the desired side.
+fn planned(asked: Option<&str>, found: &arbiter::core::graph::Graph) -> ExitCode {
+    let reading = match arbiter::judge::plans::read(&found.root) {
+        None => {
+            println!("plans: none written");
+            return ExitCode::SUCCESS;
+        }
+        Some(Err(broken)) => {
+            eprintln!("find plan: {}", broken.reason);
+            return ExitCode::from(2);
+        }
+        Some(Ok(reading)) => reading,
+    };
+    let mut shown = 0;
+    for plan in &reading.plans {
+        if asked.is_some_and(|name| name != plan.name) {
+            continue;
+        }
+        shown += 1;
+        println!("plan {}", plan.name);
+        for (rung, services) in arbiter::judge::plans::ladder(&reading, plan)
+            .iter()
+            .enumerate()
+        {
+            let step: Vec<String> = services
+                .iter()
+                .map(|(service, machine)| format!("{service} on {machine}"))
+                .collect();
+            println!("  {}  {}", rung + 1, step.join(", "));
+        }
+        for service in &reading.services {
+            for (to, contract) in &service.channels {
+                match contract {
+                    Some(contract) => {
+                        println!("  channel {} -> {to}  {contract}", service.name);
+                    }
+                    None => println!("  channel {} -> {to}", service.name),
+                }
+            }
+        }
+    }
+    if shown == 0 {
+        match asked {
+            Some(name) => {
+                eprintln!("find plan: no plan named {name}");
+                return ExitCode::from(2);
+            }
+            None => println!("plans: services declared, no plan written yet"),
+        }
+    }
+    ExitCode::SUCCESS
 }
 
 // Every sibling cycle the facts hold, suppressed or not, largest first: the

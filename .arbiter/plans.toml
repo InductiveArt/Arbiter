@@ -1,0 +1,27 @@
+# The plans: deployment declared before it is possible. Services, the state
+# they keep, the machines expected, and the plans placing them - judged by
+# the gate, consumed by any actuator or none. needs order bring-up and must
+# form a DAG; channels are steady-state calls, consented by accepts.
+#
+# [[service]]
+# name = "api"
+# unit = "apps/api"
+# needs = ["postgres"]
+# channels = [{ to = "worker", contract = "jobs.v1.JobService" }]
+# accepts = ["web"]
+# volumes = ["api-data"]
+# cpu = 0.5
+# memory_mb = 512
+#
+# [[volume]]
+# name = "api-data"
+# backup = "daily"
+#
+# [[machine]]
+# name = "cell-1"
+# cpu = 8
+# memory_mb = 16384
+#
+# [[plan]]
+# name = "local"
+# place = [{ service = "api", on = "cell-1" }]

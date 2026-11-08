@@ -17,6 +17,7 @@ what they decide.
 | `arbiter find deps [unit|path]` | what one unit stands on, declared against resolved; a folder or file at its own grain; bare, the whole graph as mermaid. | no |
 | `arbiter find rhymes .` | structurally equal functions, largest first; a measure, never findings. A perfect rhyme reads identically, a slant rhyme is the same shape in different words. | no |
 | `arbiter find tangles [unit|path]` | entangled siblings per folder, largest first; a measure, never findings. The map to read before representing: each tangle is fixed by a direction, a third thing, or a merge - or signed, one exact set. | no |
+| `arbiter find plan [name]` | a plan's bring-up ladder and channels, before anything exists to run; bare, every plan. | no |
 | `arbiter ledger .` | the signature's account: suppressions, third parties and claims against the reference. | no |
 | `arbiter ledger sign .` | record today's account as the reference: the user's signature. **Never run it.** | yes |
 | `arbiter brief [case] .` | every need's state against the claims tree; a case is one slice. Each need held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. | no |
@@ -118,6 +119,11 @@ Each finding has one expected fix. A suppression is never one of them.
 | `stale-unit-grant`, `stale-unit-declaration` | Delete the stale `units.toml` entry, or ask the user - the file is theirs. |
 | `uninvited-folder-use`, `undeclared-folder-use` | Route the edge through the folder's declared doors, or ask the user to amend the inner declaration - a child only tightens what the unit allows. |
 | `stale-folder-grant`, `stale-folder-declaration` | Delete the stale inner entry, or ask the user - the file is theirs. |
+| `phantom-service`, `unbuilt-artifact` | Declare the missing service or correct the name - a plan dials only what exists, and a service's `unit` names one this repository builds. |
+| `boot-cycle` | Break the needs loop: needs order bring-up and must form a DAG. A steady-state call is a channel, never a need. |
+| `undeclared-volume`, `unbacked-volume` | Declare the volume and name its backup policy - state is never implicit. |
+| `unplanned-service`, `overcommitted-machine` | Place the service in a plan or delete it; size placements to the machine's declared capacity. |
+| `uninvited-channel`, `stale-channel-grant` | Amend the called service's `accepts`, or stop dialing; delete a grant nobody dials - the record is the user's. |
 | `unit-cycle`, `sibling-cycle` | Commit a direction, or extract the third thing both sides truly stand on; merging the siblings is honest too. An edge encodes construction, never association. A deliberate cycle is the user's suppression: one exact member set, counted in the ledger. |
 | `unallowed-license` | Ask the user: the allow list is a policy decision. |
 | `unparsable-user-record` | Repair the record's syntax and tell the user what broke - its content is theirs; a broken reference means the signature cannot be read. |
@@ -158,7 +164,9 @@ Each finding has one expected fix. A suppression is never one of them.
 
 `.arbiter/` holds the written decisions beside the computed facts:
 `units.toml` (the declared unit graph, and each unit's inner folder graph
-under `inner`), `suppressions.toml` (the record
+under `inner`), `plans.toml` (deployment declared before it is possible:
+services, state, machines and plans, consumed by any actuator or none),
+`suppressions.toml` (the record
 suppressions, one rule each), `licenses.toml` (the license allow list),
 `reference.json` and `contracts/` (what `ledger sign` recorded) - all
 committed. `last/` is the newest run, overwritten every time, never

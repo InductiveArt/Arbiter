@@ -76,6 +76,25 @@ law-register handle was renamed in one release and no behavior moved.
 - A planned need: law without facts yet, signed by being written.
 - An open matrix cell: a law waiting for its facts-engine.
 
+## The planes
+
+The system splits into planes the way a network does, and the names are
+kept deliberately close to telecom's, because this existed before us:
+
+- **Intent**: the records - the unit graph, the suppressions, the brief,
+  the plans. Written by the user, drafted by agents and the console.
+- **Facts**: what machines materialize and arbiter observes - manifests,
+  locks, resolved edges.
+- **Law and assurance**: arbiter - judging intent against facts, never
+  actuating. The console is this plane's window, on the desired side.
+- **Actuation**: whatever consumes the records to make anything real - a
+  reconciler, a bundler, plain docker, or nobody. Deliberately an
+  interface, not an implementation; the records assume no consumer.
+- **Data**: the running system itself, speaking its contracts.
+
+The iron rules: facts flow up, intent flows down, and a signature gates
+every crossing. Arbiter never actuates; an actuator never judges.
+
 ## The processes
 
 The gate is the master process. Each step below is one of its substeps,
@@ -141,6 +160,13 @@ meaning is the user's; a case still planned commissions its tests, which
 is why nascent code is a note and not a finding. Laws bound to
 authority. Evidence: the claims count, the brief states, each unwired
 claim with its paste-ready identity.
+
+**Plans.** Provides the declared deployment: services and the state they
+keep, the machines expected, the plans placing them. Bring-up needs are
+construction and must form an order; channels are association, carried
+by the called service's consent. Judged like any record, consumed by
+any actuator or none. Laws over intent. Evidence: the findings, and
+`find plan` as the storyboard.
 
 **Ledger.** Provides the account: suppressions, third parties and claims,
 counted against what the signature recorded. Authority made visible.

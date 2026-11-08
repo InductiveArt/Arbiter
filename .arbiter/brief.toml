@@ -27,6 +27,37 @@ story = "manifests carve a repository into units before anything is judged"
   ]
 
 [[case]]
+name = "plans"
+story = "deployment is declared before it is possible: judged intent, actuator left open"
+
+  [[case.need]]
+  need = "a plan's references resolve: services, volumes and units all exist"
+  claims = [
+    ". |  | a phantom service is named wherever it is dialed",
+    ". |  | a service names the unit that builds it or stays open",
+  ]
+
+  [[case.need]]
+  need = "bring-up is construction: the needs of a plan form an order"
+  claims = [". |  | the bringup forms an order or the plan cannot boot"]
+
+  [[case.need]]
+  need = "state is declared and backed, never implicit"
+  claims = [". |  | state is declared and backed or named"]
+
+  [[case.need]]
+  need = "channels carry the called service's consent, and dead grants are named"
+  claims = [". |  | a channel needs the called services consent"]
+
+  [[case.need]]
+  need = "every service is placed by a plan, and no machine is overcommitted"
+  claims = [". |  | a plan fits its machines and places every service"]
+
+  [[case.need]]
+  need = "the bring-up reads as a ladder before anything exists to run"
+  claims = [". |  | the bringup ladder reads in order"]
+
+[[case]]
 name = "folders"
 story = "a unit's inner graph holds its own law, and a child only tightens"
 

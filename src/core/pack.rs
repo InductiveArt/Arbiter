@@ -292,6 +292,42 @@ pub const CORE: &[(&str, &str)] = &[
         "a case declares at least one need; a case with no needs proves nothing",
     ),
     (
+        "phantom-service",
+        "every name a plan record dials - a need, a channel, a placement - is a declared service",
+    ),
+    (
+        "boot-cycle",
+        "a plan's needs form an order; a cycle in bring-up is a plan that cannot boot",
+    ),
+    (
+        "undeclared-volume",
+        "a volume a service mounts is declared by the record",
+    ),
+    (
+        "unbacked-volume",
+        "a declared volume names its backup policy; state is never implicit",
+    ),
+    (
+        "unplanned-service",
+        "once a plan is written, every service is placed by one",
+    ),
+    (
+        "overcommitted-machine",
+        "a plan's placements fit the machine's declared capacity",
+    ),
+    (
+        "uninvited-channel",
+        "a channel reaches only services whose accepts grant the caller; an absent grant binds nothing",
+    ),
+    (
+        "stale-channel-grant",
+        "an accepts entry names a caller that dials it; one never dialed is deleted",
+    ),
+    (
+        "unbuilt-artifact",
+        "a service naming its unit names one this repository builds",
+    ),
+    (
         "unparsable-user-record",
         "a record the user wrote parses, or the break itself is the finding; a store is rebuilt, never judged",
     ),
@@ -321,6 +357,15 @@ const RECORDED: &[(&str, &str)] = &[
     ("stale-binding", ".arbiter/brief.toml"),
     ("empty-case", ".arbiter/brief.toml"),
     ("vanished-claim", ".arbiter/reference.json"),
+    ("phantom-service", ".arbiter/plans.toml"),
+    ("boot-cycle", ".arbiter/plans.toml"),
+    ("undeclared-volume", ".arbiter/plans.toml"),
+    ("unbacked-volume", ".arbiter/plans.toml"),
+    ("unplanned-service", ".arbiter/plans.toml"),
+    ("overcommitted-machine", ".arbiter/plans.toml"),
+    ("uninvited-channel", ".arbiter/plans.toml"),
+    ("stale-channel-grant", ".arbiter/plans.toml"),
+    ("unbuilt-artifact", ".arbiter/plans.toml"),
 ];
 
 pub fn power(rule: &str) -> Power {
@@ -347,6 +392,20 @@ pub const GROUPS: &[(&str, &[&str])] = &[
         ],
     ),
     ("protocols", &["undeclared-protocol"]),
+    (
+        "plans",
+        &[
+            "phantom-service",
+            "boot-cycle",
+            "undeclared-volume",
+            "unbacked-volume",
+            "unplanned-service",
+            "overcommitted-machine",
+            "uninvited-channel",
+            "stale-channel-grant",
+            "unbuilt-artifact",
+        ],
+    ),
     (
         "folders",
         &[

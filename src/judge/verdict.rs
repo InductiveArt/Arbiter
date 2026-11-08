@@ -294,6 +294,35 @@ const SUPPRESSIONS_SEED: &str = "\
 # # The whole member set, exactly: a third member joining the cycle fires fresh.\n\
 # members = [\"src/a\", \"src/b\"]\n";
 
+const PLANS_SEED: &str = "\
+# The plans: deployment declared before it is possible. Services, the state\n\
+# they keep, the machines expected, and the plans placing them - judged by\n\
+# the gate, consumed by any actuator or none. needs order bring-up and must\n\
+# form a DAG; channels are steady-state calls, consented by accepts.\n\
+#\n\
+# [[service]]\n\
+# name = \"api\"\n\
+# unit = \"apps/api\"\n\
+# needs = [\"postgres\"]\n\
+# channels = [{ to = \"worker\", contract = \"jobs.v1.JobService\" }]\n\
+# accepts = [\"web\"]\n\
+# volumes = [\"api-data\"]\n\
+# cpu = 0.5\n\
+# memory_mb = 512\n\
+#\n\
+# [[volume]]\n\
+# name = \"api-data\"\n\
+# backup = \"daily\"\n\
+#\n\
+# [[machine]]\n\
+# name = \"cell-1\"\n\
+# cpu = 8\n\
+# memory_mb = 16384\n\
+#\n\
+# [[plan]]\n\
+# name = \"local\"\n\
+# place = [{ service = \"api\", on = \"cell-1\" }]\n";
+
 const BRIEF_SEED: &str = "\
 # The brief: the needs this software answers, as cases of activity, each need\n\
 # bound to the claims proving it. A binding is a claim's identity from\n\
@@ -334,6 +363,7 @@ pub fn seeded(root: &std::path::Path) {
         ("units.toml", UNITS_SEED),
         ("licenses.toml", LICENSES_SEED),
         ("suppressions.toml", SUPPRESSIONS_SEED),
+        ("plans.toml", PLANS_SEED),
         ("brief.toml", BRIEF_SEED),
     ] {
         let path = folder.join(name);

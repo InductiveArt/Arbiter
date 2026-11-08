@@ -26,6 +26,10 @@ pub const VERBS: &[(&str, &str)] = &[
         "entangled siblings per folder, largest first; a measure, never findings",
     ),
     (
+        "find plan [name]",
+        "a plan's bring-up ladder and channels, before anything exists to run; bare, every plan",
+    ),
+    (
         "ledger",
         "the signature's account: suppressions, third parties and claims against the reference",
     ),

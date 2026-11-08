@@ -1,0 +1,167 @@
+use std::fs;
+use std::path::Path;
+
+use arbiter::judge::findings::integrity;
+use arbiter::packs::graphed;
+
+fn seeded(root: &Path, record: &str) {
+    let _ = fs::remove_dir_all(root);
+    fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(root.join("app.py"), "value = 1\n").expect("the folder is writable");
+    fs::write(root.join(".arbiter/plans.toml"), record).expect("the folder is writable");
+}
+
+fn named(root: &Path, rule: &str) -> Vec<String> {
+    let found = graphed(&root.to_string_lossy()).expect("the folder exists");
+    integrity(&found)
+        .iter()
+        .filter(|finding| finding.name == rule)
+        .map(|finding| finding.reason.clone())
+        .collect()
+}
+
+#[test]
+fn a_phantom_service_is_named_wherever_it_is_dialed() {
+    let root = std::env::temp_dir().join(format!("arbiter-phantom-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"api\"\nneeds = [\"postgres\"]\n\
+         channels = [{ to = \"worker\" }]\n\n\
+         [[plan]]\nname = \"local\"\n\
+         place = [{ service = \"api\", on = \"cell\" }, { service = \"ghost\", on = \"cell\" }]\n",
+    );
+    let reasons = named(&root, "phantom-service");
+    assert!(reasons.contains(&"api needs postgres, which no service declares".to_string()));
+    assert!(reasons.contains(&"api dials worker, which no service declares".to_string()));
+    assert!(reasons.contains(&"plan local places ghost, which no service declares".to_string()));
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_service_names_the_unit_that_builds_it_or_stays_open() {
+    let root = std::env::temp_dir().join(format!("arbiter-unbuilt-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"api\"\nunit = \"apps/ghost\"\n\n\
+         [[service]]\nname = \"worker\"\n",
+    );
+    assert_eq!(
+        named(&root, "unbuilt-artifact"),
+        ["api names unit apps/ghost, which this repository does not build"]
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_bringup_forms_an_order_or_the_plan_cannot_boot() {
+    let root = std::env::temp_dir().join(format!("arbiter-boot-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"api\"\nneeds = [\"worker\"]\n\n\
+         [[service]]\nname = \"worker\"\nneeds = [\"api\"]\n",
+    );
+    assert_eq!(
+        named(&root, "boot-cycle"),
+        ["the needs of api <-> worker form a cycle; this plan cannot boot"]
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn state_is_declared_and_backed_or_named() {
+    let root = std::env::temp_dir().join(format!("arbiter-state-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"api\"\nvolumes = [\"api-data\", \"scratch\"]\n\n\
+         [[volume]]\nname = \"api-data\"\n\n\
+         [[volume]]\nname = \"kept\"\nbackup = \"daily\"\n",
+    );
+    assert_eq!(
+        named(&root, "undeclared-volume"),
+        ["api mounts scratch, which the record does not declare"]
+    );
+    assert_eq!(
+        named(&root, "unbacked-volume"),
+        ["api-data names no backup policy; state is never implicit"]
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_channel_needs_the_called_services_consent() {
+    let root = std::env::temp_dir().join(format!("arbiter-consent-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"api\"\nchannels = [{ to = \"worker\" }]\n\n\
+         [[service]]\nname = \"worker\"\naccepts = [\"web\"]\n\n\
+         [[service]]\nname = \"free\"\nchannels = [{ to = \"api\" }]\n",
+    );
+    assert_eq!(
+        named(&root, "uninvited-channel"),
+        ["api dials worker, which only web may"]
+    );
+    assert_eq!(
+        named(&root, "stale-channel-grant"),
+        ["worker grants web, which never dials it"]
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_plan_fits_its_machines_and_places_every_service() {
+    let root = std::env::temp_dir().join(format!("arbiter-fit-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"api\"\ncpu = 6.0\n\n\
+         [[service]]\nname = \"worker\"\ncpu = 4.0\n\n\
+         [[service]]\nname = \"idle\"\n\n\
+         [[machine]]\nname = \"cell\"\ncpu = 8\n\n\
+         [[plan]]\nname = \"local\"\n\
+         place = [{ service = \"api\", on = \"cell\" }, { service = \"worker\", on = \"cell\" }]\n",
+    );
+    assert_eq!(
+        named(&root, "unplanned-service"),
+        ["idle is placed by no plan"]
+    );
+    assert_eq!(
+        named(&root, "overcommitted-machine"),
+        ["plan local loads cell past its declared capacity"]
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_bringup_ladder_reads_in_order() {
+    use arbiter::judge::plans;
+    let root = std::env::temp_dir().join(format!("arbiter-ladder-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"api\"\nneeds = [\"postgres\"]\n\n\
+         [[service]]\nname = \"worker\"\nneeds = [\"postgres\"]\n\n\
+         [[service]]\nname = \"postgres\"\n\n\
+         [[plan]]\nname = \"local\"\nplace = [\
+         { service = \"api\", on = \"cell\" }, \
+         { service = \"worker\", on = \"cell\" }, \
+         { service = \"postgres\", on = \"cell\" }]\n",
+    );
+    let Some(Ok(reading)) = plans::read(&root) else {
+        panic!("the record is written and parses");
+    };
+    let rungs = plans::ladder(&reading, &reading.plans[0]);
+    assert_eq!(
+        rungs,
+        [
+            vec![("postgres".to_string(), "cell".to_string())],
+            vec![
+                ("api".to_string(), "cell".to_string()),
+                ("worker".to_string(), "cell".to_string())
+            ],
+        ]
+    );
+    let _ = fs::remove_dir_all(&root);
+}

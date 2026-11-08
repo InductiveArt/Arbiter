@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 
@@ -67,4 +68,66 @@ pub fn graph(asked: &str, mut packs: Vec<Box<dyn Pack>>) -> Option<Graph> {
         edges,
         packs,
     })
+}
+
+// Tarjan's strongly connected components over an indexed adjacency: the one
+// graph primitive every order law stands on.
+struct Tarjan<'graph> {
+    adjacency: &'graph [BTreeSet<usize>],
+    index: Vec<Option<usize>>,
+    low: Vec<usize>,
+    on_stack: Vec<bool>,
+    stack: Vec<usize>,
+    next: usize,
+    groups: Vec<Vec<usize>>,
+}
+
+pub fn strongly_connected(adjacency: &[BTreeSet<usize>]) -> Vec<Vec<usize>> {
+    let count = adjacency.len();
+    let mut state = Tarjan {
+        adjacency,
+        index: vec![None; count],
+        low: vec![0; count],
+        on_stack: vec![false; count],
+        stack: Vec::new(),
+        next: 0,
+        groups: Vec::new(),
+    };
+    for at in 0..count {
+        if state.index[at].is_none() {
+            visit(&mut state, at);
+        }
+    }
+    state.groups
+}
+
+fn visit(state: &mut Tarjan, at: usize) {
+    state.index[at] = Some(state.next);
+    state.low[at] = state.next;
+    state.next += 1;
+    state.stack.push(at);
+    state.on_stack[at] = true;
+    for &to in state.adjacency[at].iter() {
+        if state.index[to].is_none() {
+            visit(state, to);
+            state.low[at] = state.low[at].min(state.low[to]);
+        } else if state.on_stack[to] {
+            if let Some(entered) = state.index[to] {
+                state.low[at] = state.low[at].min(entered);
+            }
+        }
+    }
+    if Some(state.low[at]) != state.index[at] {
+        return;
+    }
+    let mut group = Vec::new();
+    while let Some(popped) = state.stack.pop() {
+        state.on_stack[popped] = false;
+        group.push(popped);
+        if popped == at {
+            break;
+        }
+    }
+    group.sort_unstable();
+    state.groups.push(group);
 }
