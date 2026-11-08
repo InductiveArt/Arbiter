@@ -101,6 +101,10 @@ symbols with no user, imports that hide or crowd or re-export, units
 crossing boundaries, doors left unnamed, comments reaching too far.
 An edge is sanctioned by both ends: the user's deps consent outward,
 the owner's visibility inward, and an absent declaration binds nothing.
+Declarations attach at two grains: the unit, judged on the quotient
+graph, and the folder within it - a file is a leaf of that tree - judged
+over every declared node an end sits under, so a child only tightens
+what the unit allows. A node governs its border, never its interior.
 Every finding names the law it breaks, and the same word answers at
 every door: `rules` for the law, `find` for the instances, the skill for
 the fix. Laws. Evidence: the findings themselves, named and placed.

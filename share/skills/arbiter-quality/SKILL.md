@@ -115,6 +115,8 @@ Each finding has one expected fix. A suppression is never one of them.
 | `cycle` | Move what both sides need into a module each imports. |
 | `uninvited-unit-use`, `undeclared-unit-use` | Invert the dependency or ask the user to amend the declaration - `units.toml` is theirs. |
 | `stale-unit-grant`, `stale-unit-declaration` | Delete the stale `units.toml` entry, or ask the user - the file is theirs. |
+| `uninvited-folder-use`, `undeclared-folder-use` | Route the edge through the folder's declared doors, or ask the user to amend the inner declaration - a child only tightens what the unit allows. |
+| `stale-folder-grant`, `stale-folder-declaration` | Delete the stale inner entry, or ask the user - the file is theirs. |
 | `unallowed-license` | Ask the user: the allow list is a policy decision. |
 | `unparsable-user-record` | Repair the record's syntax and tell the user what broke - its content is theirs; a broken reference means the signature cannot be read. |
 | `stale-generated` | Regenerate from the contracts, or delete the orphaned output - never hand-edit generated code. |
@@ -153,7 +155,8 @@ Each finding has one expected fix. A suppression is never one of them.
 ## The decision files
 
 `.arbiter/` holds the written decisions beside the computed facts:
-`units.toml` (the declared unit graph), `suppressions.toml` (the record
+`units.toml` (the declared unit graph, and each unit's inner folder graph
+under `inner`), `suppressions.toml` (the record
 suppressions, one rule each), `licenses.toml` (the license allow list),
 `reference.json` and `contracts/` (what `ledger sign` recorded) - all
 committed. `last/` is the newest run, overwritten every time, never

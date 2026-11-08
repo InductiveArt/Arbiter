@@ -27,6 +27,22 @@ story = "manifests carve a repository into units before anything is judged"
   ]
 
 [[case]]
+name = "folders"
+story = "a unit's inner graph holds its own law, and a child only tightens"
+
+  [[case.need]]
+  need = "a declared folder consents outward and inward, and its dead patterns are named"
+  claims = [". |  | a declared folder consents both ways inside its unit"]
+
+  [[case.need]]
+  need = "folder law composes conjunctively over every declared ancestor"
+  claims = [". |  | a child folder only tightens what the unit allows"]
+
+  [[case.need]]
+  need = "a file is a leaf of the folder tree, not a third grain"
+  claims = [". |  | a file declares as a leaf of the folder tree"]
+
+[[case]]
 name = "resolution"
 story = "an import reaches the file its module path names, in every language"
 

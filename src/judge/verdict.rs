@@ -268,7 +268,13 @@ const UNITS_SEED: &str = "\
 # visibility = [\"apps/*\"]\n\
 # # The units this one uses, held both ways: using an undeclared unit is a\n\
 # # finding, and so is declaring one never used.\n\
-# deps = [\"libs/other\"]\n";
+# deps = [\"libs/other\"]\n\
+#\n\
+# [units.\"libs/example\".inner.\"src/api\"]\n\
+# # Inside the unit the same two consents apply to a folder or a file, and a\n\
+# # child only tightens what the unit allows. `//` reaches from the repo root.\n\
+# visibility = [\"src/app/*\"]\n\
+# deps = [\"src/domain\", \"//libs/other\"]\n";
 
 const SUPPRESSIONS_SEED: &str = "\
 # Record suppressions. Each entry quiets one rule for the packages it names,\n\

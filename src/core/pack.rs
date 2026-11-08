@@ -188,6 +188,22 @@ pub const CORE: &[(&str, &str)] = &[
         "a declared unit dep is used; one never used is deleted",
     ),
     (
+        "uninvited-folder-use",
+        "a declared folder is entered only by what its visibility grants",
+    ),
+    (
+        "stale-folder-grant",
+        "a folder's grant names a user it has; one never used is deleted",
+    ),
+    (
+        "undeclared-folder-use",
+        "a declared folder's deps name everything it uses, inside its unit or out",
+    ),
+    (
+        "stale-folder-declaration",
+        "a declared folder dep is used; one never used is deleted",
+    ),
+    (
         "unallowed-license",
         "a written allowlist holds every third party's license; no list is no policy yet",
     ),
@@ -235,6 +251,15 @@ pub const GROUPS: &[(&str, &[&str])] = &[
         ],
     ),
     ("protocols", &["undeclared-protocol"]),
+    (
+        "folders",
+        &[
+            "uninvited-folder-use",
+            "stale-folder-grant",
+            "undeclared-folder-use",
+            "stale-folder-declaration",
+        ],
+    ),
     (
         "units",
         &[

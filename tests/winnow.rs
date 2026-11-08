@@ -459,3 +459,180 @@ fn the_resolved_graph_draws_itself_declared_against_real() {
     );
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_declared_folder_consents_both_ways_inside_its_unit() {
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-folder-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    for folder in ["api", "infra", ".arbiter"] {
+        fs::create_dir_all(root.join(folder)).expect("the folder is writable");
+    }
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("infra/db.py"),
+        "def connect() -> int:\n    return 1\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("api/handler.py"),
+        "from infra.db import connect\n\nprint(connect())\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join(".arbiter/units.toml"),
+        "[units.\".\".inner.\"infra\"]\nvisibility = [\"api\"]\n\n\
+         [units.\".\".inner.\"api\"]\ndeps = [\"infra\"]\n",
+    )
+    .expect("the folder is writable");
+
+    let consenting = graph(&root.to_string_lossy()).expect("the folder exists");
+    let folder_findings = |found: &arbiter::core::graph::Graph| -> Vec<(String, String)> {
+        integrity(found)
+            .iter()
+            .filter(|finding| finding.name.contains("folder"))
+            .map(|finding| (finding.name.clone(), finding.reason.clone()))
+            .collect()
+    };
+    assert_eq!(
+        folder_findings(&consenting),
+        [],
+        "a granted entry and a declared dep are quiet"
+    );
+
+    fs::write(
+        root.join(".arbiter/units.toml"),
+        "[units.\".\".inner.\"infra\"]\nvisibility = [\"migrations\"]\n\n\
+         [units.\".\".inner.\"api\"]\ndeps = [\"domain\"]\n",
+    )
+    .expect("the folder is writable");
+    let refused = graph(&root.to_string_lossy()).expect("the folder exists");
+    let found = folder_findings(&refused);
+    let names: Vec<&str> = found.iter().map(|(name, _)| name.as_str()).collect();
+    assert!(names.contains(&"undeclared-folder-use"));
+    assert!(names.contains(&"uninvited-folder-use"));
+    assert!(names.contains(&"stale-folder-grant"));
+    assert!(names.contains(&"stale-folder-declaration"));
+    assert!(
+        found
+            .iter()
+            .any(|(_, reason)| reason
+                == "api/handler.py uses infra/db.py, which api does not declare")
+    );
+    assert!(found
+        .iter()
+        .any(|(_, reason)| reason == "api/handler.py uses infra/db.py, which only migrations may"));
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_child_folder_only_tightens_what_the_unit_allows() {
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-tighten-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    for unit in ["app", "lib"] {
+        fs::create_dir_all(root.join(unit).join("src").join(unit)).expect("writable");
+        fs::write(
+            root.join(unit).join("pyproject.toml"),
+            format!("[project]\nname = \"{unit}\"\nversion = \"0\"\n"),
+        )
+        .expect("writable");
+    }
+    fs::create_dir_all(root.join(".arbiter")).expect("writable");
+    fs::write(root.join("lib/src/lib/core.py"), "value = 1\n").expect("writable");
+    fs::write(
+        root.join("app/src/app/main.py"),
+        "from lib.core import value\n\nprint(value)\n",
+    )
+    .expect("writable");
+
+    fs::write(
+        root.join(".arbiter/units.toml"),
+        "[units.\"app\"]\ndeps = [\"lib\"]\n\n\
+         [units.\"app\".inner.\"src/app\"]\ndeps = [\"//lib\"]\n",
+    )
+    .expect("writable");
+    let consenting = graph(&root.to_string_lossy()).expect("the folder exists");
+    assert!(
+        !integrity(&consenting)
+            .iter()
+            .any(|finding| finding.name.contains("folder") || finding.name.contains("unit-")),
+        "the unit consents and the folder consents through the root marker"
+    );
+
+    fs::write(
+        root.join(".arbiter/units.toml"),
+        "[units.\"app\"]\ndeps = [\"lib\"]\n\n\
+         [units.\"app\".inner.\"src/app\"]\ndeps = [\"src/other\"]\n",
+    )
+    .expect("writable");
+    let tightened = graph(&root.to_string_lossy()).expect("the folder exists");
+    let reasons: Vec<String> = integrity(&tightened)
+        .iter()
+        .filter(|finding| finding.name == "undeclared-folder-use")
+        .map(|finding| finding.reason.clone())
+        .collect();
+    assert_eq!(
+        reasons,
+        ["src/app/main.py uses //lib/src/lib/core.py, which src/app does not declare"],
+        "the child refuses what the unit allowed: conjunctive, tightening only"
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_file_declares_as_a_leaf_of_the_folder_tree() {
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-leaf-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    for folder in ["api", "infra", ".arbiter"] {
+        fs::create_dir_all(root.join(folder)).expect("the folder is writable");
+    }
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("infra/db.py"),
+        "def connect() -> int:\n    return 1\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("api/handler.py"),
+        "from infra.db import connect\n\nprint(connect())\n",
+    )
+    .expect("the folder is writable");
+
+    fs::write(
+        root.join(".arbiter/units.toml"),
+        "[units.\".\".inner.\"infra/db.py\"]\nvisibility = [\"api/handler.py\"]\n",
+    )
+    .expect("the folder is writable");
+    let door = graph(&root.to_string_lossy()).expect("the folder exists");
+    assert!(
+        !integrity(&door)
+            .iter()
+            .any(|finding| finding.name.contains("folder")),
+        "the named file is the one door and the handler holds its key"
+    );
+
+    fs::write(
+        root.join(".arbiter/units.toml"),
+        "[units.\".\".inner.\"infra/db.py\"]\nvisibility = [\"api/other.py\"]\n",
+    )
+    .expect("the folder is writable");
+    let barred = graph(&root.to_string_lossy()).expect("the folder exists");
+    let mut names: Vec<String> = integrity(&barred)
+        .iter()
+        .filter(|finding| finding.name.contains("folder"))
+        .map(|finding| finding.name.clone())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["stale-folder-grant", "uninvited-folder-use"]);
+    let _ = fs::remove_dir_all(&root);
+}
