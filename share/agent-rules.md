@@ -4,6 +4,9 @@
   `arbiter-quality` skill and start at its entry before your first edit in a
   session, and when asked how the code stands or to review a branch. How the
   code stands comes from a run, never from what an earlier session remembered.
+- Load the `arbiter-method` skill before any substantive problem, design or
+  improvement: carve the axes, move the generator never the output, and
+  execute the improvement whole. A feature done as a patch is refused.
 - Fix a finding; never silence it. Rewording code or a comment so a check
   stops matching it is silencing it too. A suppression in any language
   (`biome-ignore`, `@ts-expect-error`, `noqa`, `pyright: ignore`, `#[allow]`,

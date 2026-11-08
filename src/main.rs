@@ -933,7 +933,7 @@ fn ruled(asked: &str) -> ExitCode {
 fn adopted(root: &Path) -> (Vec<String>, bool) {
     let mut told = Vec::new();
     let mut stale = false;
-    let owned: [(&str, &str); 5] = [
+    let owned: [(&str, &str); 6] = [
         (
             ".claude/agent-rules.md",
             include_str!("../share/agent-rules.md"),
@@ -941,6 +941,10 @@ fn adopted(root: &Path) -> (Vec<String>, bool) {
         (
             ".claude/skills/arbiter-quality/SKILL.md",
             include_str!("../share/skills/arbiter-quality/SKILL.md"),
+        ),
+        (
+            ".claude/skills/arbiter-method/SKILL.md",
+            include_str!("../share/skills/arbiter-method/SKILL.md"),
         ),
         (
             ".claude/skills/arbiter-genesis/SKILL.md",
