@@ -42,6 +42,7 @@ pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Repo {
         manifests: Vec::new(),
         lockfiles: Vec::new(),
         published: HashSet::new(),
+        foreign: Vec::new(),
     };
     let skips = ignored(root);
     walk(root, root, packs, &skips, &mut builds, &mut found);
@@ -73,12 +74,14 @@ pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Repo {
         });
     }
     found.files.sort();
+    found.foreign.sort();
     Repo {
         units,
         files: found.files,
         manifests: found.manifests,
         lockfiles: found.lockfiles,
         published: found.published,
+        foreign: found.foreign,
     }
 }
 
@@ -87,6 +90,7 @@ struct Found {
     manifests: Vec<PathBuf>,
     lockfiles: Vec<PathBuf>,
     published: HashSet<PathBuf>,
+    foreign: Vec<PathBuf>,
 }
 
 // What git ignores is not the repository: a judged file is one git would carry.
@@ -151,6 +155,12 @@ fn walk(
                     .iter()
                     .any(|pack| pack.outputs().contains(&name.as_str()))
             {
+                continue;
+            }
+            // A folder with its own .arbiter is another repository: judged
+            // from its own root, named by this run, never crossed.
+            if path.join(".arbiter").is_dir() {
+                found.foreign.push(relative);
                 continue;
             }
             walk(root, &path, packs, skips, builds, found);
@@ -288,6 +298,7 @@ mod tests {
             manifests: Vec::new(),
             lockfiles: Vec::new(),
             published: HashSet::new(),
+            foreign: Vec::new(),
         }
     }
 

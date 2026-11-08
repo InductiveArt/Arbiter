@@ -218,7 +218,8 @@ const outcomesOf = unit => DATA.outcomes.filter(o => o.unit === unit);
     ? el("span", "good", "clean — " + DATA.outcomes.length + " checks, no findings")
     : el("span", "bad", failed + " checks failed, " + DATA.findings.length + " findings"));
   document.getElementById("meta").textContent =
-    DATA.root + " · arbiter " + DATA.version + " · " + DATA.units + " units, " + DATA.files + " files";
+    DATA.root + " · arbiter " + DATA.version + " · " + DATA.units + " units, " + DATA.files + " files"
+    + ((DATA.foreign || []).length ? " · foreign: " + DATA.foreign.join(", ") : "");
 }
 
 // ---- routing ----
@@ -671,7 +672,8 @@ function pipeline(view) {
   };
   const contractSeconds = contracts.filter(o => !o.warm).reduce((sum, o) => sum + o.seconds, 0);
   const steps = [
-    { name: "scan", sub: DATA.units + " units, " + DATA.files + " files" + timed("scan"), cls: "green" },
+    { name: "scan", sub: DATA.units + " units, " + DATA.files + " files"
+        + ((DATA.foreign || []).length ? ", " + DATA.foreign.length + " foreign" : "") + timed("scan"), cls: "green" },
     { name: "resolve", sub: DATA.resolved + " edges" + timed("resolve"), cls: "green" },
     { name: "judge", sub: DATA.findings.length + " findings" + timed("judge"),
       cls: DATA.findings.length ? "red" : "green", act: () => go("findings") },

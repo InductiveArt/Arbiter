@@ -1,0 +1,12 @@
+[project]
+name = "reader"
+version = "0.1.0"
+description = "A bookmark service: each reader's page in each book, kept in sqlite."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.basedpyright]
+typeCheckingMode = "strict"

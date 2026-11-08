@@ -1,0 +1,22 @@
+# The brief: what the reader service answers for, as cases, each need bound
+# to the claims proving it.
+
+[[case]]
+name = "bookmarks"
+story = "a reader keeps their place in every book, across restarts"
+
+  [[case.need]]
+  need = "a bookmark is created, read, moved and forgotten"
+  claims = [
+    ". |  | a bookmark is kept and read back",
+    ". |  | a moved bookmark reads at its new page",
+    ". |  | a forgotten bookmark is gone",
+  ]
+
+  [[case.need]]
+  need = "a reader's place survives a restart"
+  claims = [". |  | a bookmark survives a reopen"]
+
+  [[case.need]]
+  need = "bookmarks are served over the reader's door"
+  claims = [". |  | the door serves a mark round trip"]

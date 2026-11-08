@@ -1,0 +1,23 @@
+# The plan: how the reader service runs, declared before anything exists to
+# run it. State lives on one backed volume; one door serves the bookmarks.
+
+[[machine]]
+name = "cell"
+cpu = 2.0
+memory_mb = 2048
+
+[[volume]]
+name = "reader-data"
+backup = "daily"
+
+[[service]]
+name = "reader"
+unit = "."
+volumes = ["reader-data"]
+cpu = 0.5
+memory_mb = 256
+serves = [{ domain = "reader.local", port = 8400, to = "reader" }]
+
+[[plan]]
+name = "local"
+place = [{ service = "reader", on = "cell" }]

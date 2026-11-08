@@ -48,6 +48,46 @@ fn a_git_ignored_folder_is_not_the_repository() {
 }
 
 #[test]
+fn a_folder_with_its_own_arbiter_is_another_repository() {
+    let root = std::env::temp_dir().join(format!("arbiter-foreign-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("exhibit/.arbiter")).expect("the folder is writable");
+    fs::write(root.join("kept.py"), "value = 1\n").expect("the folder is writable");
+    fs::write(
+        root.join("exhibit/pyproject.toml"),
+        "[project]\nname = \"exhibit\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(root.join("exhibit/app.py"), "app = 1\n").expect("the folder is writable");
+    let path = root.to_string_lossy();
+
+    let judged = graphed(&path).expect("the folder exists");
+    assert!(
+        !judged
+            .repo
+            .files
+            .iter()
+            .any(|file| file.starts_with("exhibit")),
+        "the border is never crossed"
+    );
+    assert!(
+        !judged
+            .repo
+            .manifests
+            .iter()
+            .any(|manifest| manifest.starts_with("exhibit")),
+        "a foreign manifest declares no unit here"
+    );
+    assert_eq!(
+        judged.repo.foreign,
+        [std::path::PathBuf::from("exhibit")],
+        "the run names the jurisdiction it passed by"
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
 fn a_workspace_manifest_with_no_entry_is_a_container() {
     use arbiter::core::pack::Pack;
     let pack = arbiter::packs::typescript::TypeScript::new();

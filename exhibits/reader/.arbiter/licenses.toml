@@ -1,0 +1,8 @@
+# The licenses third parties may carry. Until an allow list is written here,
+# no license policy exists; once written, every dependency whose license the
+# list does not name is a finding. An empty list allows nothing.
+#
+# allow = [
+#   "MIT",
+#   "Apache-2.0",
+# ]

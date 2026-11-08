@@ -60,7 +60,18 @@ fn main() -> ExitCode {
             eprintln!("{command}: no folder at {asked}");
             return ExitCode::from(2);
         };
-        println!("{command}: {} units, {} files", run.units, run.files);
+        println!("{command}: {} units, {} files{}", run.units, run.files, {
+            let foreign = &run.graph.repo.foreign;
+            if foreign.is_empty() {
+                String::new()
+            } else {
+                let named: Vec<String> = foreign
+                    .iter()
+                    .map(|place| place.to_string_lossy().to_string())
+                    .collect();
+                format!(" (foreign: {})", named.join(", "))
+            }
+        });
         for (check, (passed, failed, warm, seconds)) in verdict::tallied(&run.outcomes) {
             let heat = if warm > 0 {
                 format!(" ({warm} warm)")

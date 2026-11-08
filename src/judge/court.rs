@@ -170,6 +170,9 @@ fn snapshot(run: &Run) -> serde_json::Value {
         "root": run.root.to_string_lossy(),
         "units": run.units,
         "files": run.files,
+        "foreign": found.repo.foreign.iter().map(|place| {
+            serde_json::Value::String(place.to_string_lossy().to_string())
+        }).collect::<Vec<serde_json::Value>>(),
         "outcomes": outcomes,
         "adapters": adapters,
         "resolved": found.edges.len(),

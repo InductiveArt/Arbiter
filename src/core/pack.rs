@@ -16,6 +16,9 @@ pub struct Repo {
     // Folders holding a PUBLISHED marker: that unit's surface serves users
     // the repository cannot see.
     pub published: HashSet<PathBuf>,
+    // Folders holding their own .arbiter: other repositories, judged from
+    // their own root. The scan names each one and never crosses its border.
+    pub foreign: Vec<PathBuf>,
 }
 
 impl Repo {

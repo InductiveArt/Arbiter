@@ -1,0 +1,5 @@
+# The unit graph, declared. The repository is one unit; the folder below
+# states that the service's code stands on nothing beside itself.
+
+[units.".".inner."src/reader"]
+deps = []

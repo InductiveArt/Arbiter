@@ -29,6 +29,10 @@ story = "manifests carve a repository into units before anything is judged"
     ". |  | a cargo workspace without a package is a container",
   ]
 
+  [[case.need]]
+  need = "a nested repository is another jurisdiction, named and never crossed"
+  claims = [". |  | a folder with its own arbiter is another repository"]
+
 [[case]]
 name = "plans"
 story = "deployment is declared before it is possible: judged intent, actuator left open"
