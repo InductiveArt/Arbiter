@@ -113,8 +113,8 @@ Each finding has one expected fix. A suppression is never one of them.
 | `stray-test` | Name the test with a literal sentence; a title built at run time cannot be heard as a claim. |
 | `split-version` | Converge the lockfiles on one version. |
 | `cycle` | Move what both sides need into a module each imports. |
-| `uninvited-use`, `undeclared-unit` | Invert the dependency or ask the user to amend the declaration - `units.toml` is theirs. |
-| `stale-grant`, `stale-declaration` | Delete the stale `units.toml` entry, or ask the user - the file is theirs. |
+| `uninvited-unit-use`, `undeclared-unit-use` | Invert the dependency or ask the user to amend the declaration - `units.toml` is theirs. |
+| `stale-unit-grant`, `stale-unit-declaration` | Delete the stale `units.toml` entry, or ask the user - the file is theirs. |
 | `unallowed-license` | Ask the user: the allow list is a policy decision. |
 | `unparsable-user-record` | Repair the record's syntax and tell the user what broke - its content is theirs; a broken reference means the signature cannot be read. |
 | `stale-generated` | Regenerate from the contracts, or delete the orphaned output - never hand-edit generated code. |

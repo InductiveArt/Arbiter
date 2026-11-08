@@ -384,7 +384,7 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
             findings.push(Finding::integrity(
                 file,
                 *line,
-                "uninvited-use",
+                "uninvited-unit-use",
                 format!(
                     "{user} uses {owned}, which only {} may",
                     patterns.join(", ")
@@ -395,7 +395,7 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
             findings.push(Finding::integrity(
                 file,
                 *line,
-                "undeclared-unit",
+                "undeclared-unit-use",
                 format!("{user} uses {owned} and does not declare it"),
             ));
         }
@@ -414,7 +414,7 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
                     findings.push(Finding::integrity(
                         Path::new(DECLARATIONS),
                         0,
-                        "stale-grant",
+                        "stale-unit-grant",
                         format!("{name} grants {pattern}, which never uses it"),
                     ));
                 }
@@ -427,7 +427,7 @@ fn boundaries(found: &Graph) -> Vec<Finding> {
                     findings.push(Finding::integrity(
                         Path::new(DECLARATIONS),
                         0,
-                        "stale-declaration",
+                        "stale-unit-declaration",
                         format!("{name} declares {dependency} and never uses it"),
                     ));
                 }

@@ -99,6 +99,8 @@ finding cites, file and line.
 **Judge.** Provides the findings: the graph laws held over the facts —
 symbols with no user, imports that hide or crowd or re-export, units
 crossing boundaries, doors left unnamed, comments reaching too far.
+An edge is sanctioned by both ends: the user's deps consent outward,
+the owner's visibility inward, and an absent declaration binds nothing.
 Every finding names the law it breaks, and the same word answers at
 every door: `rules` for the law, `find` for the instances, the skill for
 the fix. Laws. Evidence: the findings themselves, named and placed.

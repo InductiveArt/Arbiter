@@ -172,19 +172,19 @@ pub const CORE: &[(&str, &str)] = &[
         "a third party resolves to one version across the repository's lockfiles; a copy nested inside another third party is that party's own",
     ),
     (
-        "uninvited-use",
+        "uninvited-unit-use",
         "a unit is used only by the units its declared visibility grants",
     ),
     (
-        "stale-grant",
+        "stale-unit-grant",
         "a visibility grant names a unit that uses it; one never used is deleted",
     ),
     (
-        "undeclared-unit",
+        "undeclared-unit-use",
         "a unit declaring deps names every unit it uses",
     ),
     (
-        "stale-declaration",
+        "stale-unit-declaration",
         "a declared unit dep is used; one never used is deleted",
     ),
     (
@@ -239,10 +239,10 @@ pub const GROUPS: &[(&str, &[&str])] = &[
         "units",
         &[
             "cycle",
-            "uninvited-use",
-            "stale-grant",
-            "undeclared-unit",
-            "stale-declaration",
+            "uninvited-unit-use",
+            "stale-unit-grant",
+            "undeclared-unit-use",
+            "stale-unit-declaration",
         ],
     ),
     (
