@@ -126,7 +126,8 @@ svg.deps:active { cursor: grabbing; }
 .gnode.stageok.alarmed rect { stroke: var(--bad); }
 .gnode.stagefail rect, .gnode.tangled rect { stroke: var(--bad); stroke-width: 2.5; }
 .gnode.glow rect { fill: var(--sel) !important; stroke: var(--accent); }
-.gnode.selected rect { fill: var(--sel) !important; stroke: var(--accent); stroke-width: 3; }
+.gnode.selected rect { fill: var(--sel) !important; stroke-width: 3; }
+.gnode.selected:not(.alarmed):not(.stagefail):not(.stageok):not(.tangled) rect { stroke: var(--accent); }
 .gedge { stroke: #5c6673; stroke-width: 1.4; fill: none; }
 .gedge.breaks, .gedge.tangled { stroke: var(--bad); stroke-width: 2; }
 .gedge.glow { stroke: var(--accent); stroke-width: 2.2; }
