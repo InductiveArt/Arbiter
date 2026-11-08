@@ -129,6 +129,8 @@ svg.deps:active { cursor: grabbing; }
 .gedge { stroke: #5c6673; stroke-width: 1.4; fill: none; }
 .gedge.breaks, .gedge.tangled { stroke: var(--bad); stroke-width: 2; }
 .gedge.glow { stroke: var(--accent); stroke-width: 2.2; }
+.gnode.focus rect { stroke: var(--warn); stroke-width: 2.8; }
+.gedge.focus { stroke: var(--warn); stroke-width: 2.8; opacity: 1; }
 .junction { fill: #5c6673; }
 .faded { opacity: .16; }
 svg.board { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; margin-bottom: .8rem; }
@@ -312,14 +314,14 @@ function scopePanel(scope) {
     }
   });
 }
-function panelList(panel, title, items, each) {
+function panelList(panel, title, items, each, hover) {
   if (!items || !items.length) return;
   panel.appendChild(el("h4", null, title));
   for (const item of items) {
     const row = el("div", "row" + (each ? " link" : ""), typeof item === "string" ? item : item.text);
     if (each) {
       const target = typeof item === "string" ? item : item.target;
-      row.onmouseenter = () => glow(target);
+      row.onmouseenter = () => (hover || glow)(target);
       row.onmouseleave = restoreGlow;
       row.onclick = () => each(target);
     }
@@ -455,8 +457,32 @@ function glowEdge(user, owner, home) {
 // A pinned highlight survives hovers until the void is clicked.
 let pinnedPlace = null;
 function restoreGlow() {
+  defocus();
   if (pinnedPlace) { glow(pinnedPlace); }
   else unglow();
+}
+// The second tier: inside a pinned node's context, one hovered relation
+// stands out without disturbing the context.
+function focusEdge(here, there) {
+  if (!GRAPHSVG) return;
+  const a = visibleFor(here);
+  const b = visibleFor(there);
+  if (!a || !b) return;
+  for (const id of [a, b]) {
+    const g = GRAPHSVG.nodes.get(id);
+    if (g) { g.classList.remove("faded"); g.classList.add("focus"); }
+  }
+  for (const e of GRAPHSVG.edges) {
+    if ((e.from === a && e.to === b) || (e.from === b && e.to === a)) {
+      e.el.classList.remove("faded");
+      e.el.classList.add("focus");
+    }
+  }
+}
+function defocus() {
+  if (!GRAPHSVG) return;
+  for (const g of GRAPHSVG.nodes.values()) g.classList.remove("focus");
+  for (const e of GRAPHSVG.edges) e.el.classList.remove("focus");
 }
 
 function graph(view, scope) {
@@ -543,12 +569,20 @@ function unitPanel(name) {
         i.path + (i.deps.length ? "  deps " + i.deps.join(", ") : "")
         + (i.visibility.length ? "  visibility " + i.visibility.join(", ") : "")));
     } else { panel.appendChild(el("h4", null, "intent")); panel.appendChild(el("div", "row dim", "(nothing declared — binds nothing)")); }
+    // Hovering a relation shows the hovered element whole, and the precise
+    // link back to the pinned one rides above it, twice as loud.
+    const related = target => {
+      glow(target);
+      if (pinnedPlace) focusEdge(pinnedPlace, target);
+    };
     panelList(panel, "uses (real)",
       DATA.edges.filter(e => e.user === name).map(e => ({ text: e.owner + (e.breaks ? "  (undeclared)" : ""), target: e.owner })),
-      target => { pending = { select: target }; go("graph/units"); });
+      target => { pending = { select: target }; go("graph/units"); },
+      related);
     panelList(panel, "used by (real)",
       DATA.edges.filter(e => e.owner === name).map(e => ({ text: e.user, target: e.user })),
-      target => { pending = { select: target }; go("graph/units"); });
+      target => { pending = { select: target }; go("graph/units"); },
+      related);
     if (childrenOf(name).length) {
       panel.appendChild(el("h4", null, "inside"));
       const a = el("a", null, "enter " + name + " — its inner graph");
