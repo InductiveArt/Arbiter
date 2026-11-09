@@ -95,6 +95,49 @@ kept deliberately close to telecom's, because this existed before us:
 The iron rules: facts flow up, intent flows down, and a signature gates
 every crossing. Arbiter never actuates; an actuator never judges.
 
+## The ontology
+
+Everything the records and the facts describe is one graph, stratified.
+The strata, top down: intent - case, need, flow; runtime - plan, machine,
+service, channel, volume, door; structure - unit, folder, file; code -
+symbol, import; evidence - claim, trial, receipt, finding. Horizontal
+edges live inside one stratum: a service needs or dials a service, a unit
+imports a unit. One spine of vertical bindings crosses the strata: a case
+sits on a unit and serves a need, a flow walks services and volumes, a
+trial proves needs, a service names its unit, a claim answers a need.
+The snapshot is this graph serialized; the court is a lens over it,
+never a second model, and any future consumer - a reconciler watching
+the live system, an alerting plane - reads the same graph rather than
+rediscovering it.
+
+Every assertion in the graph carries one of three powers, and each power
+has its guard:
+
+**Derived.** Computed from the tree: imports resolved, units carved,
+claims heard, cones and impact walked. Cannot lie, and costs nobody a
+line of annotation.
+
+**Declared.** Signed into a record: the unit graph, the plans, the brief
+with its trials and flows. Never computable - intent does not fall out
+of code, and reading the tree back to itself and calling it purpose is
+the mirror trap. Kept true by laws: phantom-service, misplaced-case,
+orphan-case, unmandated-trial, stale-mandate, off-plan-step, astray-fork,
+vanished-claim. Drift in a declaration is a finding, so a declaration
+cannot quietly rot - which is what separates this graph from every
+architecture drawing maintained beside its system.
+
+**Observed.** Witnessed by the examiner at trial: the world stood up
+from the records alone, driven through its declared door, read raw at
+the store over the examiner's own connection. This is where derivation
+grows - not by guessing harder at static code, but by adding witnesses:
+a declared flow held against a traced request, a declared impact held
+against a killed service.
+
+The annotation budget is closed. What is, is derived; what should be, is
+declared; what connects them is bound - and a binding is admitted only
+when it is checkable against facts at one end, counted in the ledger,
+and one line to write. Everything else the machine says itself.
+
 ## The processes
 
 The gate is the master process. Each step below is one of its substeps,
