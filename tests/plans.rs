@@ -51,6 +51,90 @@ fn the_service_env_names_its_world() {
 }
 
 #[test]
+fn the_impact_of_a_service_names_who_stands_on_it() {
+    let root = std::env::temp_dir().join(format!("arbiter-impact-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"api\"\nneeds = [\"postgres\"]\n\n\
+         [[service]]\nname = \"worker\"\nchannels = [{ to = \"api\" }]\n\n\
+         [[service]]\nname = \"postgres\"\n\n\
+         [[service]]\nname = \"aside\"\n",
+    );
+    let Some(Ok(reading)) = arbiter::judge::plans::read(&root) else {
+        panic!("the record reads");
+    };
+    assert_eq!(
+        arbiter::judge::plans::impacted(&reading, "postgres"),
+        ["api", "worker"],
+        "everything standing on a service falls with it, transitively"
+    );
+    assert!(
+        arbiter::judge::plans::impacted(&reading, "aside").is_empty(),
+        "nothing stands on a leaf"
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_flow_walks_declared_edges_or_is_named() {
+    let root = std::env::temp_dir().join(format!("arbiter-flowlaw-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"api\"\nvolumes = [\"api-data\"]\n\
+         serves = [{ domain = \"api.local\", port = 80, to = \"api\" }]\n\n\
+         [[volume]]\nname = \"api-data\"\nbackup = \"daily\"\n",
+    );
+    fs::write(
+        root.join(".arbiter/brief.toml"),
+        concat!(
+            "[[case]]\nname = \"orders\"\n\n",
+            "[[case.flow]]\nname = \"an order lands\"\nsteps = [\n",
+            "  { via = \"api.local\", to = \"api\", does = \"POST\" },\n",
+            "  { from = \"api\", to = \"api-data\", does = \"the row lands\" },\n",
+            "  { from = \"api\", to = \"ghost\", does = \"a dial nobody granted\" },\n",
+            "  { back = \"201\" },\n]\n\n",
+            "[[case.need]]\nneed = \"an order is kept\"\nmanual = \"seen\"\n",
+        ),
+    )
+    .expect("the folder is writable");
+    let told = named(&root, "off-plan-step");
+    assert_eq!(
+        told,
+        ["the flow 'an order lands' of case 'orders' walks api -> ghost, which the plan does not declare"],
+        "the declared hops pass; the ghost hop alone is named"
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_fork_sits_where_the_flow_visits() {
+    let root = std::env::temp_dir().join(format!("arbiter-forklaw-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"api\"\n\
+         serves = [{ domain = \"api.local\", port = 80, to = \"api\" }]\n",
+    );
+    fs::write(
+        root.join(".arbiter/brief.toml"),
+        concat!(
+            "[[case]]\nname = \"orders\"\n\n",
+            "[[case.flow]]\nname = \"an order lands\"\nsteps = [\n",
+            "  { via = \"api.local\", to = \"api\", does = \"POST\" },\n]\n",
+            "forks = [{ at = \"billing\", when = \"the card fails\", back = \"402\" }]\n\n",
+            "[[case.need]]\nneed = \"an order is kept\"\nmanual = \"seen\"\n",
+        ),
+    )
+    .expect("the folder is writable");
+    let told = named(&root, "astray-fork");
+    assert_eq!(
+        told,
+        ["the flow 'an order lands' of case 'orders' forks at billing, which its steps never visit"],
+        "a fork binds to a visited service"
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
 fn a_phantom_service_is_named_wherever_it_is_dialed() {
     let root = std::env::temp_dir().join(format!("arbiter-phantom-{}", std::process::id()));
     seeded(

@@ -9,6 +9,7 @@ use crate::judge::plans;
 use crate::judge::verdict::Run;
 
 const TEMPLATE: &str = include_str!("court.html");
+const DOCKET: &str = include_str!("docket.js");
 
 // The court: the run rendered whole as one page and one snapshot, written as
 // evidence beside the report. The page is self-contained - the snapshot is
@@ -31,7 +32,9 @@ pub fn write(run: &Run) -> Option<PathBuf> {
 // The embedded form: `</` is split so no reason can close the script early.
 pub fn page(data: &serde_json::Value) -> String {
     let embedded = data.to_string().replace("</", "<\\/");
-    TEMPLATE.replace("/*ARBITER_DATA*/", &embedded)
+    TEMPLATE
+        .replace("/*ARBITER_DATA*/", &embedded)
+        .replace("/*ARBITER_DOCKET*/", DOCKET)
 }
 
 fn snapshot(run: &Run) -> serde_json::Value {
@@ -145,7 +148,7 @@ fn snapshot(run: &Run) -> serde_json::Value {
             .iter()
             .map(|need| {
                 let state = match need.state {
-                    brief::State::Held => "held",
+                    brief::State::Tested => "tested",
                     brief::State::Planned => "planned",
                     brief::State::Manual => "manual",
                     brief::State::Unanswered => "unanswered",
@@ -169,11 +172,38 @@ fn snapshot(run: &Run) -> serde_json::Value {
                 })
             })
             .collect();
+        let flows: Vec<serde_json::Value> = reading
+            .flows
+            .iter()
+            .map(|flow| {
+                let steps: Vec<serde_json::Value> = flow
+                    .steps
+                    .iter()
+                    .map(|hop| {
+                        serde_json::json!({
+                            "via": hop.via, "from": hop.from, "to": hop.to,
+                            "back": hop.back, "does": hop.does,
+                        })
+                    })
+                    .collect();
+                let forks: Vec<serde_json::Value> = flow
+                    .forks
+                    .iter()
+                    .map(|fork| {
+                        serde_json::json!({ "at": fork.at, "when": fork.when, "back": fork.back })
+                    })
+                    .collect();
+                serde_json::json!({
+                    "case": flow.case, "name": flow.name, "steps": steps, "forks": forks,
+                })
+            })
+            .collect();
         serde_json::json!({
             "cases": reading.cases.len(),
             "seated": seated,
             "claims": reading.claims,
             "needs": needs,
+            "flows": flows,
         })
     });
     let receipts = fs::read_to_string(run.root.join(".arbiter/last/receipts.json"))

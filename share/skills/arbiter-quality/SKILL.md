@@ -19,9 +19,10 @@ what they decide.
 | `arbiter find rhymes .` | structurally equal functions, largest first; a measure, never findings. A perfect rhyme reads identically, a slant rhyme is the same shape in different words. | no |
 | `arbiter find tangles [unit|path]` | entangled siblings per folder, largest first; a measure, never findings. The map to read before representing: each tangle is fixed by a direction, a third thing, or a merge - or signed, one exact set. | no |
 | `arbiter find plan [name]` | a plan's bring-up ladder and channels, before anything exists to run; bare, every plan. | no |
+| `arbiter find impact <service>` | everything that falls with one service: the services standing on it and the cases placed over it. | no |
 | `arbiter ledger .` | the signature's account: suppressions, third parties and claims against the reference. | no |
 | `arbiter ledger sign .` | record today's account as the reference: the user's signature. **Never run it.** | yes |
-| `arbiter brief [case] .` | every need's state against the claims tree; a case is one slice. Each need held, planned, manual or unanswered, then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. | no |
+| `arbiter brief [case] .` | every need's state against the claims tree; a case is one slice. Each need tested, planned, manual or unanswered - verified or refuted where the examiner reached it - then every unwired claim. No brief written: the full claims tree to draft from, with the units claiming nothing. | no |
 | `arbiter rules [rule]` | the matrix in groups; a rule prints its law and whys, a group its laws. | no |
 | `arbiter adopt .` | install the agent layer; its files refresh with the binary, never backwards: a file written by a newer arbiter is left, and the binary updates. `settings.json` and the `CLAUDE.md` pointer are written once. | yes |
 

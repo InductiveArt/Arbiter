@@ -67,7 +67,17 @@ tr.click:hover td { background: var(--sel); }
 .finding .where { color: var(--dim); font-size: .8rem; }
 .finding .where .go { color: var(--accent); }
 .law { color: var(--dim); font-size: .8rem; }
-.state-held { color: var(--good); } .state-open { color: var(--warn); }
+.state-tested { color: var(--good); } .state-open { color: var(--warn); }
+.volumebox rect { fill: #221d2e; }
+.flow { margin: .5rem 0 .2rem; }
+.flowstrip { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; padding: .3rem 0; }
+.flowdoor { color: var(--accent); border: 1px dashed var(--accent); border-radius: 5px; padding: .15rem .5rem; }
+.flowservice { border: 1px solid var(--line); border-radius: 5px; padding: .15rem .5rem; cursor: pointer; }
+.flowvol { color: var(--dim); border: 1px dotted var(--line); border-radius: 5px; padding: .15rem .5rem; }
+.flowarrow { display: inline-flex; flex-direction: column; align-items: center; color: var(--dim); }
+.flowarrow i { font-size: .68rem; font-style: normal; max-width: 11rem; text-align: center; }
+.flowback { color: var(--good); }
+.flowfork { color: var(--dim); font-size: .85rem; margin-left: 1.4rem; }
 .state-never, .state-planned, .state-manual { color: var(--dim); }
 .state-unanswered { color: var(--bad); }
 .empty { color: var(--dim); font-style: italic; }
@@ -161,6 +171,7 @@ svg .worldlabel { fill: var(--warn); font: 11px var(--mono); }
 </div>
 <div id="overlay"><div class="box"><div class="head"><b id="overlaytitle"></b><span class="close dim" style="cursor:pointer" onclick="closeOverlay()">x</span></div><pre id="overlaybody"></pre></div></div>
 <script id="data" type="application/json">/*ARBITER_DATA*/</script>
+<script>/*ARBITER_DOCKET*/</script>
 <script>
 const DATA = JSON.parse(document.getElementById("data").textContent);
 const el = (tag, cls, text) => {
@@ -1244,67 +1255,14 @@ function servicePanel(name) {
     }));
     panelList(panel, "doors", DATA.plans.doors.filter(d => d.via === name)
       .map(d => d.domain + ":" + d.port + " -> " + d.to));
+    const falls = fallenServices(name);
+    const hit = fallenCases(name);
+    panelList(panel, "if " + name + " is down", [
+      "services: " + (falls.length ? falls.join(", ") : "none stand on it"),
+      "cases: " + (hit.length ? hit.join(", ") : "none placed over it"),
+    ]);
     panelFindings(panel, DATA.findings.filter(f => f.file.endsWith("plans.toml") && f.line === service.line), ".arbiter/plans.toml");
   });
-}
-
-// ---- docket: the intent plane, cases with their rung ladders ----
-function examinedNeeds() {
-  const tried = {};
-  for (const trial of (DATA.receipts && DATA.receipts.trials) || [])
-    for (const need of trial.needs) tried[trial.case + "|" + need] = trial.passed;
-  return tried;
-}
-function refutedNeeds() {
-  const refuted = new Set();
-  for (const trial of (DATA.receipts && DATA.receipts.trials) || [])
-    if (!trial.passed) for (const need of trial.needs) refuted.add(trial.case + "|" + need);
-  return refuted;
-}
-function docket(view) {
-  if (!DATA.brief) { view.appendChild(el("div", "empty", "no brief written")); return; }
-  const tried = examinedNeeds();
-  const seat = {};
-  for (const one of DATA.brief.seated || []) seat[one.name] = one;
-  const byCase = {};
-  for (const need of DATA.brief.needs) (byCase[need.case] = byCase[need.case] || []).push(need);
-  for (const name of Object.keys(byCase)) {
-    const card = el("div", "card");
-    const head = el("div");
-    head.appendChild(el("b", null, name));
-    const home = seat[name] || {};
-    if (home.unit) {
-      const territory = el("a", null, " " + home.unit + " ");
-      territory.href = "#graph/" + (home.unit === "." ? "" : home.unit);
-      territory.title = "the case's territory in the structure graph";
-      head.appendChild(territory);
-      const trouble = DATA.findings.filter(f => within(f, home.unit)).length;
-      if (trouble) {
-        const alarm = el("a", "bad", trouble + " findings in its territory");
-        alarm.href = "#findings/" + (home.unit === "." ? "" : home.unit);
-        head.appendChild(alarm);
-      }
-    }
-    card.appendChild(head);
-    if (home.serves) card.appendChild(el("div", "dim", "serves: " + home.serves));
-    for (const need of byCase[name]) {
-      const row = el("div");
-      row.appendChild(el("span", "state-" + need.state, need.state.padEnd(11)));
-      const outcome = tried[name + "|" + need.need];
-      if (outcome === true) row.appendChild(el("span", "good", "examined  "));
-      else if (outcome === false) row.appendChild(el("span", "bad", "refuted  "));
-      row.appendChild(document.createTextNode(need.need));
-      if (need.claims) row.appendChild(el("span", "dim", " — " + need.claims +
-        (need.claims === 1 ? " claim" : " claims")));
-      card.appendChild(row);
-    }
-    view.appendChild(card);
-  }
-  if (DATA.receipts) {
-    const stamp = el("div", "dim", "examined by " + DATA.receipts.examiner +
-      " — sequence " + DATA.receipts.sequence + "; held is the repository's testimony, examined is arbiter's own");
-    view.appendChild(stamp);
-  }
 }
 
 // ---- brief, ledger, rules ----

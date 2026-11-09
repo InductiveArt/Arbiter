@@ -15,7 +15,7 @@ fn the_brief_states_each_need_and_roars_at_the_unwired() {
         .iter()
         .map(|need| {
             let state = match need.state {
-                State::Held => "held",
+                State::Tested => "tested",
                 State::Planned => "planned",
                 State::Manual => "manual",
                 State::Unanswered => "unanswered",
@@ -26,13 +26,13 @@ fn the_brief_states_each_need_and_roars_at_the_unwired() {
     assert_eq!(
         states,
         [
-            "docking | arrows dock and crowd politely | held",
+            "docking | arrows dock and crowd politely | tested",
             "docking | a full rim refuses the next arrow | planned",
-            "lattice | the lattice holds its points | held",
+            "lattice | the lattice holds its points | tested",
             "lattice | the lattice survives a snapshot restore | manual",
             "lattice | a binding gone stale | unanswered",
             "lattice | a need with nothing at all | unanswered",
-            "spacing | a hand-typed binding folds its spaces | held",
+            "spacing | a hand-typed binding folds its spaces | tested",
         ]
     );
     let told: Vec<String> = reading
@@ -66,7 +66,7 @@ fn a_binding_typed_with_one_space_wires_a_claim_printed_with_two() {
         .iter()
         .find(|need| need.case == "spacing")
         .expect("the fixture declares the spacing case");
-    assert!(need.state == State::Held);
+    assert!(need.state == State::Tested);
 }
 
 #[test]

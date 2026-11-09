@@ -141,13 +141,13 @@ fn main() -> ExitCode {
             verdict::BriefLine::Unwritten => println!("  {:15} no brief written", "brief"),
             verdict::BriefLine::Read {
                 cases,
-                held,
+                tested,
                 planned,
                 manual,
                 unanswered,
                 unwired,
             } => println!(
-                "  {:15} {cases} cases — {held} held, {planned} planned, \
+                "  {:15} {cases} cases — {tested} tested, {planned} planned, \
                  {manual} manual, {unanswered} unanswered; {unwired} claims unwired",
                 "brief"
             ),
@@ -205,13 +205,13 @@ fn main() -> ExitCode {
             return slice(&case, &reading);
         }
         println!(
-            "brief: {} cases — {} held, {} planned, {} manual, {} unanswered; \
+            "brief: {} cases — {} tested, {} planned, {} manual, {} unanswered; \
              {} claims, {} unwired",
             reading.cases.len(),
             reading
                 .needs
                 .iter()
-                .filter(|need| need.state == brief::State::Held)
+                .filter(|need| need.state == brief::State::Tested)
                 .count(),
             reading
                 .needs
@@ -239,7 +239,7 @@ fn main() -> ExitCode {
                 case = need.case.clone();
             }
             let state = match need.state {
-                brief::State::Held => "held",
+                brief::State::Tested => "tested",
                 brief::State::Planned => "planned",
                 brief::State::Manual => "manual",
                 brief::State::Unanswered => "unanswered",
@@ -271,7 +271,7 @@ fn main() -> ExitCode {
                         println!("  {mark} {} — {}", step.act, step.saw);
                     }
                     let verdict = if testimony.passed {
-                        "examined"
+                        "verified"
                     } else {
                         "refuted"
                     };
@@ -446,6 +446,17 @@ fn found(rest: &[String]) -> ExitCode {
             };
             planned(rest.get(1).map(String::as_str), &found)
         }
+        Some("impact") => {
+            let Some(name) = rest.get(1) else {
+                eprintln!("find impact: name the service to take down");
+                return ExitCode::from(2);
+            };
+            let Some(found) = graphed(".") else {
+                eprintln!("find: no folder at .");
+                return ExitCode::from(2);
+            };
+            fallen(name, &found)
+        }
         first => {
             let (rule, asked) = match first {
                 None => (None, ".".to_string()),
@@ -461,7 +472,7 @@ fn found(rest: &[String]) -> ExitCode {
                 Some(word) => {
                     eprintln!(
                         "find: nothing named {word}; find takes a rule from arbiter rules, \
-                         fallout <name>, deps [unit], plan [name], rhymes or tangles"
+                         fallout <name>, deps [unit], plan [name], impact <service>, rhymes or tangles"
                     );
                     return ExitCode::from(2);
                 }
@@ -688,7 +699,7 @@ fn slice(case: &str, reading: &arbiter::judge::brief::Reading) -> ExitCode {
     println!("{case} — {} needs", needs.len());
     for need in needs {
         let state = match need.state {
-            brief::State::Held => "held",
+            brief::State::Tested => "tested",
             brief::State::Planned => "planned",
             brief::State::Manual => "manual",
             brief::State::Unanswered => "unanswered",
@@ -985,6 +996,49 @@ fn scoped(asked: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
         for file in set {
             println!("    {file}");
         }
+    }
+    ExitCode::SUCCESS
+}
+
+// What falls when one service is down: every service standing on it, and
+// every case whose support cone holds it.
+fn fallen(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
+    let Some(Ok(reading)) = arbiter::judge::plans::read(&found.root) else {
+        eprintln!("find impact: no plans record; impact runs over the declared world");
+        return ExitCode::from(2);
+    };
+    if !reading.services.iter().any(|service| service.name == *name) {
+        eprintln!("find impact: no service named {name} in the plans");
+        return ExitCode::from(2);
+    }
+    let services = arbiter::judge::plans::impacted(&reading, name);
+    println!("if {name} is down:");
+    if services.is_empty() {
+        println!("  services: none stand on it");
+    } else {
+        println!("  services: {}", services.join(", "));
+    }
+    let mut cases = Vec::new();
+    if let Some(brief) = brief::read(found) {
+        for case in &brief.cases {
+            let Some(unit) = &case.unit else { continue };
+            let mut cone: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+            for service in reading.services.iter().filter(|one| {
+                one.unit.as_deref() == Some(unit.as_str())
+                    || (unit == "." && one.unit.as_deref() == Some("."))
+            }) {
+                cone.insert(service.name.clone());
+                cone.extend(arbiter::judge::plans::stands_on(&reading, &service.name));
+            }
+            if cone.contains(name) {
+                cases.push(case.name.clone());
+            }
+        }
+    }
+    if cases.is_empty() {
+        println!("  cases: none placed on it");
+    } else {
+        println!("  cases: {}", cases.join(", "));
     }
     ExitCode::SUCCESS
 }

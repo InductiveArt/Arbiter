@@ -77,6 +77,10 @@ story = "deployment is declared before it is possible: judged intent, actuator l
   claims = [". |  | a plan fits its machines and places every service"]
 
   [[case.need]]
+  need = "what falls with one service is answerable before it ever falls"
+  claims = [". |  | the impact of a service names who stands on it"]
+
+  [[case.need]]
   need = "the bring-up reads as a ladder before anything exists to run"
   claims = [". |  | the bringup ladder reads in order"]
 
@@ -324,6 +328,13 @@ story = "behavior is claimed by tests and commissioned by the brief"
     ". |  | a case trial declares the moves and the probe",
     ". |  | a trial proving an unstated need is named",
     ". |  | a trial proving nothing is named",
+  ]
+
+  [[case.need]]
+  need = "a flow is a path through the declared world, forking only where it visits"
+  claims = [
+    ". |  | a flow walks declared edges or is named",
+    ". |  | a fork sits where the flow visits",
   ]
 
 [[case]]

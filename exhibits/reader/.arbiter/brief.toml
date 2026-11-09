@@ -25,6 +25,18 @@ unit = "."
   updated = "40"
   seed = "INSERT INTO bookmarks (reader, book, page) VALUES ('eve', 'tao', 7)"
 
+  [[case.flow]]
+  name = "a reader marks their place"
+  steps = [
+    { via = "reader.local", to = "reader", does = "PUT the mark" },
+    { from = "reader", to = "reader-data", does = "the mark lands on the volume" },
+    { back = "204: the mark is kept" },
+  ]
+  forks = [
+    { at = "reader", when = "the body names no page", back = "400: refused" },
+    { at = "reader", when = "the mark was never made", back = "404: nothing to serve" },
+  ]
+
   [[case.need]]
   need = "a bookmark is created, read, moved and forgotten"
   claims = [

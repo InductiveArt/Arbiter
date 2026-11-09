@@ -465,6 +465,38 @@ pub fn findings(found: &Graph) -> Vec<Finding> {
 
 // The bring-up ladder: the placed services of one plan, in the order their
 // needs allow, siblings of one rung starting together.
+// Everything a service stands on, transitively: its boot needs and the
+// services it dials at runtime.
+pub fn stands_on(reading: &Reading, name: &str) -> BTreeSet<String> {
+    let mut cone = BTreeSet::new();
+    let mut frontier = vec![name.to_string()];
+    while let Some(place) = frontier.pop() {
+        let Some(service) = reading.services.iter().find(|one| one.name == place) else {
+            continue;
+        };
+        for below in service
+            .needs
+            .iter()
+            .chain(service.channels.iter().map(|(to, _)| to))
+        {
+            if cone.insert(below.clone()) {
+                frontier.push(below.clone());
+            }
+        }
+    }
+    cone
+}
+
+// Every service that falls when this one is down: the reverse of stands_on.
+pub fn impacted(reading: &Reading, name: &str) -> Vec<String> {
+    reading
+        .services
+        .iter()
+        .filter(|service| service.name != name && stands_on(reading, &service.name).contains(name))
+        .map(|service| service.name.clone())
+        .collect()
+}
+
 pub fn ladder(reading: &Reading, plan: &Plan) -> Vec<Vec<(String, String)>> {
     let placed: BTreeMap<&str, &str> = plan
         .place

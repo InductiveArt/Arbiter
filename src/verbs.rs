@@ -34,6 +34,10 @@ pub const VERBS: &[(&str, &str)] = &[
         "a plan's bring-up ladder and channels, before anything exists to run; bare, every plan",
     ),
     (
+        "find impact <service>",
+        "everything that falls with one service: the services standing on it and the cases placed over it",
+    ),
+    (
         "ledger",
         "the signature's account: suppressions, third parties and claims against the reference",
     ),

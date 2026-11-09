@@ -20,7 +20,7 @@ pub enum BriefLine {
     Unwritten,
     Read {
         cases: usize,
-        held: usize,
+        tested: usize,
         planned: usize,
         manual: usize,
         unanswered: usize,
@@ -122,7 +122,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
                 };
                 BriefLine::Read {
                     cases: reading.cases.len(),
-                    held: count(brief::State::Held),
+                    tested: count(brief::State::Tested),
                     planned: count(brief::State::Planned),
                     manual: count(brief::State::Manual),
                     unanswered: count(brief::State::Unanswered),
