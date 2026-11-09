@@ -1,0 +1,107 @@
+# The plans: the same five services placed two ways. The house runs the
+# whole cinema, operated by us; the kiosk packs catalog, tickets and player
+# onto a client's box, operated by them. Every call between services is a
+# channel the called service accepts.
+
+[[machine]]
+name = "front"
+cpu = 4.0
+memory_mb = 4096
+
+[[machine]]
+name = "back"
+cpu = 4.0
+memory_mb = 4096
+
+[[machine]]
+name = "client-box"
+cpu = 2.0
+memory_mb = 2048
+
+[[volume]]
+name = "gate-data"
+backup = "daily"
+
+[[volume]]
+name = "catalog-data"
+backup = "daily"
+
+[[volume]]
+name = "shelf-data"
+backup = "daily"
+
+[[volume]]
+name = "tickets-data"
+backup = "daily"
+
+[[volume]]
+name = "player-data"
+backup = "daily"
+
+[[service]]
+name = "gate"
+unit = "services/gate"
+volumes = ["gate-data"]
+accepts = ["shelf"]
+cpu = 0.5
+memory_mb = 256
+serves = [{ domain = "gate.local", port = 8520, to = "gate" }]
+env = { GATE_DATA = "{volume:gate-data}", GATE_PORT = "{port}" }
+
+[[service]]
+name = "catalog"
+unit = "services/catalog"
+volumes = ["catalog-data"]
+accepts = ["shelf", "player"]
+cpu = 0.5
+memory_mb = 256
+serves = [{ domain = "catalog.local", port = 8510, to = "catalog" }]
+env = { CATALOG_DATA = "{volume:catalog-data}", CATALOG_PORT = "{port}" }
+
+[[service]]
+name = "shelf"
+unit = "services/shelf"
+volumes = ["shelf-data"]
+channels = [{ to = "gate" }, { to = "catalog" }]
+cpu = 0.5
+memory_mb = 256
+serves = [{ domain = "shelf.local", port = 8540, to = "shelf" }]
+env = { SHELF_DATA = "{volume:shelf-data}", SHELF_PORT = "{port}", GATE_URL = "http://gate:8520", CATALOG_URL = "http://catalog:8510" }
+
+[[service]]
+name = "tickets"
+unit = "services/tickets"
+volumes = ["tickets-data"]
+accepts = ["player"]
+cpu = 0.5
+memory_mb = 256
+serves = [{ domain = "tickets.local", port = 8530, to = "tickets" }]
+env = { TICKETS_DATA = "{volume:tickets-data}", TICKETS_PORT = "{port}" }
+
+[[service]]
+name = "player"
+unit = "services/player"
+volumes = ["player-data"]
+channels = [{ to = "tickets" }, { to = "catalog" }]
+cpu = 1.0
+memory_mb = 512
+serves = [{ domain = "cinema.local", port = 8500, to = "player" }]
+env = { PLAYER_DATA = "{volume:player-data}", PLAYER_PORT = "{port}", TICKETS_URL = "http://tickets:8530", CATALOG_URL = "http://catalog:8510" }
+
+[[plan]]
+name = "house"
+place = [
+  { service = "gate", on = "front" },
+  { service = "shelf", on = "front" },
+  { service = "player", on = "front" },
+  { service = "catalog", on = "back" },
+  { service = "tickets", on = "back" },
+]
+
+[[plan]]
+name = "kiosk"
+place = [
+  { service = "catalog", on = "client-box" },
+  { service = "tickets", on = "client-box" },
+  { service = "player", on = "client-box" },
+]

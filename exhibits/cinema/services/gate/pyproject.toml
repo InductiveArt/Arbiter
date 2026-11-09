@@ -1,0 +1,12 @@
+[project]
+name = "gate"
+version = "0.1.0"
+description = "The membership service: each member's handle and name, kept in sqlite."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.basedpyright]
+typeCheckingMode = "strict"

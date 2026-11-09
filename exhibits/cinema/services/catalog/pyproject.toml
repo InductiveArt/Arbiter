@@ -1,0 +1,12 @@
+[project]
+name = "catalog"
+version = "0.1.0"
+description = "The title service: each slug with its name and minutes, kept in sqlite."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.basedpyright]
+typeCheckingMode = "strict"
