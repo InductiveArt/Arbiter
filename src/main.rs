@@ -1000,8 +1000,9 @@ fn scoped(asked: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-// What falls when one service is down: every service standing on it, and
-// every case whose support cone holds it.
+// What falls when one service is down, and in what capacity: who cannot
+// boot, who degrades, which doors go dark, what state turns unreachable,
+// which flows are severed, and which cases those add up to.
 fn fallen(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
     let Some(Ok(reading)) = arbiter::judge::plans::read(&found.root) else {
         eprintln!("find impact: no plans record; impact runs over the declared world");
@@ -1011,34 +1012,121 @@ fn fallen(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
         eprintln!("find impact: no service named {name} in the plans");
         return ExitCode::from(2);
     }
-    let services = arbiter::judge::plans::impacted(&reading, name);
     println!("if {name} is down:");
-    if services.is_empty() {
-        println!("  services: none stand on it");
-    } else {
-        println!("  services: {}", services.join(", "));
+    let (boot, dials) = arbiter::judge::plans::leaning_on(&reading, name);
+    for service in &boot {
+        println!("  cannot boot: {service} — needs it");
     }
-    let mut cases = Vec::new();
+    for (service, contract) in &dials {
+        match contract {
+            Some(contract) => println!("  degraded: {service} — dials it ({contract})"),
+            None => println!("  degraded: {service} — dials it"),
+        }
+    }
+    let direct: std::collections::BTreeSet<&String> = boot
+        .iter()
+        .chain(dials.iter().map(|(who, _)| who))
+        .collect();
+    let beyond: Vec<String> = arbiter::judge::plans::impacted(&reading, name)
+        .into_iter()
+        .filter(|service| !direct.contains(service))
+        .collect();
+    if !beyond.is_empty() {
+        println!("  and standing above those: {}", beyond.join(", "));
+    }
+    if direct.is_empty() && beyond.is_empty() {
+        println!("  no service stands on it");
+    }
+    let mut doors = Vec::new();
+    for service in &reading.services {
+        for (domain, port, to) in &service.serves {
+            if to == name || service.name == *name {
+                doors.push(format!("{domain}:{port}"));
+            }
+        }
+    }
+    doors.sort();
+    doors.dedup();
+    if !doors.is_empty() {
+        println!("  dark doors: {}", doors.join(", "));
+    }
+    let fallen_service = reading
+        .services
+        .iter()
+        .find(|service| service.name == *name);
+    if let Some(service) = fallen_service {
+        let orphaned: Vec<&String> = service
+            .volumes
+            .iter()
+            .filter(|volume| {
+                !reading
+                    .services
+                    .iter()
+                    .any(|other| other.name != *name && other.volumes.contains(volume))
+            })
+            .collect();
+        if !orphaned.is_empty() {
+            println!(
+                "  unreachable state: {}",
+                orphaned
+                    .iter()
+                    .map(|volume| volume.as_str())
+                    .collect::<Vec<&str>>()
+                    .join(", ")
+            );
+        }
+    }
+    let mut severed: Vec<(String, String)> = Vec::new();
+    let mut placed: Vec<String> = Vec::new();
     if let Some(brief) = brief::read(found) {
+        for flow in &brief.flows {
+            let crossed = flow
+                .steps
+                .iter()
+                .any(|hop| hop.to.as_deref() == Some(name) || hop.from.as_deref() == Some(name));
+            if crossed {
+                println!("  severed flow: '{}' (case {})", flow.name, flow.case);
+                severed.push((flow.case.clone(), flow.name.clone()));
+            }
+        }
         for case in &brief.cases {
             let Some(unit) = &case.unit else { continue };
             let mut cone: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-            for service in reading.services.iter().filter(|one| {
-                one.unit.as_deref() == Some(unit.as_str())
-                    || (unit == "." && one.unit.as_deref() == Some("."))
-            }) {
+            for service in reading
+                .services
+                .iter()
+                .filter(|one| one.unit.as_deref() == Some(unit.as_str()))
+            {
                 cone.insert(service.name.clone());
                 cone.extend(arbiter::judge::plans::stands_on(&reading, &service.name));
             }
             if cone.contains(name) {
-                cases.push(case.name.clone());
+                placed.push(case.name.clone());
             }
         }
     }
+    let mut cases: Vec<String> = Vec::new();
+    for case in &placed {
+        let flows_cut = severed.iter().filter(|(of, _)| of == case).count();
+        if flows_cut > 0 {
+            cases.push(format!("{case} — placed over it, {flows_cut} flow severed"));
+        } else {
+            cases.push(format!("{case} — placed over it"));
+        }
+    }
+    for (case, _) in &severed {
+        if !placed.contains(case) {
+            cases.push(format!("{case} — its flow crosses it"));
+        }
+    }
+    cases.sort();
+    cases.dedup();
     if cases.is_empty() {
-        println!("  cases: none placed on it");
+        println!("  cases: none placed over it");
     } else {
-        println!("  cases: {}", cases.join(", "));
+        for case in cases {
+            println!("  case: {case}");
+        }
     }
     ExitCode::SUCCESS
 }

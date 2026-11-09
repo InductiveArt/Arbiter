@@ -72,6 +72,19 @@ fn the_impact_of_a_service_names_who_stands_on_it() {
         arbiter::judge::plans::impacted(&reading, "aside").is_empty(),
         "nothing stands on a leaf"
     );
+    let (boot, dials) = arbiter::judge::plans::leaning_on(&reading, "postgres");
+    assert_eq!(
+        boot,
+        ["api"],
+        "a service that needs it cannot boot without it"
+    );
+    assert!(dials.is_empty(), "nobody dials postgres directly");
+    let (_, dialed) = arbiter::judge::plans::leaning_on(&reading, "api");
+    assert_eq!(
+        dialed,
+        [("worker".to_string(), None)],
+        "a dialing service degrades while it runs"
+    );
     let _ = fs::remove_dir_all(&root);
 }
 

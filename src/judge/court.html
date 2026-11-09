@@ -241,7 +241,6 @@ const TABS = [
   ["findings", () => DATA.findings.length, () => DATA.findings.length > 0],
   ["graph", () => DATA.edges.length + DATA.families.length, () => DATA.tangles.length > 0],
   ["plans", () => DATA.plans.plans.length, () => false],
-  ["brief", () => DATA.brief ? DATA.brief.cases : 0, () => false],
   ["ledger", () => DATA.suppressions.counted.length, () => false],
   ["rules", () => DATA.rules.length, () => false],
 ];
@@ -262,7 +261,7 @@ function route() {
   closePanel();
   const view = document.getElementById("view");
   view.textContent = "";
-  ({ docket, overview, findings, graph, plans, brief, ledger, rules }[tab] || overview)(view, rest.join("/"));
+  ({ docket, overview, findings, graph, plans, ledger, rules }[tab] || overview)(view, rest.join("/"));
 }
 window.addEventListener("hashchange", route);
 function go(hash) {
@@ -697,7 +696,7 @@ function pipeline(view) {
         ? contracts.length + " checked · " + contractSeconds.toFixed(1) + "s" : "none here",
       cls: contracts.some(o => !o.passed) ? "red" : "green" },
     { name: "claims", sub: DATA.claims + " heard" + timed("claims"), cls: unanswered ? "red" : "green",
-      act: () => go("brief") },
+      act: () => go("docket") },
     { name: "ledger", sub: DATA.suppressions.counted.length + " counted" + timed("ledger"),
       cls: "green", act: () => go("ledger") },
   ];
@@ -1266,22 +1265,6 @@ function servicePanel(name) {
 }
 
 // ---- brief, ledger, rules ----
-function brief(view) {
-  if (!DATA.brief) { view.appendChild(el("div", "empty", "no brief written")); return; }
-  const byCase = {};
-  for (const need of DATA.brief.needs) (byCase[need.case] = byCase[need.case] || []).push(need);
-  for (const name of Object.keys(byCase)) {
-    const card = el("div", "card");
-    card.appendChild(el("b", null, name));
-    for (const need of byCase[name]) {
-      const row = el("div");
-      row.appendChild(el("span", "state-" + need.state, need.state.padEnd(11)));
-      row.appendChild(document.createTextNode(need.need));
-      card.appendChild(row);
-    }
-    view.appendChild(card);
-  }
-}
 function ledger(view) {
   const s = DATA.suppressions;
   const summary = el("div", "card");

@@ -487,6 +487,22 @@ pub fn stands_on(reading: &Reading, name: &str) -> BTreeSet<String> {
     cone
 }
 
+// Who leans on a service directly, told by kind: a service that needs it
+// cannot boot without it; one that dials it degrades while it runs.
+pub fn leaning_on(reading: &Reading, name: &str) -> (Vec<String>, Vec<(String, Option<String>)>) {
+    let mut boot = Vec::new();
+    let mut dials = Vec::new();
+    for service in &reading.services {
+        if service.needs.iter().any(|needed| needed == name) {
+            boot.push(service.name.clone());
+        }
+        if let Some((_, contract)) = service.channels.iter().find(|(to, _)| to == name) {
+            dials.push((service.name.clone(), contract.clone()));
+        }
+    }
+    (boot, dials)
+}
+
 // Every service that falls when this one is down: the reverse of stands_on.
 pub fn impacted(reading: &Reading, name: &str) -> Vec<String> {
     reading
