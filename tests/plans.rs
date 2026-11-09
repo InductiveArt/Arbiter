@@ -26,6 +26,31 @@ fn named(root: &Path, rule: &str) -> Vec<String> {
 }
 
 #[test]
+fn the_service_env_names_its_world() {
+    let root = std::env::temp_dir().join(format!("arbiter-env-{}", std::process::id()));
+    seeded(
+        &root,
+        "[[service]]\nname = \"api\"\nvolumes = [\"api-data\"]\n\
+         env = { API_DATA = \"{volume:api-data}\", API_PORT = \"{port}\" }\n\n\
+         [[volume]]\nname = \"api-data\"\nbackup = \"daily\"\n",
+    );
+    let Some(Ok(reading)) = arbiter::judge::plans::read(&root) else {
+        panic!("the record reads");
+    };
+    let mut pairs = reading.services[0].env.clone();
+    pairs.sort();
+    assert_eq!(
+        pairs,
+        [
+            ("API_DATA".to_string(), "{volume:api-data}".to_string()),
+            ("API_PORT".to_string(), "{port}".to_string()),
+        ],
+        "the bridge from plan entities to the process is declared"
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
 fn a_phantom_service_is_named_wherever_it_is_dialed() {
     let root = std::env::temp_dir().join(format!("arbiter-phantom-{}", std::process::id()));
     seeded(

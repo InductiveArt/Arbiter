@@ -84,3 +84,45 @@ fn a_brief_finding_points_at_its_own_line() {
     assert_eq!(at("unanswered-need"), Some(29));
     assert_eq!(at("empty-case"), Some(32));
 }
+
+#[test]
+fn a_case_trial_declares_the_moves_and_the_probe() {
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-trial-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
+    fs::write(root.join("app.py"), "value = 1\n").expect("the folder is writable");
+    fs::write(
+        root.join(".arbiter/brief.toml"),
+        concat!(
+            "[[case]]\nname = \"marks\"\nstory = \"kept\"\n\n",
+            "[case.trial]\nstore = \"sqlite\"\nvolume = \"data\"\npath = \"marks.db\"\n",
+            "create = { method = \"PUT\", route = \"/m/a\", body = \"{}\" }\n",
+            "update = { method = \"PUT\", route = \"/m/a\", body = \"{}\" }\n",
+            "delete = { method = \"DELETE\", route = \"/m/a\" }\n",
+            "read = { method = \"GET\", route = \"/m/b\", answer = \"{}\" }\n",
+            "probe = \"SELECT 1\"\ncreated = \"1\"\nupdated = \"2\"\nseed = \"INSERT\"\n\n",
+            "[[case.need]]\nneed = \"kept across restarts\"\nkind = \"persistence\"\nplanned = true\n",
+        ),
+    )
+    .expect("the folder is writable");
+
+    let found = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let reading = read(&found).expect("the brief reads");
+    assert_eq!(reading.trials.len(), 1, "the case carries one trial");
+    let trial = &reading.trials[0];
+    assert_eq!(trial.case, "marks");
+    assert_eq!(trial.store, "sqlite");
+    assert_eq!(trial.volume, "data");
+    assert_eq!(trial.create.method, "PUT");
+    assert_eq!(trial.delete.body, "", "a bodyless move stays empty");
+    assert_eq!(trial.answer, "{}", "the read move names its exact answer");
+    assert_eq!(trial.probe, "SELECT 1");
+    assert_eq!(
+        reading.needs[0].kind.as_deref(),
+        Some("persistence"),
+        "the need claims its category"
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}

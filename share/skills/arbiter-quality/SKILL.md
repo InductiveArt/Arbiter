@@ -12,6 +12,7 @@ what they decide.
 | Command | Does | Changes files |
 |---|---|---|
 | `arbiter gate .` | judge everything; red names what stands between the code and clean. Warm by default: a unit green under an unchanged input cone skips its tools. `--cold` reads no store; `--no-brief` skips the brief step; `--fix` is the same judgment, repairs first: packs mend their own findings, tools apply safe fixes. | with `--fix` |
+| `arbiter examine .` | perform each case's trial: drive the declared door, read the store raw, write receipts. The brief's `[case.trial]` declares the moves and the probe; the plan's service carries the `env` bridge. Receipts land in `.arbiter/last/receipts.json`, in the examiner's voice, never the repository's. | no |
 | `arbiter find [rule] .` | every tool-free finding, as JSON lines, in seconds; a rule names one law's instances. | no |
 | `arbiter find fallout <name> .` | every definition of a name and each resolved use. | no |
 | `arbiter find deps [unit|path]` | what one unit stands on, declared against resolved; a folder or file at its own grain; bare, the whole graph as mermaid. | no |
@@ -24,7 +25,7 @@ what they decide.
 | `arbiter rules [rule]` | the matrix in groups; a rule prints its law and whys, a group its laws. | no |
 | `arbiter adopt .` | install the agent layer; its files refresh with the binary, never backwards: a file written by a newer arbiter is left, and the binary updates. `settings.json` and the `CLAUDE.md` pointer are written once. | yes |
 
-gate, adopt and ledger sign act; find, ledger, brief and rules read and never write.
+gate, examine, adopt and ledger sign act; find, ledger, brief and rules read and never write.
 A finding's rule name is the same word everywhere: `arbiter rules <rule>` for
 its law, `arbiter find <rule> .` for its instances, this skill for its fix.
 

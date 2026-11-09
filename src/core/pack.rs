@@ -506,6 +506,13 @@ pub fn law(name: &str) -> Option<&'static str> {
         .map(|(_, law)| *law)
 }
 
+// A unit's service stood up: the command that starts it and the environment
+// the language's layout needs.
+pub struct Launch {
+    pub command: Vec<String>,
+    pub env: Vec<(String, String)>,
+}
+
 // A language. It says what defines a symbol and what uses one; the core knows no language.
 pub trait Pack {
     fn label(&self) -> &'static str;
@@ -519,6 +526,12 @@ pub trait Pack {
 
     // The adapter: the tools that hold a unit of this language to the bar, as TOML.
     fn adapter(&self) -> Option<&'static str> {
+        None
+    }
+
+    // The way a unit's service stands up; None when the pack cannot start one.
+    fn launch(&self, root: &Path, unit: &Path) -> Option<Launch> {
+        let _ = (root, unit);
         None
     }
 

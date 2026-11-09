@@ -10,6 +10,7 @@ use arbiter::core::pack::Finding;
 use arbiter::core::pack::Suppression;
 use arbiter::judge::brief;
 use arbiter::judge::claims;
+use arbiter::judge::examine;
 use arbiter::judge::findings::drawn;
 use arbiter::judge::findings::integrity;
 use arbiter::judge::findings::winnow;
@@ -243,6 +244,48 @@ fn main() -> ExitCode {
             }
         }
         return ExitCode::SUCCESS;
+    }
+    if arguments.first().map(String::as_str) == Some("examine") {
+        let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
+        let Some(found) = graphed(&asked) else {
+            eprintln!("examine: no folder at {asked}");
+            return ExitCode::from(2);
+        };
+        match examine::run(&found) {
+            Ok(testimonies) => {
+                let mut refuted = false;
+                for testimony in &testimonies {
+                    println!("case {} — sequence {}", testimony.case, examine::SEQUENCE);
+                    for step in &testimony.steps {
+                        let mark = if step.pass { "✓" } else { "✗" };
+                        println!("  {mark} {} — {}", step.act, step.saw);
+                    }
+                    let verdict = if testimony.passed {
+                        "examined"
+                    } else {
+                        "refuted"
+                    };
+                    for need in &testimony.needs {
+                        println!("  {verdict}: {need}");
+                    }
+                    refuted |= !testimony.passed;
+                }
+                println!(
+                    "examine: receipts — {}",
+                    found
+                        .root
+                        .join(".arbiter")
+                        .join("last")
+                        .join("receipts.json")
+                        .display()
+                );
+                return ExitCode::from(u8::from(refuted));
+            }
+            Err(reason) => {
+                eprintln!("examine: {reason}");
+                return ExitCode::from(2);
+            }
+        }
     }
     if arguments.first().map(String::as_str) == Some("adopt") {
         let asked = arguments.get(1).cloned().unwrap_or_else(|| ".".to_string());
@@ -547,7 +590,7 @@ fn taught() {
     }
     println!();
     println!(
-        "gate, adopt and ledger sign act; find, ledger, brief and rules read and never write."
+        "gate, examine, adopt and ledger sign act; find, ledger, brief and rules read and never write."
     );
     println!(
         "A verb takes the folder last; missing, it judges here. \

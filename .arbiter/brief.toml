@@ -34,6 +34,22 @@ story = "manifests carve a repository into units before anything is judged"
   claims = [". |  | a folder with its own arbiter is another repository"]
 
 [[case]]
+name = "examiner"
+story = "arbiter verifies a case's behavior itself: through the door, against the raw store"
+
+  [[case.need]]
+  need = "a service declares the env bridge that places its world"
+  claims = [". |  | the service env names its world"]
+
+  [[case.need]]
+  need = "a case declares its trial: moves through the door, a probe on the store"
+  claims = [". |  | a case trial declares the moves and the probe"]
+
+  [[case.need]]
+  need = "the examiner performs the trial and writes receipts in its own voice"
+  manual = "arbiter examine exhibits/reader - six steps green; the planted volume lie is refuted while the exhibit's own gate stays clean"
+
+[[case]]
 name = "plans"
 story = "deployment is declared before it is possible: judged intent, actuator left open"
 

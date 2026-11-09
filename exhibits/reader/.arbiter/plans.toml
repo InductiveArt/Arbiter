@@ -17,6 +17,7 @@ volumes = ["reader-data"]
 cpu = 0.5
 memory_mb = 256
 serves = [{ domain = "reader.local", port = 8400, to = "reader" }]
+env = { READER_DATA = "{volume:reader-data}", READER_PORT = "{port}" }
 
 [[plan]]
 name = "local"

@@ -28,6 +28,9 @@ pub struct Service {
     // The doors: what this service serves to the world, routed to a declared
     // service. A domain may be a site-filled placeholder; no law reads it.
     pub serves: Vec<(String, i64, String)>,
+    // The declared bridge from plan entities to the process: each value may
+    // hold {port} or {volume:name}, resolved by whoever actuates a world.
+    pub env: Vec<(String, String)>,
     pub line: usize,
 }
 
@@ -149,12 +152,23 @@ pub fn read(root: &Path) -> Option<Result<Reading, Finding>> {
                     .collect()
             })
             .unwrap_or_default();
+        let env = entry
+            .get("env")
+            .and_then(toml::Value::as_table)
+            .map(|table| {
+                table
+                    .iter()
+                    .filter_map(|(key, value)| Some((key.clone(), value.as_str()?.to_string())))
+                    .collect()
+            })
+            .unwrap_or_default();
         services.push(Service {
             line: line_of(&format!("\"{name}\"")),
             unit: word(&entry, "unit"),
             needs: listed(&entry, "needs"),
             channels,
             accepts,
+            env,
             volumes: listed(&entry, "volumes"),
             cpu: number(&entry, "cpu"),
             memory_mb: number(&entry, "memory_mb").map(|value| value as i64),

@@ -6,6 +6,10 @@ pub const VERBS: &[(&str, &str)] = &[
         "judge everything; red names what stands between the code and clean",
     ),
     (
+        "examine [folder]",
+        "perform each case's trial: drive the declared door, read the store raw, write receipts",
+    ),
+    (
         "find [rule]",
         "every tool-free finding, as JSON lines, in seconds; a rule names one law's instances",
     ),

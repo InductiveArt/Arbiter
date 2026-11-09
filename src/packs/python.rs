@@ -15,6 +15,7 @@ use crate::core::pack::Def;
 use crate::core::pack::Definition;
 use crate::core::pack::Edge;
 use crate::core::pack::Finding;
+use crate::core::pack::Launch;
 use crate::core::pack::Pack;
 use crate::core::pack::Repo;
 use crate::core::pack::Suppression;
@@ -118,6 +119,38 @@ impl Pack for Python {
 
     fn adapter(&self) -> Option<&'static str> {
         Some(include_str!("../../packs/python/tools.toml"))
+    }
+
+    // A unit whose package carries a __main__ starts as a module; the src
+    // layout reaches the interpreter through PYTHONPATH.
+    fn launch(&self, root: &Path, unit: &Path) -> Option<Launch> {
+        let folder = root.join(unit);
+        let manifest = fs::read_to_string(folder.join("pyproject.toml")).ok()?;
+        let parsed = manifest.parse::<toml::Value>().ok()?;
+        let name = parsed.get("project")?.get("name")?.as_str()?;
+        let module = name.replace('-', "_");
+        let command: Vec<String> = ["uv", "run", "--no-sync", "python", "-m", &module]
+            .iter()
+            .map(|part| (*part).to_string())
+            .collect();
+        if folder
+            .join("src")
+            .join(&module)
+            .join("__main__.py")
+            .is_file()
+        {
+            return Some(Launch {
+                command,
+                env: vec![("PYTHONPATH".to_string(), "src".to_string())],
+            });
+        }
+        if folder.join(&module).join("__main__.py").is_file() {
+            return Some(Launch {
+                command,
+                env: Vec::new(),
+            });
+        }
+        None
     }
 
     fn configs(&self) -> &'static [(&'static str, &'static str)] {

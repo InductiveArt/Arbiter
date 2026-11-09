@@ -1,12 +1,27 @@
 # The brief: what the reader service answers for, as cases, each need bound
-# to the claims proving it.
+# to the claims proving it. The trial is the examiner's: arbiter performs the
+# moves through the door and reads the store raw over its own connection.
 
 [[case]]
 name = "bookmarks"
 story = "a reader keeps their place in every book, across restarts"
 
+  [case.trial]
+  store = "sqlite"
+  volume = "reader-data"
+  path = "marks.db"
+  create = { method = "PUT", route = "/marks/ada/sicp", body = '{"page": 12}' }
+  update = { method = "PUT", route = "/marks/ada/sicp", body = '{"page": 40}' }
+  delete = { method = "DELETE", route = "/marks/ada/sicp" }
+  read = { method = "GET", route = "/marks/eve/tao", answer = '{"page": 7}' }
+  probe = "SELECT page FROM bookmarks WHERE reader = 'ada' AND book = 'sicp'"
+  created = "12"
+  updated = "40"
+  seed = "INSERT INTO bookmarks (reader, book, page) VALUES ('eve', 'tao', 7)"
+
   [[case.need]]
   need = "a bookmark is created, read, moved and forgotten"
+  kind = "persistence"
   claims = [
     ". |  | a bookmark is kept and read back",
     ". |  | a moved bookmark reads at its new page",
@@ -15,6 +30,7 @@ story = "a reader keeps their place in every book, across restarts"
 
   [[case.need]]
   need = "a reader's place survives a restart"
+  kind = "persistence"
   claims = [". |  | a bookmark survives a reopen"]
 
   [[case.need]]

@@ -15,6 +15,8 @@ pub struct Need {
     pub need: String,
     pub state: State,
     pub entries: Vec<String>,
+    // The category the need claims, when it claims one: what obligations bind.
+    pub kind: Option<String>,
 }
 
 #[derive(PartialEq)]
@@ -25,12 +27,82 @@ pub enum State {
     Unanswered,
 }
 
+// One door move of a trial: a request the examiner sends itself.
+pub struct Move {
+    pub method: String,
+    pub route: String,
+    pub body: String,
+}
+
+// One case's trial: the world the case runs in and the moves the examiner
+// performs through its door, with the raw probe reading the store. The
+// choreography is arbiter's; the record supplies coordinates and moves only.
+pub struct Trial {
+    pub case: String,
+    pub store: String,
+    pub volume: String,
+    pub path: String,
+    pub create: Move,
+    pub update: Move,
+    pub delete: Move,
+    pub read: Move,
+    // The exact body the read move must be answered with.
+    pub answer: String,
+    pub probe: String,
+    pub created: String,
+    pub updated: String,
+    pub seed: String,
+}
+
 pub struct Reading {
     pub cases: usize,
     pub needs: Vec<Need>,
     pub findings: Vec<Finding>,
     pub claims: usize,
     pub unwired: Vec<(PathBuf, usize, String)>,
+    pub trials: Vec<Trial>,
+}
+
+fn trial_of(case_name: &str, case: &toml::Value) -> Option<Trial> {
+    let trial = case.get("trial")?;
+    let word = |field: &str| {
+        trial
+            .get(field)
+            .and_then(toml::Value::as_str)
+            .map(str::to_string)
+    };
+    let move_of = |field: &str| -> Option<Move> {
+        let entry = trial.get(field)?;
+        Some(Move {
+            method: entry.get("method")?.as_str()?.to_string(),
+            route: entry.get("route")?.as_str()?.to_string(),
+            body: entry
+                .get("body")
+                .and_then(toml::Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+        })
+    };
+    Some(Trial {
+        case: case_name.to_string(),
+        store: word("store")?,
+        volume: word("volume")?,
+        path: word("path")?,
+        create: move_of("create")?,
+        update: move_of("update")?,
+        delete: move_of("delete")?,
+        read: move_of("read")?,
+        answer: trial
+            .get("read")
+            .and_then(|entry| entry.get("answer"))
+            .and_then(toml::Value::as_str)
+            .unwrap_or("")
+            .to_string(),
+        probe: word("probe")?,
+        created: word("created")?,
+        updated: word("updated")?,
+        seed: word("seed")?,
+    })
 }
 
 // A binding names a claim exactly, or a frame it covers whole: a prefix ends
@@ -75,6 +147,7 @@ pub fn read(found: &Graph) -> Option<Reading> {
                 }],
                 claims: 0,
                 unwired: Vec::new(),
+                trials: Vec::new(),
             });
         }
     };
@@ -98,6 +171,7 @@ pub fn read(found: &Graph) -> Option<Reading> {
 
     let mut needs = Vec::new();
     let mut findings = Vec::new();
+    let mut trials = Vec::new();
     let mut covered = vec![false; spoken.len()];
     for case in cases {
         let name = case
@@ -105,6 +179,9 @@ pub fn read(found: &Graph) -> Option<Reading> {
             .and_then(toml::Value::as_str)
             .unwrap_or("unnamed")
             .to_string();
+        if let Some(trial) = trial_of(&name, case) {
+            trials.push(trial);
+        }
         let listed = case
             .get("need")
             .and_then(toml::Value::as_array)
@@ -138,6 +215,10 @@ pub fn read(found: &Graph) -> Option<Reading> {
                         .collect()
                 })
                 .unwrap_or_default();
+            let kind = entry
+                .get("kind")
+                .and_then(toml::Value::as_str)
+                .map(str::to_string);
             let planned = entry
                 .get("planned")
                 .and_then(toml::Value::as_bool)
@@ -193,6 +274,7 @@ pub fn read(found: &Graph) -> Option<Reading> {
                 need,
                 state,
                 entries: bindings,
+                kind,
             });
         }
     }
@@ -215,6 +297,7 @@ pub fn read(found: &Graph) -> Option<Reading> {
         findings,
         claims: spoken.len(),
         unwired,
+        trials,
     })
 }
 
