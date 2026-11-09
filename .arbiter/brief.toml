@@ -283,6 +283,10 @@ story = "every suppression is counted against the user's signature"
     ". |  | a broken unit declaration is named never read as virgin",
   ]
 
+  [[case.need]]
+  need = "demand is a signature: the reference records the stated needs"
+  claims = [". |  | the signature records the stated needs"]
+
 [[case]]
 name = "claims"
 story = "behavior is claimed by tests and commissioned by the brief"
@@ -306,6 +310,21 @@ story = "behavior is claimed by tests and commissioned by the brief"
   [[case.need]]
   need = "a brief finding points at the line it judges"
   claims = [". |  | a brief finding points at its own line"]
+
+  [[case.need]]
+  need = "a case is seated: placed in a built unit, serving a stated need"
+  claims = [
+    ". |  | an orphan case is named",
+    ". |  | a misplaced case is named",
+  ]
+
+  [[case.need]]
+  need = "a trial carries its mandate: it proves needs its case states"
+  claims = [
+    ". |  | a case trial declares the moves and the probe",
+    ". |  | a trial proving an unstated need is named",
+    ". |  | a trial proving nothing is named",
+  ]
 
 [[case]]
 name = "rhyme"

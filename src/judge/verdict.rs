@@ -42,6 +42,9 @@ pub struct Run {
     pub brief: BriefLine,
     pub claims: usize,
     pub claims_vanished: Option<usize>,
+    pub needs_stated: usize,
+    // Needs added since the reference; None when none was recorded yet.
+    pub needs_added: Option<usize>,
     pub third: usize,
     // Third parties added since the reference; None when none was recorded yet.
     pub third_added: Option<usize>,
@@ -98,12 +101,18 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
     all.extend(ledger::blanket_findings(&found));
     all.extend(ledger::broken_record(&found.root));
     trace.step("judge");
+    let mut needs_spoken: Vec<String> = Vec::new();
     let brief = if briefless {
         BriefLine::Skipped
     } else {
         match brief::read(&found) {
             None => BriefLine::Unwritten,
             Some(reading) => {
+                needs_spoken = reading
+                    .needs
+                    .iter()
+                    .map(|need| format!("{} | {}", need.case, need.need))
+                    .collect();
                 let count = |state: brief::State| {
                     reading
                         .needs
@@ -112,7 +121,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
                         .count()
                 };
                 BriefLine::Read {
-                    cases: reading.cases,
+                    cases: reading.cases.len(),
                     held: count(brief::State::Held),
                     planned: count(brief::State::Planned),
                     manual: count(brief::State::Manual),
@@ -128,6 +137,13 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
     let gone = claims::vanished(&found);
     let claims = claims::identities(&found).len();
     let claims_vanished = claims::recorded(&found.root).map(|_| gone.len());
+    let needs_stated = needs_spoken.len();
+    let needs_added = ledger::recorded_needs(&found.root).map(|recorded| {
+        needs_spoken
+            .iter()
+            .filter(|need| !recorded.contains(need))
+            .count()
+    });
     all.extend(gone);
     trace.step("claims");
     all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
@@ -167,6 +183,8 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         brief,
         claims,
         claims_vanished,
+        needs_stated,
+        needs_added,
         counted,
         added,
         third,

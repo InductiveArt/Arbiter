@@ -48,6 +48,12 @@ pub fn run(found: &Graph) -> Result<Vec<Testimony>, String> {
     }
     let mut testimonies = Vec::new();
     for trial in &reading.trials {
+        if trial.sequence != "persistence" {
+            return Err(format!(
+                "the sequence '{}' is not in the law-text; persistence alone is choreographed",
+                trial.sequence
+            ));
+        }
         if trial.store != "sqlite" {
             return Err(format!(
                 "the store '{}' has no driver yet; sqlite alone is driven",
@@ -57,9 +63,15 @@ pub fn run(found: &Graph) -> Result<Vec<Testimony>, String> {
         let needs: Vec<String> = reading
             .needs
             .iter()
-            .filter(|need| need.case == trial.case && need.kind.is_some())
+            .filter(|need| need.case == trial.case && trial.proves.contains(&need.need))
             .map(|need| need.need.clone())
             .collect();
+        if needs.is_empty() {
+            return Err(format!(
+                "the trial of case '{}' proves nothing the case states; a trial serves stated needs",
+                trial.case
+            ));
+        }
         let steps = perform(found, &plans, trial)?;
         let passed = steps.iter().all(|step| step.pass);
         testimonies.push(Testimony {

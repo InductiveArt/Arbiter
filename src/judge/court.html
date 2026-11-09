@@ -224,6 +224,8 @@ const outcomesOf = unit => DATA.outcomes.filter(o => o.unit === unit);
 
 // ---- routing ----
 const TABS = [
+  ["docket", () => DATA.brief ? DATA.brief.needs.length : 0,
+    () => DATA.brief ? DATA.brief.needs.some(n => n.state === "unanswered") || refutedNeeds().size > 0 : false],
   ["overview", () => DATA.findings.length, () => DATA.findings.length > 0],
   ["findings", () => DATA.findings.length, () => DATA.findings.length > 0],
   ["graph", () => DATA.edges.length + DATA.families.length, () => DATA.tangles.length > 0],
@@ -233,7 +235,7 @@ const TABS = [
   ["rules", () => DATA.rules.length, () => false],
 ];
 function route() {
-  const hash = decodeURIComponent(location.hash.slice(1)) || "overview";
+  const hash = decodeURIComponent(location.hash.slice(1)) || (DATA.brief ? "docket" : "overview");
   const [tab, ...rest] = hash.split("/");
   const nav = document.getElementById("nav");
   nav.textContent = "";
@@ -249,7 +251,7 @@ function route() {
   closePanel();
   const view = document.getElementById("view");
   view.textContent = "";
-  ({ overview, findings, graph, plans, brief, ledger, rules }[tab] || overview)(view, rest.join("/"));
+  ({ docket, overview, findings, graph, plans, brief, ledger, rules }[tab] || overview)(view, rest.join("/"));
 }
 window.addEventListener("hashchange", route);
 function go(hash) {
@@ -1244,6 +1246,65 @@ function servicePanel(name) {
       .map(d => d.domain + ":" + d.port + " -> " + d.to));
     panelFindings(panel, DATA.findings.filter(f => f.file.endsWith("plans.toml") && f.line === service.line), ".arbiter/plans.toml");
   });
+}
+
+// ---- docket: the intent plane, cases with their rung ladders ----
+function examinedNeeds() {
+  const tried = {};
+  for (const trial of (DATA.receipts && DATA.receipts.trials) || [])
+    for (const need of trial.needs) tried[trial.case + "|" + need] = trial.passed;
+  return tried;
+}
+function refutedNeeds() {
+  const refuted = new Set();
+  for (const trial of (DATA.receipts && DATA.receipts.trials) || [])
+    if (!trial.passed) for (const need of trial.needs) refuted.add(trial.case + "|" + need);
+  return refuted;
+}
+function docket(view) {
+  if (!DATA.brief) { view.appendChild(el("div", "empty", "no brief written")); return; }
+  const tried = examinedNeeds();
+  const seat = {};
+  for (const one of DATA.brief.seated || []) seat[one.name] = one;
+  const byCase = {};
+  for (const need of DATA.brief.needs) (byCase[need.case] = byCase[need.case] || []).push(need);
+  for (const name of Object.keys(byCase)) {
+    const card = el("div", "card");
+    const head = el("div");
+    head.appendChild(el("b", null, name));
+    const home = seat[name] || {};
+    if (home.unit) {
+      const territory = el("a", null, " " + home.unit + " ");
+      territory.href = "#graph/" + (home.unit === "." ? "" : home.unit);
+      territory.title = "the case's territory in the structure graph";
+      head.appendChild(territory);
+      const trouble = DATA.findings.filter(f => within(f, home.unit)).length;
+      if (trouble) {
+        const alarm = el("a", "bad", trouble + " findings in its territory");
+        alarm.href = "#findings/" + (home.unit === "." ? "" : home.unit);
+        head.appendChild(alarm);
+      }
+    }
+    card.appendChild(head);
+    if (home.serves) card.appendChild(el("div", "dim", "serves: " + home.serves));
+    for (const need of byCase[name]) {
+      const row = el("div");
+      row.appendChild(el("span", "state-" + need.state, need.state.padEnd(11)));
+      const outcome = tried[name + "|" + need.need];
+      if (outcome === true) row.appendChild(el("span", "good", "examined  "));
+      else if (outcome === false) row.appendChild(el("span", "bad", "refuted  "));
+      row.appendChild(document.createTextNode(need.need));
+      if (need.claims) row.appendChild(el("span", "dim", " — " + need.claims +
+        (need.claims === 1 ? " claim" : " claims")));
+      card.appendChild(row);
+    }
+    view.appendChild(card);
+  }
+  if (DATA.receipts) {
+    const stamp = el("div", "dim", "examined by " + DATA.receipts.examiner +
+      " — sequence " + DATA.receipts.sequence + "; held is the repository's testimony, examined is arbiter's own");
+    view.appendChild(stamp);
+  }
 }
 
 // ---- brief, ledger, rules ----

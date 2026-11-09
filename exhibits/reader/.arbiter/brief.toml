@@ -5,8 +5,14 @@
 [[case]]
 name = "bookmarks"
 story = "a reader keeps their place in every book, across restarts"
+unit = "."
 
   [case.trial]
+  sequence = "persistence"
+  proves = [
+    "a bookmark is created, read, moved and forgotten",
+    "a reader's place survives a restart",
+  ]
   store = "sqlite"
   volume = "reader-data"
   path = "marks.db"
@@ -21,7 +27,6 @@ story = "a reader keeps their place in every book, across restarts"
 
   [[case.need]]
   need = "a bookmark is created, read, moved and forgotten"
-  kind = "persistence"
   claims = [
     ". |  | a bookmark is kept and read back",
     ". |  | a moved bookmark reads at its new page",
@@ -30,7 +35,6 @@ story = "a reader keeps their place in every book, across restarts"
 
   [[case.need]]
   need = "a reader's place survives a restart"
-  kind = "persistence"
   claims = [". |  | a bookmark survives a reopen"]
 
   [[case.need]]

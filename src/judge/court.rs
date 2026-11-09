@@ -150,11 +150,35 @@ fn snapshot(run: &Run) -> serde_json::Value {
                     brief::State::Manual => "manual",
                     brief::State::Unanswered => "unanswered",
                 };
-                serde_json::json!({ "case": need.case, "need": need.need, "state": state })
+                serde_json::json!({
+                    "case": need.case,
+                    "need": need.need,
+                    "state": state,
+                    "claims": need.entries.len(),
+                })
             })
             .collect();
-        serde_json::json!({ "cases": reading.cases, "claims": reading.claims, "needs": needs })
+        let seated: Vec<serde_json::Value> = reading
+            .cases
+            .iter()
+            .map(|case| {
+                serde_json::json!({
+                    "name": case.name,
+                    "unit": case.unit,
+                    "serves": case.serves,
+                })
+            })
+            .collect();
+        serde_json::json!({
+            "cases": reading.cases.len(),
+            "seated": seated,
+            "claims": reading.claims,
+            "needs": needs,
+        })
     });
+    let receipts = fs::read_to_string(run.root.join(".arbiter/last/receipts.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
     let counted: Vec<serde_json::Value> = ledger::counted(found)
         .iter()
         .map(|suppression| {
@@ -188,6 +212,7 @@ fn snapshot(run: &Run) -> serde_json::Value {
         "tangles": tangles,
         "plans": plans,
         "brief": brief,
+        "receipts": receipts,
         "suppressions": { "counted": counted, "added": run.added },
         "third": { "locked": run.third, "added": run.third_added },
         "claims": run.claims,

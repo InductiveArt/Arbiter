@@ -15,8 +15,13 @@ pub struct Need {
     pub need: String,
     pub state: State,
     pub entries: Vec<String>,
-    // The category the need claims, when it claims one: what obligations bind.
-    pub kind: Option<String>,
+}
+
+// One case as seated: where it is implemented and which parent need it serves.
+pub struct Case {
+    pub name: String,
+    pub unit: Option<String>,
+    pub serves: Option<String>,
 }
 
 #[derive(PartialEq)]
@@ -39,6 +44,9 @@ pub struct Move {
 // choreography is arbiter's; the record supplies coordinates and moves only.
 pub struct Trial {
     pub case: String,
+    // The mandate: the need sentences of its own case this trial proves.
+    pub proves: Vec<String>,
+    pub sequence: String,
     pub store: String,
     pub volume: String,
     pub path: String,
@@ -55,7 +63,7 @@ pub struct Trial {
 }
 
 pub struct Reading {
-    pub cases: usize,
+    pub cases: Vec<Case>,
     pub needs: Vec<Need>,
     pub findings: Vec<Finding>,
     pub claims: usize,
@@ -85,6 +93,17 @@ fn trial_of(case_name: &str, case: &toml::Value) -> Option<Trial> {
     };
     Some(Trial {
         case: case_name.to_string(),
+        proves: trial
+            .get("proves")
+            .and_then(toml::Value::as_array)
+            .map(|list| {
+                list.iter()
+                    .filter_map(toml::Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default(),
+        sequence: word("sequence").unwrap_or_else(|| "persistence".to_string()),
         store: word("store")?,
         volume: word("volume")?,
         path: word("path")?,
@@ -136,7 +155,7 @@ pub fn read(found: &Graph) -> Option<Reading> {
         Ok(parsed) => parsed,
         Err(_) => {
             return Some(Reading {
-                cases: 0,
+                cases: Vec::new(),
                 needs: Vec::new(),
                 findings: vec![Finding {
                     check: "brief",
@@ -172,6 +191,7 @@ pub fn read(found: &Graph) -> Option<Reading> {
     let mut needs = Vec::new();
     let mut findings = Vec::new();
     let mut trials = Vec::new();
+    let mut seated = Vec::new();
     let mut covered = vec![false; spoken.len()];
     for case in cases {
         let name = case
@@ -182,6 +202,17 @@ pub fn read(found: &Graph) -> Option<Reading> {
         if let Some(trial) = trial_of(&name, case) {
             trials.push(trial);
         }
+        seated.push(Case {
+            name: name.clone(),
+            unit: case
+                .get("unit")
+                .and_then(toml::Value::as_str)
+                .map(str::to_string),
+            serves: case
+                .get("serves")
+                .and_then(toml::Value::as_str)
+                .map(str::to_string),
+        });
         let listed = case
             .get("need")
             .and_then(toml::Value::as_array)
@@ -215,10 +246,6 @@ pub fn read(found: &Graph) -> Option<Reading> {
                         .collect()
                 })
                 .unwrap_or_default();
-            let kind = entry
-                .get("kind")
-                .and_then(toml::Value::as_str)
-                .map(str::to_string);
             let planned = entry
                 .get("planned")
                 .and_then(toml::Value::as_bool)
@@ -274,7 +301,6 @@ pub fn read(found: &Graph) -> Option<Reading> {
                 need,
                 state,
                 entries: bindings,
-                kind,
             });
         }
     }
@@ -291,8 +317,74 @@ pub fn read(found: &Graph) -> Option<Reading> {
             unwired.push((file.clone(), *line, identity.clone()));
         }
     }
+    for case in &seated {
+        if let Some(unit) = &case.unit {
+            let built =
+                (0..found.repo.units.len()).any(|index| found.repo.unit_name(index) == *unit);
+            if !built {
+                findings.push(Finding {
+                    check: "brief",
+                    file: brief_path.clone(),
+                    line: line_of(&text, &format!("unit = \"{unit}\"")),
+                    name: "misplaced-case".to_string(),
+                    reason: format!(
+                        "the case '{}' is placed in unit {unit}, which this repository does not build",
+                        case.name
+                    ),
+                });
+            }
+        }
+        if let Some(target) = &case.serves {
+            let stated = needs
+                .iter()
+                .any(|need| need.case != case.name && need.need == *target);
+            if !stated {
+                findings.push(Finding {
+                    check: "brief",
+                    file: brief_path.clone(),
+                    line: line_of(&text, target),
+                    name: "orphan-case".to_string(),
+                    reason: format!(
+                        "the case '{}' serves '{target}', which no other case states as a need",
+                        case.name
+                    ),
+                });
+            }
+        }
+    }
+    for trial in &trials {
+        if trial.proves.is_empty() {
+            findings.push(Finding {
+                check: "brief",
+                file: brief_path.clone(),
+                line: line_of(&text, "[case.trial]"),
+                name: "unmandated-trial".to_string(),
+                reason: format!(
+                    "the trial of case '{}' proves nothing; a trial serves stated needs or does not sit",
+                    trial.case
+                ),
+            });
+        }
+        for proof in &trial.proves {
+            let stated = needs
+                .iter()
+                .any(|need| need.case == trial.case && need.need == *proof);
+            if !stated {
+                findings.push(Finding {
+                    check: "brief",
+                    file: brief_path.clone(),
+                    line: line_of(&text, proof),
+                    name: "stale-mandate".to_string(),
+                    reason: format!(
+                        "the trial of case '{}' proves '{proof}', which the case does not state as a need",
+                        trial.case
+                    ),
+                });
+            }
+        }
+    }
     Some(Reading {
-        cases: cases.len(),
+        cases: seated,
         needs,
         findings,
         claims: spoken.len(),

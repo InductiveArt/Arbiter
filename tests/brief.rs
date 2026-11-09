@@ -8,7 +8,7 @@ const CLAIMS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/claims
 fn the_brief_states_each_need_and_roars_at_the_unwired() {
     let found = graphed(CLAIMS).expect("the fixture folder exists");
     let reading = read(&found).expect("the fixture writes a brief");
-    assert_eq!(reading.cases, 4);
+    assert_eq!(reading.cases.len(), 4);
     assert_eq!(reading.claims, 8);
     let states: Vec<String> = reading
         .needs
@@ -101,8 +101,9 @@ fn a_case_trial_declares_the_moves_and_the_probe() {
             "update = { method = \"PUT\", route = \"/m/a\", body = \"{}\" }\n",
             "delete = { method = \"DELETE\", route = \"/m/a\" }\n",
             "read = { method = \"GET\", route = \"/m/b\", answer = \"{}\" }\n",
-            "probe = \"SELECT 1\"\ncreated = \"1\"\nupdated = \"2\"\nseed = \"INSERT\"\n\n",
-            "[[case.need]]\nneed = \"kept across restarts\"\nkind = \"persistence\"\nplanned = true\n",
+            "probe = \"SELECT 1\"\ncreated = \"1\"\nupdated = \"2\"\nseed = \"INSERT\"\n",
+            "proves = [\"kept across restarts\"]\n\n",
+            "[[case.need]]\nneed = \"kept across restarts\"\nplanned = true\n",
         ),
     )
     .expect("the folder is writable");
@@ -119,10 +120,132 @@ fn a_case_trial_declares_the_moves_and_the_probe() {
     assert_eq!(trial.answer, "{}", "the read move names its exact answer");
     assert_eq!(trial.probe, "SELECT 1");
     assert_eq!(
-        reading.needs[0].kind.as_deref(),
-        Some("persistence"),
-        "the need claims its category"
+        trial.proves,
+        ["kept across restarts"],
+        "the mandate is read"
+    );
+    assert_eq!(
+        trial.sequence, "persistence",
+        "an unnamed sequence is the one in the law-text"
+    );
+    assert!(
+        !reading
+            .findings
+            .iter()
+            .any(|told| told.name == "unmandated-trial" || told.name == "stale-mandate"),
+        "a mandated trial raises nothing"
     );
 
+    let _ = fs::remove_dir_all(&root);
+}
+
+fn briefed(tag: &str, brief: &str) -> (std::path::PathBuf, Vec<String>) {
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-{tag}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
+    fs::write(root.join("app.py"), "value = 1\n").expect("the folder is writable");
+    fs::write(root.join(".arbiter/brief.toml"), brief).expect("the folder is writable");
+    let found = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let reading = read(&found).expect("the brief reads");
+    let told = reading
+        .findings
+        .iter()
+        .map(|finding| format!("{} | {}", finding.name, finding.reason))
+        .collect();
+    (root, told)
+}
+
+#[test]
+fn an_orphan_case_is_named() {
+    let (root, told) = briefed(
+        "orphan",
+        concat!(
+            "[[case]]\nname = \"roots\"\n[[case.need]]\nneed = \"the ground holds\"\nmanual = \"seen\"\n\n",
+            "[[case]]\nname = \"leaves\"\nserves = \"the sky holds\"\n",
+            "[[case.need]]\nneed = \"leaves turn\"\nmanual = \"seen\"\n",
+        ),
+    );
+    assert!(
+        told.iter().any(|line| line.starts_with("orphan-case |")
+            && line.contains("serves 'the sky holds', which no other case states")),
+        "told: {told:?}"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_misplaced_case_is_named() {
+    let (root, told) = briefed(
+        "misplaced",
+        concat!(
+            "[[case]]\nname = \"roots\"\nunit = \"ghost/unit\"\n",
+            "[[case.need]]\nneed = \"the ground holds\"\nmanual = \"seen\"\n",
+        ),
+    );
+    assert!(
+        told.iter().any(|line| line.starts_with("misplaced-case |")
+            && line.contains("placed in unit ghost/unit, which this repository does not build")),
+        "told: {told:?}"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_trial_proving_an_unstated_need_is_named() {
+    let (root, told) = briefed(
+        "mandate",
+        concat!(
+            "[[case]]\nname = \"marks\"\n\n",
+            "[case.trial]\nstore = \"sqlite\"\nvolume = \"data\"\npath = \"m.db\"\n",
+            "create = { method = \"PUT\", route = \"/m\" }\nupdate = { method = \"PUT\", route = \"/m\" }\n",
+            "delete = { method = \"DELETE\", route = \"/m\" }\nread = { method = \"GET\", route = \"/m\" }\n",
+            "probe = \"SELECT 1\"\ncreated = \"1\"\nupdated = \"2\"\nseed = \"INSERT\"\n",
+            "proves = [\"a ghost sentence\"]\n\n",
+            "[[case.need]]\nneed = \"kept\"\nmanual = \"seen\"\n",
+        ),
+    );
+    assert!(
+        told.iter().any(|line| line.starts_with("stale-mandate |")
+            && line.contains("proves 'a ghost sentence', which the case does not state")),
+        "told: {told:?}"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_trial_proving_nothing_is_named() {
+    let (root, told) = briefed(
+        "unmandated",
+        concat!(
+            "[[case]]\nname = \"marks\"\n\n",
+            "[case.trial]\nstore = \"sqlite\"\nvolume = \"data\"\npath = \"m.db\"\n",
+            "create = { method = \"PUT\", route = \"/m\" }\nupdate = { method = \"PUT\", route = \"/m\" }\n",
+            "delete = { method = \"DELETE\", route = \"/m\" }\nread = { method = \"GET\", route = \"/m\" }\n",
+            "probe = \"SELECT 1\"\ncreated = \"1\"\nupdated = \"2\"\nseed = \"INSERT\"\n\n",
+            "[[case.need]]\nneed = \"kept\"\nmanual = \"seen\"\n",
+        ),
+    );
+    assert!(
+        told.iter()
+            .any(|line| line.starts_with("unmandated-trial |") && line.contains("proves nothing")),
+        "told: {told:?}"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_signature_records_the_stated_needs() {
+    use std::fs;
+    let root = std::env::temp_dir().join(format!("arbiter-demand-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("the folder is writable");
+    let needs = vec!["marks | kept".to_string()];
+    arbiter::judge::ledger::record(&root, &[], &[], &[], &needs).expect("the reference writes");
+    assert_eq!(
+        arbiter::judge::ledger::recorded_needs(&root).expect("the reference reads"),
+        ["marks | kept"],
+        "a stated need stands under the signature"
+    );
     let _ = fs::remove_dir_all(&root);
 }

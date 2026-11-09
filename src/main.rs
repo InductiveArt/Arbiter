@@ -126,6 +126,16 @@ fn main() -> ExitCode {
                 "claims", run.claims
             ),
         }
+        match run.needs_added {
+            None => println!(
+                "  {:15} {} stated, no reference recorded",
+                "needs", run.needs_stated
+            ),
+            Some(added) => println!(
+                "  {:15} {} stated, {added} added since the signature",
+                "needs", run.needs_stated
+            ),
+        }
         match run.brief {
             verdict::BriefLine::Skipped => println!("  {:15} skipped", "brief"),
             verdict::BriefLine::Unwritten => println!("  {:15} no brief written", "brief"),
@@ -197,7 +207,7 @@ fn main() -> ExitCode {
         println!(
             "brief: {} cases — {} held, {} planned, {} manual, {} unanswered; \
              {} claims, {} unwired",
-            reading.cases,
+            reading.cases.len(),
             reading
                 .needs
                 .iter()
@@ -334,13 +344,23 @@ fn main() -> ExitCode {
             let counted = ledger::counted(&found);
             let packages = ledger::packages(&found);
             let spoken = claims::identities(&found);
-            match ledger::record(&found.root, &counted, &packages, &spoken) {
+            let demanded: Vec<String> = brief::read(&found)
+                .map(|reading| {
+                    reading
+                        .needs
+                        .iter()
+                        .map(|need| format!("{} | {}", need.case, need.need))
+                        .collect()
+                })
+                .unwrap_or_default();
+            match ledger::record(&found.root, &counted, &packages, &spoken, &demanded) {
                 Ok(path) => {
                     println!(
-                        "sign: {} suppressions, {} third parties and {} claims recorded in {}",
+                        "sign: {} suppressions, {} third parties, {} claims and {} needs recorded in {}",
                         counted.len(),
                         packages.len(),
                         spoken.len(),
+                        demanded.len(),
                         path.to_string_lossy()
                     );
                     for pack in &found.packs {
