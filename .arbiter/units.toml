@@ -35,15 +35,18 @@ deps = ["src/core", "src/records", "src/laws", "src/ledger.rs", "src/packs"]
 [units.".".inner."src/court"]
 deps = ["src/core", "src/records", "src/laws", "src/ledger.rs", "src/pipeline", "src/packs"]
 
+[units.".".inner."src/tasks"]
+deps = ["src/core", "src/records", "src/laws", "src/rhyme.rs", "src/packs"]
+
 [units.".".inner."src/commands"]
 deps = [
   "src/core",
   "src/records",
   "src/laws",
-  "src/rhyme.rs",
   "src/examine.rs",
   "src/ledger.rs",
   "src/pipeline",
   "src/court",
   "src/packs",
+  "src/tasks",
 ]

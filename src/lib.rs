@@ -8,3 +8,4 @@ pub mod packs;
 pub mod pipeline;
 pub mod records;
 pub mod rhyme;
+pub mod tasks;

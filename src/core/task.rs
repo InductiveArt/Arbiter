@@ -1,7 +1,14 @@
+use std::process::ExitCode;
 use std::time::Instant;
 
-// How a task ended. A finding is data, not a failure: a judging task ends Ok
-// having found plenty; a task ends Failed when the work itself could not stand.
+// A named unit of work: it parses its own arguments, does the work and reports.
+pub struct Task {
+    pub name: &'static str,
+    pub line: &'static str,
+    pub run: fn(&[String]) -> ExitCode,
+}
+
+// How a task ended. A task ends Failed when the work itself could not stand.
 pub enum Outcome {
     Ok,
     Failed,
@@ -97,8 +104,7 @@ impl Journal {
         done.value
     }
 
-    // Record a leaf whose cost was measured elsewhere - a scan or a tool run
-    // timed by the engine that performed it.
+    // Record a leaf whose cost was measured elsewhere, by whatever performed it.
     pub fn noted(&mut self, op: &str, seconds: f64, evidence: Vec<String>) {
         self.place(Node {
             op: op.to_string(),
