@@ -4,15 +4,15 @@ use crate::core::task::Task;
 use crate::packs::graphed;
 
 // Entangled siblings, questioned: the map to read before representing.
-pub fn tasks() -> Vec<Task> {
-    vec![Task {
+pub fn task() -> Task {
+    Task {
         name: "tangles",
         line: "entangled siblings per folder, largest first; a measure, never findings",
-        run: tangles_query,
-    }]
+        run: query,
+    }
 }
 
-fn tangles_query(rest: &[String]) -> ExitCode {
+fn query(rest: &[String]) -> ExitCode {
     let scope = rest.first().cloned();
     let Some(found) = graphed(".") else {
         eprintln!("find: no folder at .");

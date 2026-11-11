@@ -6,15 +6,15 @@ use crate::rhyme;
 
 // Structural equivalence, questioned: the shapes that sound in more than one
 // place.
-pub fn tasks() -> Vec<Task> {
-    vec![Task {
+pub fn task() -> Task {
+    Task {
         name: "rhymes",
         line: "structurally equal functions, largest first; a measure, never findings",
-        run: rhymes_query,
-    }]
+        run: query,
+    }
 }
 
-fn rhymes_query(rest: &[String]) -> ExitCode {
+fn query(rest: &[String]) -> ExitCode {
     let asked = rest.first().cloned().unwrap_or_else(|| ".".to_string());
     let Some(found) = graphed(&asked) else {
         eprintln!("find: no folder at {asked}");

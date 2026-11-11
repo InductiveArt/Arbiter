@@ -1,16 +1,20 @@
-pub mod graph;
-pub mod plans;
-pub mod rhyme;
+pub mod deps;
+pub mod fallout;
+pub mod impact;
+pub mod plan;
+pub mod rhymes;
 pub mod tangles;
 
 use crate::core::task::Task;
 
-// Every task, concatenated in the order the modules above are listed.
+// Every task, listed one by one so a search for its name lands on its file.
 pub fn all() -> Vec<Task> {
-    let mut tasks = Vec::new();
-    tasks.extend(graph::tasks());
-    tasks.extend(plans::tasks());
-    tasks.extend(rhyme::tasks());
-    tasks.extend(tangles::tasks());
-    tasks
+    vec![
+        deps::task(),
+        fallout::task(),
+        plan::task(),
+        impact::task(),
+        rhymes::task(),
+        tangles::task(),
+    ]
 }
