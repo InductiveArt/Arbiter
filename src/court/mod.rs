@@ -193,7 +193,7 @@ fn snapshot(run: &Run) -> serde_json::Value {
         })
         .collect();
     serde_json::json!({
-        "version": crate::commands::VERSION,
+        "version": crate::core::VERSION,
         "root": run.root.to_string_lossy(),
         "units": run.units,
         "files": run.files,

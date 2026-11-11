@@ -1,5 +1,5 @@
-use arbiter::laws::rhyme::rhymes;
 use arbiter::packs::graphed;
+use arbiter::rhyme::rhymes;
 
 const RHYME: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/rhyme");
 

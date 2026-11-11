@@ -59,48 +59,28 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ),
 ];
 
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-// An adopted file's last line names its writer, in the comment form the
-// file's own syntax reads.
-pub fn stamped(place: &str, body: &str) -> String {
-    let mark = if place.ends_with(".sh") {
-        format!("# arbiter {VERSION}")
-    } else {
-        format!("<!-- arbiter {VERSION} -->")
-    };
-    format!("{}\n{mark}\n", body.trim_end())
-}
-
-pub fn written_by(text: &str) -> Option<(u64, u64, u64)> {
-    let line = text.lines().rev().find(|line| !line.trim().is_empty())?;
-    let line = line
-        .trim()
-        .trim_start_matches("<!--")
-        .trim_end_matches("-->")
-        .trim_start_matches('#')
-        .trim();
-    triple(line.strip_prefix("arbiter ")?)
-}
-
-// Whether a file's stamp names a newer arbiter than this binary: writing
-// over it would move the law backwards.
-pub fn ahead(text: &str) -> bool {
-    match (written_by(text), triple(VERSION)) {
-        (Some(theirs), Some(mine)) => theirs > mine,
-        _ => false,
-    }
-}
-
-fn triple(version: &str) -> Option<(u64, u64, u64)> {
-    let mut parts = version.split('.');
-    let numbers = (
-        parts.next()?.parse().ok()?,
-        parts.next()?.parse().ok()?,
-        parts.next()?.parse().ok()?,
+// The bare call teaches: the whole grammar, each command with its one line.
+pub fn taught() {
+    println!(
+        "arbiter {} judges a repository: the resolved graph, each unit's pinned tools, the brief.",
+        crate::core::VERSION
     );
-    if parts.next().is_some() {
-        return None;
+    println!();
+    let width = COMMANDS
+        .iter()
+        .map(|(call, _)| call.len())
+        .max()
+        .unwrap_or(0);
+    for (call, line) in COMMANDS {
+        println!("  {call:width$}  {line}");
     }
-    Some(numbers)
+    println!();
+    println!(
+        "gate, examine, adopt and ledger sign act; find, ledger, brief and rules read and never write."
+    );
+    println!(
+        "A command takes the folder last; missing, it judges here. \
+         Exit: 0 clean, 1 findings, 2 no judgment — a broken machine, \
+         a bad ask, or nothing to judge."
+    );
 }

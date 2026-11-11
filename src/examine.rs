@@ -416,7 +416,7 @@ fn written(root: &Path, testimonies: &[Testimony]) {
         })
         .collect();
     let receipts = serde_json::json!({
-        "examiner": format!("arbiter {}", crate::commands::VERSION),
+        "examiner": format!("arbiter {}", crate::core::VERSION),
         "driver": "sqlite",
         "sequence": SEQUENCE,
         "trials": listed,

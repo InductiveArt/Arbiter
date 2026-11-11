@@ -1,8 +1,8 @@
-use arbiter::commands::ahead;
-use arbiter::commands::stamped;
-use arbiter::commands::written_by;
-use arbiter::commands::COMMANDS;
-use arbiter::commands::VERSION;
+use arbiter::commands::adopt::ahead;
+use arbiter::commands::adopt::stamped;
+use arbiter::commands::adopt::written_by;
+use arbiter::commands::table::COMMANDS;
+use arbiter::core::VERSION;
 
 #[test]
 fn the_skill_speaks_each_command_with_its_own_line() {

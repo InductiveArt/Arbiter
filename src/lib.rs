@@ -7,3 +7,4 @@ pub mod ledger;
 pub mod packs;
 pub mod pipeline;
 pub mod records;
+pub mod rhyme;
