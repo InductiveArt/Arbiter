@@ -1,3 +1,4 @@
+pub mod claims;
 pub mod digest;
 pub mod graph;
 pub mod pack;

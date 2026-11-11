@@ -1,4 +1,9 @@
 pub mod commands;
 pub mod core;
-pub mod judge;
+pub mod court;
+pub mod examine;
+pub mod laws;
+pub mod ledger;
 pub mod packs;
+pub mod pipeline;
+pub mod records;

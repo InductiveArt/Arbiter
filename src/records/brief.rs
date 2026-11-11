@@ -1,9 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 
+use crate::core::claims;
 use crate::core::graph::Graph;
 use crate::core::pack::Finding;
-use crate::judge::claims;
 
 const BRIEF: &str = ".arbiter/brief.toml";
 

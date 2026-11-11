@@ -1,4 +1,4 @@
-use arbiter::judge::claims::heard;
+use arbiter::core::claims::heard;
 use arbiter::packs::graphed;
 
 const CLAIMS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/claims");
@@ -38,7 +38,7 @@ fn each_language_claims_its_sentences_under_their_frames() {
 #[test]
 fn a_claim_that_vanished_without_signature_is_a_finding() {
     let found = graphed(CLAIMS).expect("the fixture folder exists");
-    let gone = arbiter::judge::claims::vanished(&found);
+    let gone = arbiter::core::claims::vanished(&found);
     assert_eq!(gone.len(), 1);
     assert!(gone[0].reason.contains("vanished;"));
     assert!(gone[0]

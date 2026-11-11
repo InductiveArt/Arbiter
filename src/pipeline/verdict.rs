@@ -1,16 +1,16 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use crate::core::claims;
 use crate::core::graph;
 use crate::core::pack::Finding;
 use crate::core::units;
-use crate::judge::brief;
-use crate::judge::claims;
-use crate::judge::findings;
-use crate::judge::ledger;
-use crate::judge::outcomes;
-use crate::judge::outcomes::Outcome;
+use crate::laws::findings;
+use crate::ledger;
 use crate::packs;
+use crate::pipeline::outcomes;
+use crate::pipeline::outcomes::Outcome;
+use crate::records::brief;
 
 // One whole judgment of a repository: both planes, with the ledger's footer.
 // What the gate says of the brief: the step skipped, no brief written yet, or
@@ -415,7 +415,7 @@ pub fn seeded(root: &std::path::Path) {
 #[cfg(test)]
 mod tests {
     use super::tallied;
-    use crate::judge::outcomes::Outcome;
+    use crate::pipeline::outcomes::Outcome;
 
     fn outcome(check: &str, passed: bool, seconds: f64) -> Outcome {
         Outcome {

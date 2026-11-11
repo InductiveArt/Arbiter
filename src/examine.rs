@@ -11,10 +11,10 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use crate::core::graph::Graph;
-use crate::judge::brief;
-use crate::judge::brief::Move;
-use crate::judge::brief::Trial;
-use crate::judge::plans;
+use crate::records::brief;
+use crate::records::brief::Move;
+use crate::records::brief::Trial;
+use crate::records::plans;
 
 // The examiner: performs a case's trial itself - drives the service through
 // its door, reads the store raw over its own connection - and writes receipts.

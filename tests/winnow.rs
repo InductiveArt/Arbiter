@@ -1,5 +1,5 @@
-use arbiter::judge::findings::integrity;
-use arbiter::judge::findings::winnow;
+use arbiter::laws::findings::integrity;
+use arbiter::laws::findings::winnow;
 use arbiter::packs::graphed;
 
 const DEMO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/demo");
@@ -41,9 +41,9 @@ fn every_finding_names_a_law_the_matrix_drills() {
     let found = graphed(DEMO).expect("the fixture folder exists");
     let mut all = winnow(&found.defs, &found.edges, &found.repo, &Default::default()).0;
     all.extend(integrity(&found));
-    all.extend(arbiter::judge::ledger::blanket_findings(&found));
-    all.extend(arbiter::judge::claims::vanished(&found));
-    all.extend(arbiter::judge::brief::findings(&found));
+    all.extend(arbiter::ledger::blanket_findings(&found));
+    all.extend(arbiter::core::claims::vanished(&found));
+    all.extend(arbiter::records::brief::findings(&found));
     assert!(!all.is_empty());
     for finding in &all {
         assert!(
@@ -241,7 +241,7 @@ fn a_namespace_import_keeps_the_whole_surface() {
 #[test]
 fn the_ledger_counts_a_named_suppression_and_refuses_a_blanket() {
     let found = graphed(DEMO).expect("the fixture folder exists");
-    let counted = arbiter::judge::ledger::counted(&found);
+    let counted = arbiter::ledger::counted(&found);
     let texts: Vec<&str> = counted
         .iter()
         .map(|suppression| suppression.text.as_str())
@@ -252,7 +252,7 @@ fn the_ledger_counts_a_named_suppression_and_refuses_a_blanket() {
     assert!(texts.contains(&"#[ignore]"));
     assert!(texts.contains(&"it.skip"));
     assert!(texts.contains(&"buf:lint:ignore ENUM_VALUE_PREFIX"));
-    let blankets = arbiter::judge::ledger::blankets(&found);
+    let blankets = arbiter::ledger::blankets(&found);
     assert_eq!(blankets.len(), 2);
     assert!(blankets
         .iter()
@@ -411,7 +411,7 @@ fn a_record_suppression_is_counted_in_the_account() {
     .expect("the folder is writable");
 
     let found = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let counted = arbiter::judge::ledger::counted(&found);
+    let counted = arbiter::ledger::counted(&found);
     assert_eq!(counted.len(), 1);
     assert_eq!(counted[0].text, "unused-dependency python coverage .");
     let _ = fs::remove_dir_all(&root);
@@ -419,7 +419,7 @@ fn a_record_suppression_is_counted_in_the_account() {
 
 #[test]
 fn the_resolved_graph_draws_itself_declared_against_real() {
-    use arbiter::judge::findings::drawn;
+    use arbiter::laws::findings::drawn;
     use std::fs;
     let root = std::env::temp_dir().join(format!("arbiter-drawn-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
@@ -731,7 +731,7 @@ fn an_exact_member_set_quiets_one_cycle_and_stales_when_it_dissolves() {
 
 #[test]
 fn the_tangles_read_lists_entangled_siblings_largest_first() {
-    use arbiter::judge::findings::tangles;
+    use arbiter::laws::findings::tangles;
     use std::fs;
     let root = std::env::temp_dir().join(format!("arbiter-tangles-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
@@ -767,7 +767,7 @@ fn the_tangles_read_lists_entangled_siblings_largest_first() {
 
 #[test]
 fn the_families_of_every_folder_travel_with_the_snapshot() {
-    use arbiter::judge::findings::families;
+    use arbiter::laws::findings::families;
     use std::fs;
     let root = std::env::temp_dir().join(format!("arbiter-families-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);

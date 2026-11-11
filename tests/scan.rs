@@ -106,7 +106,7 @@ fn a_published_unit_keeps_its_unused_surface() {
     let path = root.to_string_lossy();
 
     let judged = graphed(&path).expect("the folder exists");
-    let (flagged, _) = arbiter::judge::findings::winnow(
+    let (flagged, _) = arbiter::laws::findings::winnow(
         &judged.defs,
         &judged.edges,
         &judged.repo,
@@ -116,7 +116,7 @@ fn a_published_unit_keeps_its_unused_surface() {
 
     fs::write(root.join("PUBLISHED"), "").expect("the folder is writable");
     let declared = graphed(&path).expect("the folder exists");
-    let (kept, _) = arbiter::judge::findings::winnow(
+    let (kept, _) = arbiter::laws::findings::winnow(
         &declared.defs,
         &declared.edges,
         &declared.repo,
@@ -181,7 +181,7 @@ fn the_first_gate_seeds_the_decision_files_and_never_overwrites() {
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("the folder is writable");
 
-    arbiter::judge::verdict::seeded(&root);
+    arbiter::pipeline::verdict::seeded(&root);
     let units = fs::read_to_string(root.join(".arbiter/units.toml")).expect("units.toml seeded");
     assert!(units.starts_with("# The unit graph, declared."));
     assert!(
@@ -201,7 +201,7 @@ fn the_first_gate_seeds_the_decision_files_and_never_overwrites() {
         "[units.\"libs/x\"]\ndeps = []\n",
     )
     .expect("the folder is writable");
-    arbiter::judge::verdict::seeded(&root);
+    arbiter::pipeline::verdict::seeded(&root);
     let kept = fs::read_to_string(root.join(".arbiter/units.toml")).expect("still readable");
     assert!(
         kept.starts_with("[units."),
@@ -486,9 +486,9 @@ fn a_symbol_reached_only_by_commissioned_tests_is_nascent_not_dead() {
     .expect("the folder is writable");
 
     let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let commissioned = arbiter::judge::brief::commissioned(&judged);
+    let commissioned = arbiter::records::brief::commissioned(&judged);
     let (findings, nascent) =
-        arbiter::judge::findings::winnow(&judged.defs, &judged.edges, &judged.repo, &commissioned);
+        arbiter::laws::findings::winnow(&judged.defs, &judged.edges, &judged.repo, &commissioned);
     assert!(
         findings
             .iter()
@@ -504,9 +504,9 @@ fn a_symbol_reached_only_by_commissioned_tests_is_nascent_not_dead() {
     )
     .expect("the folder is writable");
     let again = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let commissioned = arbiter::judge::brief::commissioned(&again);
+    let commissioned = arbiter::records::brief::commissioned(&again);
     let (findings, nascent) =
-        arbiter::judge::findings::winnow(&again.defs, &again.edges, &again.repo, &commissioned);
+        arbiter::laws::findings::winnow(&again.defs, &again.edges, &again.repo, &commissioned);
     assert!(
         findings
             .iter()
@@ -603,7 +603,7 @@ fn a_broken_unit_declaration_is_named_never_read_as_virgin() {
     fs::write(root.join(".arbiter/units.toml"), "[units. not toml")
         .expect("the folder is writable");
     let found = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let findings = arbiter::judge::findings::integrity(&found);
+    let findings = arbiter::laws::findings::integrity(&found);
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].name, "unparsable-user-record");
     assert!(findings[0]
@@ -618,11 +618,11 @@ fn a_broken_reference_is_named_never_read_as_virgin() {
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
     fs::write(root.join(".arbiter/reference.json"), "{ not json").expect("the folder is writable");
-    let broken = arbiter::judge::ledger::broken_record(&root);
+    let broken = arbiter::ledger::broken_record(&root);
     assert_eq!(broken.len(), 1);
     assert_eq!(broken[0].name, "unparsable-user-record");
     assert!(broken[0].reason.contains("the signature cannot be read"));
     fs::write(root.join(".arbiter/reference.json"), "{}").expect("the folder is writable");
-    assert!(arbiter::judge::ledger::broken_record(&root).is_empty());
+    assert!(arbiter::ledger::broken_record(&root).is_empty());
     let _ = fs::remove_dir_all(&root);
 }

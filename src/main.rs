@@ -4,22 +4,22 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use arbiter::commands;
+use arbiter::core::claims;
 use arbiter::core::pack;
 use arbiter::core::pack::Def;
 use arbiter::core::pack::Edge;
 use arbiter::core::pack::Finding;
 use arbiter::core::pack::Suppression;
-use arbiter::judge::brief;
-use arbiter::judge::claims;
-use arbiter::judge::examine;
-use arbiter::judge::findings::drawn;
-use arbiter::judge::findings::integrity;
-use arbiter::judge::findings::winnow;
-use arbiter::judge::ledger;
-use arbiter::judge::outcomes;
-use arbiter::judge::rhyme;
-use arbiter::judge::verdict;
+use arbiter::examine;
+use arbiter::laws::findings::drawn;
+use arbiter::laws::findings::integrity;
+use arbiter::laws::findings::winnow;
+use arbiter::laws::rhyme;
+use arbiter::ledger;
 use arbiter::packs::graphed;
+use arbiter::pipeline::outcomes;
+use arbiter::pipeline::verdict;
+use arbiter::records::brief;
 
 fn main() -> ExitCode {
     // A closed pipe ends the read, not the program: piping a report into
@@ -160,7 +160,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
         let place = verdict::written(&run);
-        let _ = arbiter::judge::court::write(&run);
+        let _ = arbiter::court::write(&run);
         let failed = run
             .outcomes
             .iter()
@@ -686,8 +686,8 @@ fn unwritten(found: &arbiter::core::graph::Graph) -> ExitCode {
 }
 
 // One case whole: its needs, their states, and what each binds.
-fn slice(case: &str, reading: &arbiter::judge::brief::Reading) -> ExitCode {
-    let needs: Vec<&arbiter::judge::brief::Need> = reading
+fn slice(case: &str, reading: &arbiter::records::brief::Reading) -> ExitCode {
+    let needs: Vec<&arbiter::records::brief::Need> = reading
         .needs
         .iter()
         .filter(|need| need.case == case)
@@ -744,7 +744,7 @@ fn emit(findings: &[Finding], rule: Option<&str>) {
 // One plan's bring-up as a ladder - rung by rung, nothing running - and its
 // channels; bare, every plan the record holds. The view of the desired side.
 fn planned(asked: Option<&str>, found: &arbiter::core::graph::Graph) -> ExitCode {
-    let reading = match arbiter::judge::plans::read(&found.root) {
+    let reading = match arbiter::records::plans::read(&found.root) {
         None => {
             println!("plans: none written");
             return ExitCode::SUCCESS;
@@ -774,7 +774,7 @@ fn planned(asked: Option<&str>, found: &arbiter::core::graph::Graph) -> ExitCode
                 name.to_string()
             }
         };
-        let rungs = arbiter::judge::plans::ladder(&reading, plan);
+        let rungs = arbiter::records::plans::ladder(&reading, plan);
         for (rung, services) in rungs.iter().enumerate() {
             let step: Vec<String> = services
                 .iter()
@@ -820,7 +820,7 @@ fn planned(asked: Option<&str>, found: &arbiter::core::graph::Graph) -> ExitCode
 // Every sibling cycle the facts hold, suppressed or not, largest first: the
 // map an agent reads before representing - a measure, never findings.
 fn tangled(scope: Option<&str>, found: &arbiter::core::graph::Graph) -> ExitCode {
-    let groups = arbiter::judge::findings::tangles(found);
+    let groups = arbiter::laws::findings::tangles(found);
     let mut shown = 0;
     for (place, members) in &groups {
         if scope.is_some_and(|asked| !(place == asked || place.starts_with(&format!("{asked}/")))) {
@@ -1004,7 +1004,7 @@ fn scoped(asked: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
 // boot, who degrades, which doors go dark, what state turns unreachable,
 // and which cases are placed over it.
 fn fallen(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
-    let Some(Ok(reading)) = arbiter::judge::plans::read(&found.root) else {
+    let Some(Ok(reading)) = arbiter::records::plans::read(&found.root) else {
         eprintln!("find impact: no plans record; impact runs over the declared world");
         return ExitCode::from(2);
     };
@@ -1013,7 +1013,7 @@ fn fallen(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
         return ExitCode::from(2);
     }
     println!("if {name} is down:");
-    let (boot, dials) = arbiter::judge::plans::leaning_on(&reading, name);
+    let (boot, dials) = arbiter::records::plans::leaning_on(&reading, name);
     for service in &boot {
         println!("  cannot boot: {service} — needs it");
     }
@@ -1027,7 +1027,7 @@ fn fallen(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
         .iter()
         .chain(dials.iter().map(|(who, _)| who))
         .collect();
-    let beyond: Vec<String> = arbiter::judge::plans::impacted(&reading, name)
+    let beyond: Vec<String> = arbiter::records::plans::impacted(&reading, name)
         .into_iter()
         .filter(|service| !direct.contains(service))
         .collect();
@@ -1087,7 +1087,7 @@ fn fallen(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
                 .filter(|one| one.unit.as_deref() == Some(unit.as_str()))
             {
                 cone.insert(service.name.clone());
-                cone.extend(arbiter::judge::plans::stands_on(&reading, &service.name));
+                cone.extend(arbiter::records::plans::stands_on(&reading, &service.name));
             }
             if cone.contains(name) {
                 placed.push(case.name.clone());

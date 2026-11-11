@@ -2,11 +2,11 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::core::pack;
-use crate::judge::brief;
-use crate::judge::findings;
-use crate::judge::ledger;
-use crate::judge::plans;
-use crate::judge::verdict::Run;
+use crate::laws::findings;
+use crate::ledger;
+use crate::pipeline::verdict::Run;
+use crate::records::brief;
+use crate::records::plans;
 
 const TEMPLATE: &str = include_str!("court.html");
 const DOCKET: &str = include_str!("docket.js");

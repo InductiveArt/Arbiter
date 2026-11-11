@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use arbiter::judge::findings::integrity;
+use arbiter::laws::findings::integrity;
 use arbiter::packs::graphed;
 
 fn seeded(root: &Path, record: &str) {
@@ -34,7 +34,7 @@ fn the_service_env_names_its_world() {
          env = { API_DATA = \"{volume:api-data}\", API_PORT = \"{port}\" }\n\n\
          [[volume]]\nname = \"api-data\"\nbackup = \"daily\"\n",
     );
-    let Some(Ok(reading)) = arbiter::judge::plans::read(&root) else {
+    let Some(Ok(reading)) = arbiter::records::plans::read(&root) else {
         panic!("the record reads");
     };
     let mut pairs = reading.services[0].env.clone();
@@ -60,26 +60,26 @@ fn the_impact_of_a_service_names_who_stands_on_it() {
          [[service]]\nname = \"postgres\"\n\n\
          [[service]]\nname = \"aside\"\n",
     );
-    let Some(Ok(reading)) = arbiter::judge::plans::read(&root) else {
+    let Some(Ok(reading)) = arbiter::records::plans::read(&root) else {
         panic!("the record reads");
     };
     assert_eq!(
-        arbiter::judge::plans::impacted(&reading, "postgres"),
+        arbiter::records::plans::impacted(&reading, "postgres"),
         ["api", "worker"],
         "everything standing on a service falls with it, transitively"
     );
     assert!(
-        arbiter::judge::plans::impacted(&reading, "aside").is_empty(),
+        arbiter::records::plans::impacted(&reading, "aside").is_empty(),
         "nothing stands on a leaf"
     );
-    let (boot, dials) = arbiter::judge::plans::leaning_on(&reading, "postgres");
+    let (boot, dials) = arbiter::records::plans::leaning_on(&reading, "postgres");
     assert_eq!(
         boot,
         ["api"],
         "a service that needs it cannot boot without it"
     );
     assert!(dials.is_empty(), "nobody dials postgres directly");
-    let (_, dialed) = arbiter::judge::plans::leaning_on(&reading, "api");
+    let (_, dialed) = arbiter::records::plans::leaning_on(&reading, "api");
     assert_eq!(
         dialed,
         [("worker".to_string(), None)],
@@ -200,7 +200,7 @@ fn a_plan_fits_its_machines_and_places_every_service() {
 
 #[test]
 fn the_bringup_ladder_reads_in_order() {
-    use arbiter::judge::plans;
+    use arbiter::records::plans;
     let root = std::env::temp_dir().join(format!("arbiter-ladder-{}", std::process::id()));
     seeded(
         &root,
@@ -263,7 +263,7 @@ fn a_door_routes_to_a_declared_service() {
 #[test]
 fn the_court_page_embeds_the_snapshot_whole() {
     let data = serde_json::json!({ "marker": "the-whole-snapshot-7193" });
-    let page = arbiter::judge::court::page(&data);
+    let page = arbiter::court::page(&data);
     assert!(page.starts_with("<!doctype html"));
     assert!(page.contains("the-whole-snapshot-7193"));
     assert!(

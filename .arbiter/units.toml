@@ -11,8 +11,23 @@
 [units.".".inner."src/core"]
 deps = []
 
-[units.".".inner."src/judge"]
-deps = ["src/core", "src/packs"]
-
 [units.".".inner."src/packs"]
 deps = ["src/core"]
+
+[units.".".inner."src/records"]
+deps = ["src/core"]
+
+[units.".".inner."src/laws"]
+deps = ["src/core", "src/records"]
+
+[units.".".inner."src/examine.rs"]
+deps = ["src/core", "src/records"]
+
+[units.".".inner."src/ledger.rs"]
+deps = ["src/core"]
+
+[units.".".inner."src/pipeline"]
+deps = ["src/core", "src/records", "src/laws", "src/ledger.rs", "src/packs"]
+
+[units.".".inner."src/court"]
+deps = ["src/core", "src/records", "src/laws", "src/ledger.rs", "src/pipeline", "src/packs"]

@@ -1,6 +1,6 @@
-use arbiter::judge::brief::read;
-use arbiter::judge::brief::State;
 use arbiter::packs::graphed;
+use arbiter::records::brief::read;
+use arbiter::records::brief::State;
 
 const CLAIMS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/claims");
 
@@ -241,9 +241,9 @@ fn the_signature_records_the_stated_needs() {
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("the folder is writable");
     let needs = vec!["marks | kept".to_string()];
-    arbiter::judge::ledger::record(&root, &[], &[], &[], &needs).expect("the reference writes");
+    arbiter::ledger::record(&root, &[], &[], &[], &needs).expect("the reference writes");
     assert_eq!(
-        arbiter::judge::ledger::recorded_needs(&root).expect("the reference reads"),
+        arbiter::ledger::recorded_needs(&root).expect("the reference reads"),
         ["marks | kept"],
         "a stated need stands under the signature"
     );

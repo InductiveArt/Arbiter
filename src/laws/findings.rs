@@ -85,7 +85,7 @@ pub fn integrity(found: &Graph) -> Vec<Finding> {
     findings.extend(boundaries(found));
     findings.extend(folder_boundaries(found));
     findings.extend(licenses(found));
-    findings.extend(crate::judge::plans::findings(found));
+    findings.extend(crate::records::plans::findings(found));
     let (subjects, guards) = crate::core::record::read(&found.root);
     findings.extend(guards);
     let (cycles_found, cycles_live) = sibling_cycles(found, &subjects);
