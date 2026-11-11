@@ -1,6 +1,6 @@
-// The whole grammar: each verb with its one line. The bare call prints it,
+// The whole grammar: each command with its one line. The bare call prints it,
 // and a claim holds the skill to these exact sentences.
-pub const VERBS: &[(&str, &str)] = &[
+pub const COMMANDS: &[(&str, &str)] = &[
     (
         "gate [--fix] [--cold] [--no-brief]",
         "judge everything; red names what stands between the code and clean",

@@ -330,13 +330,6 @@ story = "behavior is claimed by tests and commissioned by the brief"
     ". |  | a trial proving nothing is named",
   ]
 
-  [[case.need]]
-  need = "a flow is a path through the declared world, forking only where it visits"
-  claims = [
-    ". |  | a flow walks declared edges or is named",
-    ". |  | a fork sits where the flow visits",
-  ]
-
 [[case]]
 name = "rhyme"
 story = "structurally equivalent code is named, never judged"
@@ -395,12 +388,12 @@ name = "teaching"
 story = "the tool teaches its own use, and the taught word cannot drift"
 
   [[case.need]]
-  need = "the skill speaks each verb with its own line"
-  claims = [". |  | the skill speaks each verb with its own line"]
+  need = "the skill speaks each command with its own line"
+  claims = [". |  | the skill speaks each command with its own line"]
 
   [[case.need]]
   need = "the bare call prints the whole grammar"
-  manual = "run arbiter with no verb and read the table"
+  manual = "run arbiter with no command and read the table"
 
   [[case.need]]
   need = "every adopted file names the arbiter that wrote it"

@@ -27,30 +27,6 @@ unit = "services/player"
   updated = "900"
   seed = "INSERT INTO progress (member, slug, second) VALUES ('eve', 'tao', 7)"
 
-  [[case.flow]]
-  name = "a member plays a title"
-  steps = [
-    { via = "cinema.local", to = "player", does = "asks for the stream" },
-    { from = "player", to = "tickets", does = "the rental is checked" },
-    { from = "player", to = "catalog", does = "the title is checked" },
-    { back = "200: the stream opens at the resume point" },
-  ]
-  forks = [
-    { at = "player", when = "no rental stands", back = "403: not rented" },
-    { at = "player", when = "the catalog does not carry the title", back = "404: nothing to play" },
-  ]
-
-  [[case.flow]]
-  name = "a member resumes where they left"
-  steps = [
-    { via = "cinema.local", to = "player", does = "PUT the second" },
-    { from = "player", to = "player-data", does = "the resume point lands" },
-    { back = "204: the point is kept" },
-  ]
-  forks = [
-    { at = "player", when = "the body names no second", back = "400: refused" },
-  ]
-
   [[case.need]]
   need = "a stream opens only against a standing rental"
   claims = [
@@ -99,17 +75,6 @@ serves = "a stream opens only against a standing rental"
   updated = "5"
   seed = "INSERT INTO tickets (member, slug, nights) VALUES ('eve', 'tao', 1)"
 
-  [[case.flow]]
-  name = "a member rents a title"
-  steps = [
-    { via = "tickets.local", to = "tickets", does = "PUT the rental" },
-    { from = "tickets", to = "tickets-data", does = "the rental lands" },
-    { back = "204: rented" },
-  ]
-  forks = [
-    { at = "tickets", when = "the body names no nights", back = "400: refused" },
-  ]
-
   [[case.need]]
   need = "a rental is opened, read, extended and cancelled"
   claims = [
@@ -127,20 +92,6 @@ serves = "a stream opens only against a standing rental"
 name = "shelving"
 story = "a member keeps a list of titles to watch later"
 unit = "services/shelf"
-
-  [[case.flow]]
-  name = "a member shelves a title"
-  steps = [
-    { via = "shelf.local", to = "shelf", does = "PUT the title" },
-    { from = "shelf", to = "gate", does = "the member is confirmed" },
-    { from = "shelf", to = "catalog", does = "the title is confirmed" },
-    { from = "shelf", to = "shelf-data", does = "the row lands" },
-    { back = "204: shelved" },
-  ]
-  forks = [
-    { at = "gate", when = "the handle is unknown", back = "401: turned away" },
-    { at = "catalog", when = "the title is not carried", back = "404: refused" },
-  ]
 
   [[case.need]]
   need = "a title is shelved and the shelf reads back"
@@ -182,17 +133,6 @@ serves = "a stranger is turned away"
   updated = "Ada King"
   seed = "INSERT INTO members (handle, name) VALUES ('eve', 'Eve')"
 
-  [[case.flow]]
-  name = "a member joins"
-  steps = [
-    { via = "gate.local", to = "gate", does = "PUT the member" },
-    { from = "gate", to = "gate-data", does = "the roll is written" },
-    { back = "204: enrolled" },
-  ]
-  forks = [
-    { at = "gate", when = "the body names no name", back = "400: refused" },
-  ]
-
   [[case.need]]
   need = "a member is enrolled, read, renamed and struck"
   claims = [
@@ -229,17 +169,6 @@ serves = "a title the catalog does not carry is refused"
   created = "116"
   updated = "118"
   seed = "INSERT INTO titles (slug, name, minutes) VALUES ('tao', 'Tao', 95)"
-
-  [[case.flow]]
-  name = "a title joins the catalog"
-  steps = [
-    { via = "catalog.local", to = "catalog", does = "PUT the title" },
-    { from = "catalog", to = "catalog-data", does = "the title lands" },
-    { back = "204: carried" },
-  ]
-  forks = [
-    { at = "catalog", when = "the body names no minutes", back = "400: refused" },
-  ]
 
   [[case.need]]
   need = "a title is added, read, corrected and withdrawn"

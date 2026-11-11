@@ -3,6 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::process::ExitCode;
 
+use arbiter::commands;
 use arbiter::core::pack;
 use arbiter::core::pack::Def;
 use arbiter::core::pack::Edge;
@@ -19,7 +20,6 @@ use arbiter::judge::outcomes;
 use arbiter::judge::rhyme;
 use arbiter::judge::verdict;
 use arbiter::packs::graphed;
-use arbiter::verbs;
 
 fn main() -> ExitCode {
     // A closed pipe ends the read, not the program: piping a report into
@@ -383,8 +383,8 @@ fn main() -> ExitCode {
         };
         return ledgered(&found);
     }
-    if let Some(verb) = arguments.first() {
-        eprintln!("arbiter: no verb named {verb}");
+    if let Some(command) = arguments.first() {
+        eprintln!("arbiter: no command named {command}");
     }
     taught();
     ExitCode::from(2)
@@ -604,19 +604,19 @@ fn rhymed(found: &arbiter::core::graph::Graph) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-// The bare call teaches: the whole grammar, each verb with its one line.
+// The bare call teaches: the whole grammar, each command with its one line.
 fn taught() {
     println!(
         "arbiter {} judges a repository: the resolved graph, each unit's pinned tools, the brief.",
-        verbs::VERSION
+        commands::VERSION
     );
     println!();
-    let width = verbs::VERBS
+    let width = commands::COMMANDS
         .iter()
         .map(|(call, _)| call.len())
         .max()
         .unwrap_or(0);
-    for (call, line) in verbs::VERBS {
+    for (call, line) in commands::COMMANDS {
         println!("  {call:width$}  {line}");
     }
     println!();
@@ -624,7 +624,7 @@ fn taught() {
         "gate, examine, adopt and ledger sign act; find, ledger, brief and rules read and never write."
     );
     println!(
-        "A verb takes the folder last; missing, it judges here. \
+        "A command takes the folder last; missing, it judges here. \
          Exit: 0 clean, 1 findings, 2 no judgment — a broken machine, \
          a bad ask, or nothing to judge."
     );
@@ -1002,7 +1002,7 @@ fn scoped(asked: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
 
 // What falls when one service is down, and in what capacity: who cannot
 // boot, who degrades, which doors go dark, what state turns unreachable,
-// which flows are severed, and which cases those add up to.
+// and which cases are placed over it.
 fn fallen(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
     let Some(Ok(reading)) = arbiter::judge::plans::read(&found.root) else {
         eprintln!("find impact: no plans record; impact runs over the declared world");
@@ -1076,19 +1076,8 @@ fn fallen(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
             );
         }
     }
-    let mut severed: Vec<(String, String)> = Vec::new();
     let mut placed: Vec<String> = Vec::new();
     if let Some(brief) = brief::read(found) {
-        for flow in &brief.flows {
-            let crossed = flow
-                .steps
-                .iter()
-                .any(|hop| hop.to.as_deref() == Some(name) || hop.from.as_deref() == Some(name));
-            if crossed {
-                println!("  severed flow: '{}' (case {})", flow.name, flow.case);
-                severed.push((flow.case.clone(), flow.name.clone()));
-            }
-        }
         for case in &brief.cases {
             let Some(unit) = &case.unit else { continue };
             let mut cone: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
@@ -1107,17 +1096,7 @@ fn fallen(name: &str, found: &arbiter::core::graph::Graph) -> ExitCode {
     }
     let mut cases: Vec<String> = Vec::new();
     for case in &placed {
-        let flows_cut = severed.iter().filter(|(of, _)| of == case).count();
-        if flows_cut > 0 {
-            cases.push(format!("{case} — placed over it, {flows_cut} flow severed"));
-        } else {
-            cases.push(format!("{case} — placed over it"));
-        }
-    }
-    for (case, _) in &severed {
-        if !placed.contains(case) {
-            cases.push(format!("{case} — its flow crosses it"));
-        }
+        cases.push(format!("{case} — placed over it"));
     }
     cases.sort();
     cases.dedup();
@@ -1347,18 +1326,18 @@ fn adopted(root: &Path) -> (Vec<String>, bool) {
     ];
     for (place, content) in owned {
         let path = root.join(place);
-        let expected = verbs::stamped(place, content);
+        let expected = commands::stamped(place, content);
         match fs::read_to_string(&path) {
             Ok(present) if present == expected => {
                 told.push(format!("kept {place}"));
                 continue;
             }
-            Ok(present) if verbs::ahead(&present) => {
-                let (major, minor, patch) = verbs::written_by(&present).unwrap_or((0, 0, 0));
+            Ok(present) if commands::ahead(&present) => {
+                let (major, minor, patch) = commands::written_by(&present).unwrap_or((0, 0, 0));
                 told.push(format!(
                     "left {place}: written by arbiter {major}.{minor}.{patch}, and this \
                      binary is {} — update the binary, not the file",
-                    verbs::VERSION
+                    commands::VERSION
                 ));
                 stale = true;
                 continue;

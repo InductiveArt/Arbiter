@@ -76,95 +76,6 @@ pub fn winnow(
     (findings, nascent)
 }
 
-// A flow is a path through the declared world: a door hop rides a declared
-// serve, a service hop rides a channel or a mounted volume, and a fork sits
-// at a service the flow visits. A hop the plan does not carry is named.
-fn flowed(found: &Graph) -> Vec<Finding> {
-    let Some(reading) = crate::judge::brief::read(found) else {
-        return Vec::new();
-    };
-    if reading.flows.is_empty() {
-        return Vec::new();
-    }
-    let Some(Ok(plans)) = crate::judge::plans::read(&found.root) else {
-        return reading
-            .flows
-            .iter()
-            .map(|flow| Finding {
-                check: "brief",
-                file: std::path::PathBuf::from(".arbiter/brief.toml"),
-                line: flow.line,
-                name: "off-plan-step".to_string(),
-                reason: format!(
-                    "the flow '{}' of case '{}' walks a world no plan declares",
-                    flow.name, flow.case
-                ),
-            })
-            .collect();
-    };
-    let mut findings = Vec::new();
-    let brief_path = std::path::PathBuf::from(".arbiter/brief.toml");
-    for flow in &reading.flows {
-        let mut visited: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
-        for hop in &flow.steps {
-            let carried = match (&hop.via, &hop.from, &hop.to, &hop.back) {
-                (Some(door), None, Some(to), _) => {
-                    visited.insert(to);
-                    plans.services.iter().any(|service| {
-                        service
-                            .serves
-                            .iter()
-                            .any(|(domain, _, target)| domain == door && target == to)
-                    })
-                }
-                (None, Some(from), Some(to), _) => {
-                    visited.insert(from);
-                    visited.insert(to);
-                    plans.services.iter().any(|service| {
-                        service.name == *from
-                            && (service.channels.iter().any(|(dialed, _)| dialed == to)
-                                || service.volumes.iter().any(|volume| volume == to))
-                    })
-                }
-                (None, None, None, Some(_)) => true,
-                _ => false,
-            };
-            if !carried {
-                let walked = match (&hop.via, &hop.from, &hop.to) {
-                    (Some(door), _, Some(to)) => format!("{door} -> {to}"),
-                    (_, Some(from), Some(to)) => format!("{from} -> {to}"),
-                    _ => "a hop with no edge".to_string(),
-                };
-                findings.push(Finding {
-                    check: "brief",
-                    file: brief_path.clone(),
-                    line: flow.line,
-                    name: "off-plan-step".to_string(),
-                    reason: format!(
-                        "the flow '{}' of case '{}' walks {walked}, which the plan does not declare",
-                        flow.name, flow.case
-                    ),
-                });
-            }
-        }
-        for fork in &flow.forks {
-            if !visited.contains(fork.at.as_str()) {
-                findings.push(Finding {
-                    check: "brief",
-                    file: brief_path.clone(),
-                    line: flow.line,
-                    name: "astray-fork".to_string(),
-                    reason: format!(
-                        "the flow '{}' of case '{}' forks at {}, which its steps never visit",
-                        flow.name, flow.case, fork.at
-                    ),
-                });
-            }
-        }
-    }
-    findings
-}
-
 pub fn integrity(found: &Graph) -> Vec<Finding> {
     let mut findings = cycles(&found.defs, &found.edges, &found.repo);
     for pack in &found.packs {
@@ -175,7 +86,6 @@ pub fn integrity(found: &Graph) -> Vec<Finding> {
     findings.extend(folder_boundaries(found));
     findings.extend(licenses(found));
     findings.extend(crate::judge::plans::findings(found));
-    findings.extend(flowed(found));
     let (subjects, guards) = crate::core::record::read(&found.root);
     findings.extend(guards);
     let (cycles_found, cycles_live) = sibling_cycles(found, &subjects);

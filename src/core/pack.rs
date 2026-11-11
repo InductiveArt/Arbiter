@@ -311,14 +311,6 @@ pub const CORE: &[(&str, &str)] = &[
         "every sentence a trial proves is a need of its case",
     ),
     (
-        "off-plan-step",
-        "a flow walks only edges the plan declares: a door served, a channel dialed, a volume mounted",
-    ),
-    (
-        "astray-fork",
-        "a flow forks at a service its steps visit",
-    ),
-    (
         "phantom-service",
         "every name a plan record dials - a need, a channel, a placement - is a declared service",
     ),
@@ -387,8 +379,6 @@ const RECORDED: &[(&str, &str)] = &[
     ("orphan-case", ".arbiter/brief.toml"),
     ("unmandated-trial", ".arbiter/brief.toml"),
     ("stale-mandate", ".arbiter/brief.toml"),
-    ("off-plan-step", ".arbiter/brief.toml"),
-    ("astray-fork", ".arbiter/brief.toml"),
     ("vanished-claim", ".arbiter/reference.json"),
     ("phantom-service", ".arbiter/plans.toml"),
     ("boot-cycle", ".arbiter/plans.toml"),
@@ -491,8 +481,6 @@ pub const GROUPS: &[(&str, &[&str])] = &[
             "orphan-case",
             "unmandated-trial",
             "stale-mandate",
-            "off-plan-step",
-            "astray-fork",
             "unparsable-user-record",
         ],
     ),

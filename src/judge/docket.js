@@ -131,42 +131,6 @@ function coneBoard(holder, unit) {
   holder.appendChild(svg);
 }
 
-// One flow as a strip: door, services and volumes left to right, the answer
-// turning back, the forks listed where they branch off.
-function flowStrip(flow) {
-  const wrap = el("div", "flow");
-  wrap.appendChild(el("div", "dim", "flow: " + flow.name));
-  const strip = el("div", "flowstrip");
-  const chipFor = name => {
-    if (DATA.plans.volumes.some(v => v.name === name)) return el("span", "flowvol", name);
-    const chip = el("a", "flowservice", name);
-    chip.onclick = () => servicePanel(name);
-    return chip;
-  };
-  const arrow = does => {
-    const step = el("span", "flowarrow");
-    step.appendChild(el("span", null, "→"));
-    if (does) step.appendChild(el("i", "dim", does));
-    return step;
-  };
-  for (const hop of flow.steps) {
-    if (hop.back != null) { strip.appendChild(el("span", "flowback", "↩ " + hop.back)); continue; }
-    if (hop.via) {
-      strip.appendChild(el("span", "flowdoor", hop.via));
-      strip.appendChild(arrow(hop.does));
-      strip.appendChild(chipFor(hop.to));
-    } else if (hop.from && hop.to) {
-      strip.appendChild(arrow(hop.does));
-      strip.appendChild(chipFor(hop.to));
-    }
-  }
-  wrap.appendChild(strip);
-  for (const fork of flow.forks)
-    wrap.appendChild(el("div", "flowfork",
-      "at " + fork.at + ", when " + fork.when + " ↩ " + fork.back));
-  return wrap;
-}
-
 function docket(view) {
   if (!DATA.brief) { view.appendChild(el("div", "empty", "no brief written")); return; }
   const tried = verifiedNeeds();
@@ -174,8 +138,6 @@ function docket(view) {
   for (const one of DATA.brief.seated || []) seat[one.name] = one;
   const byCase = {};
   for (const need of DATA.brief.needs) (byCase[need.case] = byCase[need.case] || []).push(need);
-  const flowsBy = {};
-  for (const flow of DATA.brief.flows || []) (flowsBy[flow.case] = flowsBy[flow.case] || []).push(flow);
   const names = Object.keys(byCase);
   for (const name of names) {
     const needs = byCase[name];
@@ -208,7 +170,6 @@ function docket(view) {
         " — " + need.claims + (need.claims === 1 ? " claim" : " claims")));
       body.appendChild(row);
     }
-    for (const flow of flowsBy[name] || []) body.appendChild(flowStrip(flow));
     if (home.unit) {
       const territory = el("div");
       territory.appendChild(el("span", "dim", "territory: "));

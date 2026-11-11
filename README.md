@@ -12,7 +12,7 @@ cargo install --git https://github.com/InductiveArt/Arbiter --tag v0.21.2 arbite
 
 arbiter adopt .   # install the agent layer under .claude/
 arbiter gate .    # judge; the first run seeds .arbiter/'s decision files
-arbiter           # the verbs, one line each
+arbiter           # the commands, one line each
 ```
 
 The acts are `gate`, `adopt` and `ledger sign`; the reads - `find`
@@ -69,4 +69,4 @@ the entry protocol, each finding's expected fix, and what only the user
 decides. The skill is the agent layer's and refreshes with the binary, never
 backwards: each adopted file's last line names the arbiter that wrote it,
 and a stale binary is told to update instead of writing. A test holds the
-skill to each verb's own line, so the taught word cannot drift.
+skill to each command's own line, so the taught word cannot drift.

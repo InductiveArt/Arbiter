@@ -62,35 +62,6 @@ pub struct Trial {
     pub seed: String,
 }
 
-// One hop of a flow: the world enters by a door (via -> to), a service
-// reaches another service or its volume (from -> to), or the flow answers
-// its caller (back). The does line says what the hop carries.
-pub struct Hop {
-    pub via: Option<String>,
-    pub from: Option<String>,
-    pub to: Option<String>,
-    pub back: Option<String>,
-    pub does: Option<String>,
-}
-
-// One branch off the happy path: at a visited service, when something is
-// otherwise, the flow answers differently.
-pub struct Fork {
-    pub at: String,
-    pub when: String,
-    pub back: String,
-}
-
-// One process of a case: a named path through the declared world. Every hop
-// must ride an edge the plan states, or the flow is a drawing, not a record.
-pub struct Flow {
-    pub case: String,
-    pub name: String,
-    pub steps: Vec<Hop>,
-    pub forks: Vec<Fork>,
-    pub line: usize,
-}
-
 pub struct Reading {
     pub cases: Vec<Case>,
     pub needs: Vec<Need>,
@@ -98,65 +69,6 @@ pub struct Reading {
     pub claims: usize,
     pub unwired: Vec<(PathBuf, usize, String)>,
     pub trials: Vec<Trial>,
-    pub flows: Vec<Flow>,
-}
-
-fn flows_of(case_name: &str, case: &toml::Value, text: &str) -> Vec<Flow> {
-    let Some(listed) = case.get("flow").and_then(toml::Value::as_array) else {
-        return Vec::new();
-    };
-    let word = |entry: &toml::Value, field: &str| {
-        entry
-            .get(field)
-            .and_then(toml::Value::as_str)
-            .map(str::to_string)
-    };
-    listed
-        .iter()
-        .filter_map(|flow| {
-            let name = word(flow, "name")?;
-            let steps = flow
-                .get("steps")
-                .and_then(toml::Value::as_array)
-                .map(|hops| {
-                    hops.iter()
-                        .map(|hop| Hop {
-                            via: word(hop, "via"),
-                            from: word(hop, "from"),
-                            to: word(hop, "to"),
-                            back: word(hop, "back"),
-                            does: word(hop, "does"),
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            let forks = flow
-                .get("forks")
-                .and_then(toml::Value::as_array)
-                .map(|all| {
-                    all.iter()
-                        .filter_map(|fork| {
-                            Some(Fork {
-                                at: word(fork, "at")?,
-                                when: word(fork, "when")?,
-                                back: word(fork, "back")?,
-                            })
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            Some(Flow {
-                case: case_name.to_string(),
-                line: text
-                    .lines()
-                    .position(|line| line.contains(&format!("name = \"{name}\"")))
-                    .map_or(0, |at| at + 1),
-                name,
-                steps,
-                forks,
-            })
-        })
-        .collect()
 }
 
 fn trial_of(case_name: &str, case: &toml::Value) -> Option<Trial> {
@@ -255,7 +167,6 @@ pub fn read(found: &Graph) -> Option<Reading> {
                 claims: 0,
                 unwired: Vec::new(),
                 trials: Vec::new(),
-                flows: Vec::new(),
             });
         }
     };
@@ -281,7 +192,6 @@ pub fn read(found: &Graph) -> Option<Reading> {
     let mut findings = Vec::new();
     let mut trials = Vec::new();
     let mut seated = Vec::new();
-    let mut flows = Vec::new();
     let mut covered = vec![false; spoken.len()];
     for case in cases {
         let name = case
@@ -292,7 +202,6 @@ pub fn read(found: &Graph) -> Option<Reading> {
         if let Some(trial) = trial_of(&name, case) {
             trials.push(trial);
         }
-        flows.extend(flows_of(&name, case, &text));
         seated.push(Case {
             name: name.clone(),
             unit: case
@@ -481,7 +390,6 @@ pub fn read(found: &Graph) -> Option<Reading> {
         claims: spoken.len(),
         unwired,
         trials,
-        flows,
     })
 }
 

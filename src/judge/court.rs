@@ -172,38 +172,11 @@ fn snapshot(run: &Run) -> serde_json::Value {
                 })
             })
             .collect();
-        let flows: Vec<serde_json::Value> = reading
-            .flows
-            .iter()
-            .map(|flow| {
-                let steps: Vec<serde_json::Value> = flow
-                    .steps
-                    .iter()
-                    .map(|hop| {
-                        serde_json::json!({
-                            "via": hop.via, "from": hop.from, "to": hop.to,
-                            "back": hop.back, "does": hop.does,
-                        })
-                    })
-                    .collect();
-                let forks: Vec<serde_json::Value> = flow
-                    .forks
-                    .iter()
-                    .map(|fork| {
-                        serde_json::json!({ "at": fork.at, "when": fork.when, "back": fork.back })
-                    })
-                    .collect();
-                serde_json::json!({
-                    "case": flow.case, "name": flow.name, "steps": steps, "forks": forks,
-                })
-            })
-            .collect();
         serde_json::json!({
             "cases": reading.cases.len(),
             "seated": seated,
             "claims": reading.claims,
             "needs": needs,
-            "flows": flows,
         })
     });
     let receipts = fs::read_to_string(run.root.join(".arbiter/last/receipts.json"))
@@ -220,7 +193,7 @@ fn snapshot(run: &Run) -> serde_json::Value {
         })
         .collect();
     serde_json::json!({
-        "version": crate::verbs::VERSION,
+        "version": crate::commands::VERSION,
         "root": run.root.to_string_lossy(),
         "units": run.units,
         "files": run.files,

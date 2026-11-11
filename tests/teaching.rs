@@ -1,21 +1,21 @@
-use arbiter::verbs::ahead;
-use arbiter::verbs::stamped;
-use arbiter::verbs::written_by;
-use arbiter::verbs::VERBS;
-use arbiter::verbs::VERSION;
+use arbiter::commands::ahead;
+use arbiter::commands::stamped;
+use arbiter::commands::written_by;
+use arbiter::commands::COMMANDS;
+use arbiter::commands::VERSION;
 
 #[test]
-fn the_skill_speaks_each_verb_with_its_own_line() {
+fn the_skill_speaks_each_command_with_its_own_line() {
     let skill = include_str!("../share/skills/arbiter-quality/SKILL.md");
-    for (call, line) in VERBS {
-        let verb = call.split_whitespace().next().unwrap_or(call);
+    for (call, line) in COMMANDS {
+        let command = call.split_whitespace().next().unwrap_or(call);
         assert!(
-            skill.contains(&format!("arbiter {verb}")),
-            "the skill never names {verb}"
+            skill.contains(&format!("arbiter {command}")),
+            "the skill never names {command}"
         );
         assert!(
             skill.contains(line),
-            "the skill drifts from the verb {verb}: {line}"
+            "the skill drifts from the command {command}: {line}"
         );
     }
 }
