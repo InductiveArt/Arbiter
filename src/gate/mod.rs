@@ -1,3 +1,5 @@
+pub mod tools;
+
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -5,11 +7,10 @@ use crate::core::claims;
 use crate::core::graph;
 use crate::core::pack::Finding;
 use crate::core::units;
+use crate::gate::tools::Outcome;
 use crate::laws::findings;
 use crate::ledger;
 use crate::packs;
-use crate::pipeline::outcomes;
-use crate::pipeline::outcomes::Outcome;
 use crate::records::brief;
 
 // One whole judgment of a repository: both planes, with the ledger's footer.
@@ -67,7 +68,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         }
         let found = graph::graph(asked, packs)?;
         let warmth = heated(&found, cold);
-        let (outcomes, mut notes, dialed) = outcomes::judged(
+        let (outcomes, mut notes, dialed) = tools::judged(
             &found.root,
             &found.repo,
             &found.packs,
@@ -80,7 +81,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
     } else {
         let found = crate::packs::graphed(asked)?;
         let warmth = heated(&found, cold);
-        let (outcomes, notes, dialed) = outcomes::judged(
+        let (outcomes, notes, dialed) = tools::judged(
             &found.root,
             &found.repo,
             &found.packs,
@@ -101,6 +102,16 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         )],
     );
     journal.noted("resolve", found.resolve_seconds, Vec::new());
+    journal.run("tools", |tools| {
+        for outcome in outcomes.iter().filter(|outcome| !outcome.warm) {
+            tools.noted(
+                &format!("{}/{}", outcome.unit, outcome.check),
+                outcome.seconds,
+                Vec::new(),
+            );
+        }
+        crate::core::task::Done::ok(())
+    });
     let commissioned = brief::commissioned(&found);
     let (mut all, nascent) = journal.run("judge", |_| {
         let (winnowed, nascent) =
@@ -173,15 +184,6 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         });
         crate::core::task::Done::ok((counted.len(), added, packages.len(), third_added))
     });
-    journal.noted(
-        "tools",
-        outcomes
-            .iter()
-            .filter(|outcome| !outcome.warm)
-            .map(|outcome| outcome.seconds)
-            .sum(),
-        Vec::new(),
-    );
     let units = found.repo.units.len();
     let files = found.repo.files.len();
     Some(Run {
@@ -427,7 +429,7 @@ pub fn seeded(root: &std::path::Path) {
 #[cfg(test)]
 mod tests {
     use super::tallied;
-    use crate::pipeline::outcomes::Outcome;
+    use crate::gate::tools::Outcome;
 
     fn outcome(check: &str, passed: bool, seconds: f64) -> Outcome {
         Outcome {

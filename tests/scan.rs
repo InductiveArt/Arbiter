@@ -181,7 +181,7 @@ fn the_first_gate_seeds_the_decision_files_and_never_overwrites() {
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("the folder is writable");
 
-    arbiter::pipeline::verdict::seeded(&root);
+    arbiter::gate::seeded(&root);
     let units = fs::read_to_string(root.join(".arbiter/units.toml")).expect("units.toml seeded");
     assert!(units.starts_with("# The unit graph, declared."));
     assert!(
@@ -201,7 +201,7 @@ fn the_first_gate_seeds_the_decision_files_and_never_overwrites() {
         "[units.\"libs/x\"]\ndeps = []\n",
     )
     .expect("the folder is writable");
-    arbiter::pipeline::verdict::seeded(&root);
+    arbiter::gate::seeded(&root);
     let kept = fs::read_to_string(root.join(".arbiter/units.toml")).expect("still readable");
     assert!(
         kept.starts_with("[units."),

@@ -1,8 +1,8 @@
 use std::path::Path;
 use std::process::ExitCode;
 
-use crate::pipeline::outcomes;
-use crate::pipeline::verdict;
+use crate::gate;
+use crate::gate::tools;
 
 pub fn run(arguments: &[String]) -> ExitCode {
     if let Some(command @ "gate") = arguments.first().map(String::as_str) {
@@ -15,7 +15,7 @@ pub fn run(arguments: &[String]) -> ExitCode {
             .find(|argument| !argument.starts_with("--"))
             .cloned()
             .unwrap_or_else(|| ".".to_string());
-        let gaps = outcomes::preflight(Path::new(&asked));
+        let gaps = tools::preflight(Path::new(&asked));
         if !gaps.is_empty() {
             for gap in &gaps {
                 eprintln!("{command}: {gap}");
@@ -25,7 +25,7 @@ pub fn run(arguments: &[String]) -> ExitCode {
             );
             return ExitCode::from(2);
         }
-        let Some(run) = verdict::run(&asked, fixing, cold, briefless) else {
+        let Some(run) = gate::run(&asked, fixing, cold, briefless) else {
             eprintln!("{command}: no folder at {asked}");
             return ExitCode::from(2);
         };
@@ -41,7 +41,7 @@ pub fn run(arguments: &[String]) -> ExitCode {
                 format!(" (foreign: {})", named.join(", "))
             }
         });
-        for (check, (passed, failed, warm, seconds)) in verdict::tallied(&run.outcomes) {
+        for (check, (passed, failed, warm, seconds)) in gate::tallied(&run.outcomes) {
             let heat = if warm > 0 {
                 format!(" ({warm} warm)")
             } else {
@@ -105,9 +105,9 @@ pub fn run(arguments: &[String]) -> ExitCode {
             ),
         }
         match run.brief {
-            verdict::BriefLine::Skipped => println!("  {:15} skipped", "brief"),
-            verdict::BriefLine::Unwritten => println!("  {:15} no brief written", "brief"),
-            verdict::BriefLine::Read {
+            gate::BriefLine::Skipped => println!("  {:15} skipped", "brief"),
+            gate::BriefLine::Unwritten => println!("  {:15} no brief written", "brief"),
+            gate::BriefLine::Read {
                 cases,
                 tested,
                 planned,
@@ -127,7 +127,7 @@ pub fn run(arguments: &[String]) -> ExitCode {
             println!("{command}: nothing to judge here");
             return ExitCode::from(2);
         }
-        let place = verdict::written(&run);
+        let place = gate::written(&run);
         let _ = crate::court::write(&run);
         let failed = run
             .outcomes

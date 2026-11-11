@@ -668,8 +668,16 @@ function pipeline(view) {
     o.check === "stale-generated" || o.check === "inter-language-break");
   const checks = [...new Set(DATA.outcomes.map(o => o.check))].sort();
   const unanswered = DATA.brief ? DATA.brief.needs.filter(n => n.state === "unanswered").length : 0;
+  const findOp = (nodes, name) => {
+    for (const node of nodes || []) {
+      if (node.op === name) return node;
+      const deep = findOp(node.children, name);
+      if (deep) return deep;
+    }
+    return null;
+  };
   const timed = name => {
-    const step = (DATA.pipeline || []).find(s => s.name === name);
+    const step = findOp(DATA.pipeline, name);
     if (!step) return "";
     return " · " + (step.seconds < 0.05 ? "<0.1s" : step.seconds.toFixed(1) + "s");
   };
