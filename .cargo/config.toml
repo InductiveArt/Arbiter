@@ -1,0 +1,8 @@
+# Builds read third parties from the tree, never the network: the registry
+# is provenance, not a build-time dependency. cargo build --frozen proves it.
+
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "third_party/rust"

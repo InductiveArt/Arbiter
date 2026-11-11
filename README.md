@@ -25,6 +25,25 @@ The binary is self-contained; the machine still needs the toolchains the
 repository's languages demand, and the gate names a missing one. Updating is
 installing the next tag: the judge is pinned like everything it pins.
 
+## The build
+
+```
+cargo build --frozen --release
+```
+
+The build is hermetic at the cargo grain: every third party's source lives
+in `third_party/rust`, `.cargo/config.toml` points the registry there, and
+`--frozen` makes a build that would re-resolve or fetch fail instead of
+reaching out. The registry is provenance, not a build-time dependency; a
+fresh clone builds with the network off. The walk never judges
+`third_party/` - vendored bytes are read by builds, not by the law.
+
+What still runs at build time, declared: `serde_derive` on `proc-macro2`,
+and the grammar crates' build scripts, which compile each vendored
+`parser.c` through `cc`. The one ambient input left is therefore the
+system C compiler and its headers (at vendoring: Apple clang 16.0.0); a
+pinned sysroot is the cell's job, not this repository's.
+
 ## The shape
 
 - `processes.md` is the plan: the axes the work stands on, why each
