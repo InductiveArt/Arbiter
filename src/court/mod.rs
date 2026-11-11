@@ -37,6 +37,17 @@ pub fn page(data: &serde_json::Value) -> String {
         .replace("/*ARBITER_DOCKET*/", DOCKET)
 }
 
+// One task of the run tree, rendered with its subtree: the console draws the
+// pipeline from this, however deep the features nested their work.
+fn task_node(node: &crate::core::task::Node) -> serde_json::Value {
+    serde_json::json!({
+        "op": node.op,
+        "seconds": node.seconds,
+        "evidence": node.evidence,
+        "children": node.children.iter().map(task_node).collect::<Vec<serde_json::Value>>(),
+    })
+}
+
 fn snapshot(run: &Run) -> serde_json::Value {
     let found = &run.graph;
     let outcomes: Vec<serde_json::Value> = run
@@ -203,9 +214,7 @@ fn snapshot(run: &Run) -> serde_json::Value {
         "outcomes": outcomes,
         "adapters": adapters,
         "resolved": found.edges.len(),
-        "pipeline": run.steps.iter().map(|step| {
-            serde_json::json!({ "name": step.name, "seconds": step.seconds })
-        }).collect::<Vec<serde_json::Value>>(),
+        "pipeline": run.steps.iter().map(task_node).collect::<Vec<serde_json::Value>>(),
         "unitsList": units_list,
         "findings": found_findings,
         "rules": rules,

@@ -343,6 +343,13 @@ name = "the-run"
 story = "a gate runs pinned tools, warm where nothing moved, repairing first when fixing"
 
   [[case.need]]
+  need = "a run is a tree of tasks, each timed, children under the task that spawned them"
+  claims = [
+    ". |  | a task tree nests children under the task that spawned them",
+    ". |  | a noted leaf sits beside the tasks that run",
+  ]
+
+  [[case.need]]
   need = "every run leaves the court: one page, one snapshot, beside the report"
   claims = [". |  | the court page embeds the snapshot whole"]
 

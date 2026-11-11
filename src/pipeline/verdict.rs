@@ -48,8 +48,8 @@ pub struct Run {
     pub third: usize,
     // Third parties added since the reference; None when none was recorded yet.
     pub third_added: Option<usize>,
-    // The run's trace: every pipeline step with its seconds, end to end.
-    pub steps: Vec<crate::core::trace::Step>,
+    // The run's task tree: every task that ran, with its cost and subtree.
+    pub steps: Vec<crate::core::task::Node>,
 }
 
 // Judges everything: the units' tools, then the graph. A fixing run repairs first,
@@ -90,17 +90,29 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         );
         (outcomes, notes, dialed, found)
     };
-    let mut trace = crate::core::trace::Trace::start();
+    let mut journal = crate::core::task::Journal::new();
+    journal.noted(
+        "scan",
+        found.scan_seconds,
+        vec![format!(
+            "{} units, {} files",
+            found.repo.units.len(),
+            found.repo.files.len()
+        )],
+    );
+    journal.noted("resolve", found.resolve_seconds, Vec::new());
     let commissioned = brief::commissioned(&found);
-    let (winnowed, nascent) =
-        findings::winnow(&found.defs, &found.edges, &found.repo, &commissioned);
+    let (mut all, nascent) = journal.run("judge", |_| {
+        let (winnowed, nascent) =
+            findings::winnow(&found.defs, &found.edges, &found.repo, &commissioned);
+        let mut all = winnowed;
+        all.extend(dialed);
+        all.extend(findings::integrity(&found));
+        all.extend(ledger::blanket_findings(&found));
+        all.extend(ledger::broken_record(&found.root));
+        crate::core::task::Done::ok((all, nascent))
+    });
     notes.extend(nascent);
-    let mut all = winnowed;
-    all.extend(dialed);
-    all.extend(findings::integrity(&found));
-    all.extend(ledger::blanket_findings(&found));
-    all.extend(ledger::broken_record(&found.root));
-    trace.step("judge");
     let mut needs_spoken: Vec<String> = Vec::new();
     let brief = if briefless {
         BriefLine::Skipped
@@ -134,7 +146,9 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
     if !briefless {
         all.extend(brief::findings(&found));
     }
-    let gone = claims::vanished(&found);
+    let gone = journal.run("claims", |_| {
+        crate::core::task::Done::ok(claims::vanished(&found))
+    });
     let claims = claims::identities(&found).len();
     let claims_vanished = claims::recorded(&found.root).map(|_| gone.len());
     let needs_stated = needs_spoken.len();
@@ -145,30 +159,28 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
             .count()
     });
     all.extend(gone);
-    trace.step("claims");
     all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
-    let counted = ledger::counted(&found);
-    let added =
-        ledger::reference(&found.root).map(|reference| ledger::added(&counted, &reference).len());
-    let counted = counted.len();
-    let packages = ledger::packages(&found);
-    let third_added = ledger::recorded_packages(&found.root).map(|recorded| {
-        packages
-            .iter()
-            .filter(|name| !recorded.contains(name))
-            .count()
+    let (counted, added, third, third_added) = journal.run("ledger", |_| {
+        let counted = ledger::counted(&found);
+        let added = ledger::reference(&found.root)
+            .map(|reference| ledger::added(&counted, &reference).len());
+        let packages = ledger::packages(&found);
+        let third_added = ledger::recorded_packages(&found.root).map(|recorded| {
+            packages
+                .iter()
+                .filter(|name| !recorded.contains(name))
+                .count()
+        });
+        crate::core::task::Done::ok((counted.len(), added, packages.len(), third_added))
     });
-    let third = packages.len();
-    trace.step("ledger");
-    trace.note("scan", found.scan_seconds);
-    trace.note("resolve", found.resolve_seconds);
-    trace.note(
+    journal.noted(
         "tools",
         outcomes
             .iter()
             .filter(|outcome| !outcome.warm)
             .map(|outcome| outcome.seconds)
             .sum(),
+        Vec::new(),
     );
     let units = found.repo.units.len();
     let files = found.repo.files.len();
@@ -189,7 +201,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         added,
         third,
         third_added,
-        steps: trace.steps(),
+        steps: journal.tree(),
     })
 }
 
