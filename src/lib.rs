@@ -7,5 +7,4 @@ pub mod laws;
 pub mod ledger;
 pub mod packs;
 pub mod records;
-pub mod rhyme;
 pub mod tasks;
