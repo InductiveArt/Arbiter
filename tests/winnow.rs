@@ -1,4 +1,4 @@
-use arbiter::laws::findings::winnow;
+use arbiter::laws::economy::winnow;
 use arbiter::laws::judged;
 use arbiter::packs::graphed;
 
@@ -421,7 +421,7 @@ fn a_record_suppression_is_counted_in_the_account() {
 
 #[test]
 fn the_resolved_graph_draws_itself_declared_against_real() {
-    use arbiter::laws::findings::drawn;
+    use arbiter::core::measures::drawn;
     use std::fs;
     let root = std::env::temp_dir().join(format!("arbiter-drawn-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
@@ -733,7 +733,7 @@ fn an_exact_member_set_quiets_one_cycle_and_stales_when_it_dissolves() {
 
 #[test]
 fn the_tangles_read_lists_entangled_siblings_largest_first() {
-    use arbiter::laws::findings::tangles;
+    use arbiter::core::measures::tangles;
     use std::fs;
     let root = std::env::temp_dir().join(format!("arbiter-tangles-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
@@ -769,7 +769,7 @@ fn the_tangles_read_lists_entangled_siblings_largest_first() {
 
 #[test]
 fn the_families_of_every_folder_travel_with_the_snapshot() {
-    use arbiter::laws::findings::families;
+    use arbiter::core::measures::families;
     use std::fs;
     let root = std::env::temp_dir().join(format!("arbiter-families-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);

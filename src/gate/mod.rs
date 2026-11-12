@@ -8,7 +8,7 @@ use crate::core::graph;
 use crate::core::pack::Finding;
 use crate::core::units;
 use crate::gate::tools::Outcome;
-use crate::laws::findings;
+use crate::laws::economy;
 use crate::ledger;
 use crate::packs;
 use crate::records::brief;
@@ -117,7 +117,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         let mut all = Vec::new();
         // The economy law also reports nascent symbols, so it yields notes too.
         let (dead, nascent) = j.run("economy", |_| {
-            crate::core::task::Done::ok(findings::winnow(
+            crate::core::task::Done::ok(economy::winnow(
                 &found.defs,
                 &found.edges,
                 &found.repo,

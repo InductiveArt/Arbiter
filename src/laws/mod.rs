@@ -1,38 +1,32 @@
-pub mod findings;
+pub mod boundaries;
+pub mod cycles;
+pub mod economy;
+pub mod folders;
+pub mod licenses;
+pub mod suppressions;
+pub mod versions;
 
 use crate::core::graph::Graph;
 use crate::core::pack::Finding;
 use crate::core::task::Law;
+use boundaries::boundaries_law;
+use cycles::cycles_law;
+use folders::folders_law;
+use licenses::licenses_law;
+use suppressions::suppressions_law;
+use versions::versions_law;
 
-// Every graph law the gate runs under its judge task, one entry each. The record
+// Every graph law the gate runs under its judge task, one file each. The record
 // laws live with their records and the per-language laws with their packs; all
 // three run beside each other under judge.
 pub fn all() -> Vec<Law> {
     vec![
-        Law {
-            task: "cycles",
-            run: cycles,
-        },
-        Law {
-            task: "boundaries",
-            run: boundaries,
-        },
-        Law {
-            task: "folders",
-            run: folders,
-        },
-        Law {
-            task: "licenses",
-            run: licenses,
-        },
-        Law {
-            task: "versions",
-            run: versions,
-        },
-        Law {
-            task: "suppressions",
-            run: suppressions,
-        },
+        cycles_law(),
+        boundaries_law(),
+        folders_law(),
+        licenses_law(),
+        versions_law(),
+        suppressions_law(),
     ]
 }
 
@@ -51,28 +45,4 @@ pub fn judged(found: &Graph) -> Vec<Finding> {
     }
     gathered.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     gathered
-}
-
-fn cycles(found: &Graph) -> Vec<Finding> {
-    findings::cycles_law(found)
-}
-
-fn boundaries(found: &Graph) -> Vec<Finding> {
-    findings::boundaries(found)
-}
-
-fn folders(found: &Graph) -> Vec<Finding> {
-    findings::folder_boundaries(found)
-}
-
-fn licenses(found: &Graph) -> Vec<Finding> {
-    findings::licenses(found)
-}
-
-fn versions(found: &Graph) -> Vec<Finding> {
-    findings::versions_law(found)
-}
-
-fn suppressions(found: &Graph) -> Vec<Finding> {
-    findings::suppressions_law(found)
 }

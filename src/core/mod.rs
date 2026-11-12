@@ -7,6 +7,7 @@ pub mod digest;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod graph;
+pub mod measures;
 pub mod pack;
 pub mod prose;
 pub mod record;

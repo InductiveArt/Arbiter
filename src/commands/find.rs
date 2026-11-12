@@ -4,7 +4,7 @@ use std::process::ExitCode;
 use crate::core::claims;
 use crate::core::pack;
 use crate::core::pack::Finding;
-use crate::laws::findings::winnow;
+use crate::laws::economy::winnow;
 use crate::packs::graphed;
 use crate::records::brief;
 

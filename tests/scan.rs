@@ -106,7 +106,7 @@ fn a_published_unit_keeps_its_unused_surface() {
     let path = root.to_string_lossy();
 
     let judged = graphed(&path).expect("the folder exists");
-    let (flagged, _) = arbiter::laws::findings::winnow(
+    let (flagged, _) = arbiter::laws::economy::winnow(
         &judged.defs,
         &judged.edges,
         &judged.repo,
@@ -116,7 +116,7 @@ fn a_published_unit_keeps_its_unused_surface() {
 
     fs::write(root.join("PUBLISHED"), "").expect("the folder is writable");
     let declared = graphed(&path).expect("the folder exists");
-    let (kept, _) = arbiter::laws::findings::winnow(
+    let (kept, _) = arbiter::laws::economy::winnow(
         &declared.defs,
         &declared.edges,
         &declared.repo,
@@ -488,7 +488,7 @@ fn a_symbol_reached_only_by_commissioned_tests_is_nascent_not_dead() {
     let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
     let commissioned = arbiter::records::brief::commissioned(&judged);
     let (findings, nascent) =
-        arbiter::laws::findings::winnow(&judged.defs, &judged.edges, &judged.repo, &commissioned);
+        arbiter::laws::economy::winnow(&judged.defs, &judged.edges, &judged.repo, &commissioned);
     assert!(
         findings
             .iter()
@@ -506,7 +506,7 @@ fn a_symbol_reached_only_by_commissioned_tests_is_nascent_not_dead() {
     let again = graphed(&root.to_string_lossy()).expect("the folder exists");
     let commissioned = arbiter::records::brief::commissioned(&again);
     let (findings, nascent) =
-        arbiter::laws::findings::winnow(&again.defs, &again.edges, &again.repo, &commissioned);
+        arbiter::laws::economy::winnow(&again.defs, &again.edges, &again.repo, &commissioned);
     assert!(
         findings
             .iter()

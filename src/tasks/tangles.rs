@@ -24,7 +24,7 @@ fn query(rest: &[String]) -> ExitCode {
 // Every sibling cycle the facts hold, suppressed or not, largest first: the
 // map an agent reads before representing - a measure, never findings.
 fn tangled(scope: Option<&str>, found: &crate::core::graph::Graph) -> ExitCode {
-    let groups = crate::laws::findings::tangles(found);
+    let groups = crate::core::measures::tangles(found);
     let mut shown = 0;
     for (place, members) in &groups {
         if scope.is_some_and(|asked| !(place == asked || place.starts_with(&format!("{asked}/")))) {
