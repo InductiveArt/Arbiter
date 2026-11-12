@@ -4,9 +4,7 @@ use std::process::ExitCode;
 use crate::core::claims;
 use crate::core::pack;
 use crate::core::pack::Finding;
-use crate::laws::findings::integrity;
 use crate::laws::findings::winnow;
-use crate::ledger;
 use crate::packs::graphed;
 use crate::records::brief;
 
@@ -53,11 +51,8 @@ fn bare(rest: &[String]) -> ExitCode {
     let commissioned = brief::commissioned(&found);
     let (winnowed, _) = winnow(&found.defs, &found.edges, &found.repo, &commissioned);
     let mut all = winnowed;
-    all.extend(integrity(&found));
-    all.extend(ledger::blanket_findings(&found));
-    all.extend(ledger::broken_record(&found.root));
+    all.extend(crate::laws::judged(&found));
     all.extend(claims::vanished(&found));
-    all.extend(brief::findings(&found));
     all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     emit(&all, rule.as_deref());
     ExitCode::SUCCESS

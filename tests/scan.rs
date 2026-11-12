@@ -603,7 +603,7 @@ fn a_broken_unit_declaration_is_named_never_read_as_virgin() {
     fs::write(root.join(".arbiter/units.toml"), "[units. not toml")
         .expect("the folder is writable");
     let found = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let findings = arbiter::laws::findings::integrity(&found);
+    let findings = arbiter::laws::judged(&found);
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].name, "unparsable-user-record");
     assert!(findings[0]

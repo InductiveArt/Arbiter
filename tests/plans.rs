@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use arbiter::laws::findings::integrity;
+use arbiter::laws::judged;
 use arbiter::packs::graphed;
 
 fn seeded(root: &Path, record: &str) {
@@ -18,7 +18,7 @@ fn seeded(root: &Path, record: &str) {
 
 fn named(root: &Path, rule: &str) -> Vec<String> {
     let found = graphed(&root.to_string_lossy()).expect("the folder exists");
-    integrity(&found)
+    judged(&found)
         .iter()
         .filter(|finding| finding.name == rule)
         .map(|finding| finding.reason.clone())

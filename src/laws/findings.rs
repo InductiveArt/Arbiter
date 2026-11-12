@@ -76,22 +76,26 @@ pub fn winnow(
     (findings, nascent)
 }
 
-pub fn integrity(found: &Graph) -> Vec<Finding> {
-    let mut findings = cycles(&found.defs, &found.edges, &found.repo);
-    for pack in &found.packs {
-        findings.extend(pack.integrity(&found.root, &found.repo));
-    }
-    findings.extend(split_version(&found.root, &found.repo, &found.packs));
-    findings.extend(boundaries(found));
-    findings.extend(folder_boundaries(found));
-    findings.extend(licenses(found));
-    findings.extend(crate::records::plans::findings(found));
+// The unit cycles, as one law reads them from the resolved graph.
+pub fn cycles_law(found: &Graph) -> Vec<Finding> {
+    cycles(&found.defs, &found.edges, &found.repo)
+}
+
+// One third party at two versions across the lockfiles, as one law.
+pub fn versions_law(found: &Graph) -> Vec<Finding> {
+    split_version(&found.root, &found.repo, &found.packs)
+}
+
+// Everything the suppression record governs: its guards, the sibling cycles it
+// quiets, the grants gone stale, a suppression naming a language no pack judges,
+// the blanket forms, and a record that will not parse.
+pub fn suppressions_law(found: &Graph) -> Vec<Finding> {
+    let mut findings = Vec::new();
     let (subjects, guards) = crate::core::record::read(&found.root);
     findings.extend(guards);
     let (cycles_found, cycles_live) = sibling_cycles(found, &subjects);
     findings.extend(cycles_found);
     findings.extend(crate::core::record::stale_cycles(&subjects, &cycles_live));
-    // A subject no pack judges would never go stale from inside a pack.
     for subject in &subjects {
         let crate::core::record::Subject::Dependency {
             language,
@@ -112,13 +116,14 @@ pub fn integrity(found: &Graph) -> Vec<Finding> {
             });
         }
     }
-    findings.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
+    findings.extend(crate::ledger::blanket_findings(found));
+    findings.extend(crate::ledger::broken_record(&found.root));
     findings
 }
 
 // A written allowlist turns the licenses the ecosystems materialized into
 // judgments; without the file, no license policy exists to hold anything to.
-fn licenses(found: &Graph) -> Vec<Finding> {
+pub fn licenses(found: &Graph) -> Vec<Finding> {
     let Ok(text) = fs::read_to_string(found.root.join(LICENSES)) else {
         return Vec::new();
     };
@@ -295,7 +300,7 @@ fn cycles(defs: &[Def], edges: &[Edge], repo: &Repo) -> Vec<Finding> {
 
 // The declared unit graph, held against the resolved one. A unit declaring nothing is
 // unchecked: the file is adopted one unit at a time, the way a baseline is.
-fn boundaries(found: &Graph) -> Vec<Finding> {
+pub fn boundaries(found: &Graph) -> Vec<Finding> {
     let Ok(text) = fs::read_to_string(found.root.join(DECLARATIONS)) else {
         return Vec::new();
     };
@@ -432,7 +437,7 @@ fn covers(pattern: &str, path: &str) -> bool {
 // child only tightens what the unit allows. A node governs its border, never
 // its interior. A relative pattern reads in the unit's frame; `//` reaches
 // from the repository root.
-fn folder_boundaries(found: &Graph) -> Vec<Finding> {
+pub fn folder_boundaries(found: &Graph) -> Vec<Finding> {
     let Ok(text) = fs::read_to_string(found.root.join(DECLARATIONS)) else {
         return Vec::new();
     };

@@ -18,7 +18,7 @@ deps = ["src/core"]
 deps = ["src/core"]
 
 [units.".".inner."src/laws"]
-deps = ["src/core", "src/records"]
+deps = ["src/core", "src/records", "src/ledger.rs"]
 
 [units.".".inner."src/rhyme.rs"]
 deps = ["src/core"]

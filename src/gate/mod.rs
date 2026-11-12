@@ -113,14 +113,35 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         crate::core::task::Done::ok(())
     });
     let commissioned = brief::commissioned(&found);
-    let (mut all, nascent) = journal.run("judge", |_| {
-        let (winnowed, nascent) =
-            findings::winnow(&found.defs, &found.edges, &found.repo, &commissioned);
-        let mut all = winnowed;
+    let (mut all, nascent) = journal.run("judge", |j| {
+        let mut all = Vec::new();
+        // The economy law also reports nascent symbols, so it yields notes too.
+        let (dead, nascent) = j.run("economy", |_| {
+            crate::core::task::Done::ok(findings::winnow(
+                &found.defs,
+                &found.edges,
+                &found.repo,
+                &commissioned,
+            ))
+        });
+        all.extend(dead);
         all.extend(dialed);
-        all.extend(findings::integrity(&found));
-        all.extend(ledger::blanket_findings(&found));
-        all.extend(ledger::broken_record(&found.root));
+        for law in crate::laws::all() {
+            all.extend(j.run(law.task, |_| crate::core::task::Done::ok((law.run)(&found))));
+        }
+        all.extend(j.run("plans", |_| {
+            crate::core::task::Done::ok(crate::records::plans::findings(&found))
+        }));
+        if !briefless {
+            all.extend(j.run("brief", |_| {
+                crate::core::task::Done::ok(crate::records::brief::findings(&found))
+            }));
+        }
+        for pack in &found.packs {
+            all.extend(j.run(pack.label(), |_| {
+                crate::core::task::Done::ok(pack.integrity(&found.root, &found.repo))
+            }));
+        }
         crate::core::task::Done::ok((all, nascent))
     });
     notes.extend(nascent);
@@ -154,9 +175,6 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
             }
         }
     };
-    if !briefless {
-        all.extend(brief::findings(&found));
-    }
     let gone = journal.run("claims", |_| {
         crate::core::task::Done::ok(claims::vanished(&found))
     });

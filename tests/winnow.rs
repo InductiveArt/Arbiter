@@ -1,5 +1,5 @@
-use arbiter::laws::findings::integrity;
 use arbiter::laws::findings::winnow;
+use arbiter::laws::judged;
 use arbiter::packs::graphed;
 
 const DEMO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/demo");
@@ -40,7 +40,7 @@ fn the_fixture_yields_its_known_findings() {
 fn every_finding_names_a_law_the_matrix_drills() {
     let found = graphed(DEMO).expect("the fixture folder exists");
     let mut all = winnow(&found.defs, &found.edges, &found.repo, &Default::default()).0;
-    all.extend(integrity(&found));
+    all.extend(judged(&found));
     all.extend(arbiter::ledger::blanket_findings(&found));
     all.extend(arbiter::core::claims::vanished(&found));
     all.extend(arbiter::records::brief::findings(&found));
@@ -57,7 +57,7 @@ fn every_finding_names_a_law_the_matrix_drills() {
 #[test]
 fn integrity_names_the_cycle_and_each_reexport() {
     let found = graphed(DEMO).expect("the fixture folder exists");
-    let shown: Vec<String> = integrity(&found)
+    let shown: Vec<String> = judged(&found)
         .iter()
         .map(|finding| format!("{} {}", finding.file.to_string_lossy(), finding.reason))
         .collect();
@@ -85,6 +85,7 @@ fn integrity_names_the_cycle_and_each_reexport() {
             "libs/cyc_a units import each other: libs/cyc_a, libs/cyc_b",
             "libs/cyc_a/src/cyc_a/calc.py libs/cyc_a uses libs/cyc_b, \
              which only nothing/* may",
+            "libs/dead_py/src/dead/calc.py # type: ignore quiets more than one named rule",
             "libs/dead_py/uv.lock requests is locked at 2.31.0 in libs/dead_py/uv.lock \
              and 2.32.0 in libs/used_py/uv.lock",
             "libs/facade/src/facade/__init__.py __init__.py imports shine; \
@@ -93,6 +94,7 @@ fn integrity_names_the_cycle_and_each_reexport() {
              which nothing in the file defines, uses or quotes",
             "libs/testy/tests/test_calc.py asserts True; \
              an assertion compares the system to an expectation",
+            "proto/billing/invoice.proto buf:lint:ignore quiets more than one named rule",
             "proto/buf.yaml buf.build/demo/never is declared, \
              and nothing in the unit reaches it",
             "rlib/Cargo.toml itoa is declared, and nothing in the unit reaches it",
@@ -143,7 +145,7 @@ fn integrity_names_the_cycle_and_each_reexport() {
 #[test]
 fn a_third_party_declared_and_never_reached_is_named() {
     let found = graphed(DEMO).expect("the fixture folder exists");
-    let shown: Vec<String> = integrity(&found)
+    let shown: Vec<String> = judged(&found)
         .iter()
         .filter(|finding| finding.name == "unused-dependency")
         .map(|finding| format!("{} {}", finding.file.to_string_lossy(), finding.reason))
@@ -300,7 +302,7 @@ fn a_record_suppression_quiets_the_package_it_names() {
 
     let bare = graphed(&root.to_string_lossy()).expect("the folder exists");
     assert!(
-        integrity(&bare)
+        judged(&bare)
             .iter()
             .any(|finding| finding.name == "unused-dependency"
                 && finding.reason.starts_with("coverage is declared")),
@@ -314,7 +316,7 @@ fn a_record_suppression_quiets_the_package_it_names() {
     )
     .expect("the folder is writable");
     let quieted = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let findings = integrity(&quieted);
+    let findings = judged(&quieted);
     assert!(
         !findings
             .iter()
@@ -350,7 +352,7 @@ fn a_suppression_that_quiets_nothing_is_stale() {
     .expect("the folder is writable");
 
     let found = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let stale: Vec<String> = integrity(&found)
+    let stale: Vec<String> = judged(&found)
         .iter()
         .filter(|finding| finding.name == "stale-suppression")
         .map(|finding| finding.reason.clone())
@@ -492,7 +494,7 @@ fn a_declared_folder_consents_both_ways_inside_its_unit() {
 
     let consenting = graphed(&root.to_string_lossy()).expect("the folder exists");
     let folder_findings = |found: &arbiter::core::graph::Graph| -> Vec<(String, String)> {
-        integrity(found)
+        judged(found)
             .iter()
             .filter(|finding| finding.name.contains("folder"))
             .map(|finding| (finding.name.clone(), finding.reason.clone()))
@@ -558,7 +560,7 @@ fn a_child_folder_only_tightens_what_the_unit_allows() {
     .expect("writable");
     let consenting = graphed(&root.to_string_lossy()).expect("the folder exists");
     assert!(
-        !integrity(&consenting)
+        !judged(&consenting)
             .iter()
             .any(|finding| finding.name.contains("folder") || finding.name.contains("unit-")),
         "the unit consents and the folder consents through the root marker"
@@ -571,7 +573,7 @@ fn a_child_folder_only_tightens_what_the_unit_allows() {
     )
     .expect("writable");
     let tightened = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let reasons: Vec<String> = integrity(&tightened)
+    let reasons: Vec<String> = judged(&tightened)
         .iter()
         .filter(|finding| finding.name == "undeclared-folder-use")
         .map(|finding| finding.reason.clone())
@@ -615,7 +617,7 @@ fn a_file_declares_as_a_leaf_of_the_folder_tree() {
     .expect("the folder is writable");
     let door = graphed(&root.to_string_lossy()).expect("the folder exists");
     assert!(
-        !integrity(&door)
+        !judged(&door)
             .iter()
             .any(|finding| finding.name.contains("folder")),
         "the named file is the one door and the handler holds its key"
@@ -627,7 +629,7 @@ fn a_file_declares_as_a_leaf_of_the_folder_tree() {
     )
     .expect("the folder is writable");
     let barred = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let mut names: Vec<String> = integrity(&barred)
+    let mut names: Vec<String> = judged(&barred)
         .iter()
         .filter(|finding| finding.name.contains("folder"))
         .map(|finding| finding.name.clone())
@@ -662,7 +664,7 @@ fn a_folder_whose_children_cycle_is_named() {
     .expect("the folder is writable");
 
     let found = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let cycles: Vec<String> = integrity(&found)
+    let cycles: Vec<String> = judged(&found)
         .iter()
         .filter(|finding| finding.name == "sibling-cycle")
         .map(|finding| finding.reason.clone())
@@ -701,7 +703,7 @@ fn an_exact_member_set_quiets_one_cycle_and_stales_when_it_dissolves() {
     .expect("the folder is writable");
 
     let signed = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let findings = integrity(&signed);
+    let findings = judged(&signed);
     assert!(
         !findings
             .iter()
@@ -717,7 +719,7 @@ fn an_exact_member_set_quiets_one_cycle_and_stales_when_it_dissolves() {
 
     fs::write(root.join("infra/b.py"), "value = 1\n").expect("the folder is writable");
     let dissolved = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let stale: Vec<String> = integrity(&dissolved)
+    let stale: Vec<String> = judged(&dissolved)
         .iter()
         .filter(|finding| finding.name == "stale-suppression")
         .map(|finding| finding.reason.clone())
