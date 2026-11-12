@@ -28,7 +28,7 @@ deps = ["src/core", "src/records"]
 deps = ["src/core"]
 
 [units.".".inner."src/gate"]
-deps = ["src/core", "src/records", "src/tasks/laws", "src/ledger.rs", "src/packs"]
+deps = ["src/core", "src/records", "src/tasks", "src/tasks/laws", "src/ledger.rs", "src/packs"]
 
 [units.".".inner."src/court"]
 deps = ["src/core", "src/records", "src/tasks/laws", "src/ledger.rs", "src/gate", "src/packs"]

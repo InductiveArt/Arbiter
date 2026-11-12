@@ -1,13 +1,11 @@
-pub mod tools;
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use crate::core::claims;
 use crate::core::graph;
 use crate::core::pack::Finding;
+use crate::core::tools::Outcome;
 use crate::core::units;
-use crate::gate::tools::Outcome;
 use crate::ledger;
 use crate::packs;
 use crate::records::brief;
@@ -68,7 +66,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         }
         let found = graph::graph(asked, packs)?;
         let warmth = heated(&found, cold);
-        let (outcomes, mut notes, dialed) = tools::judged(
+        let (outcomes, mut notes, dialed) = crate::tasks::tools::judged(
             &found.root,
             &found.repo,
             &found.packs,
@@ -81,7 +79,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
     } else {
         let found = crate::packs::graphed(asked)?;
         let warmth = heated(&found, cold);
-        let (outcomes, notes, dialed) = tools::judged(
+        let (outcomes, notes, dialed) = crate::tasks::tools::judged(
             &found.root,
             &found.repo,
             &found.packs,
@@ -442,7 +440,7 @@ pub fn seeded(root: &std::path::Path) {
 #[cfg(test)]
 mod tests {
     use super::tallied;
-    use crate::gate::tools::Outcome;
+    use crate::core::tools::Outcome;
 
     fn outcome(check: &str, passed: bool, seconds: f64) -> Outcome {
         Outcome {

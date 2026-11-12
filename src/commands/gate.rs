@@ -2,7 +2,6 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use crate::gate;
-use crate::gate::tools;
 
 pub fn run(arguments: &[String]) -> ExitCode {
     if let Some(command @ "gate") = arguments.first().map(String::as_str) {
@@ -15,7 +14,7 @@ pub fn run(arguments: &[String]) -> ExitCode {
             .find(|argument| !argument.starts_with("--"))
             .cloned()
             .unwrap_or_else(|| ".".to_string());
-        let gaps = tools::preflight(Path::new(&asked));
+        let gaps = crate::tasks::preflight::preflight(Path::new(&asked));
         if !gaps.is_empty() {
             for gap in &gaps {
                 eprintln!("{command}: {gap}");

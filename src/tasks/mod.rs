@@ -3,8 +3,10 @@ pub mod fallout;
 pub mod impact;
 pub mod laws;
 pub mod plan;
+pub mod preflight;
 pub mod rhymes;
 pub mod tangles;
+pub mod tools;
 
 use crate::core::task::Task;
 
