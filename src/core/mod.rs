@@ -11,6 +11,7 @@ pub mod measures;
 pub mod pack;
 pub mod prose;
 pub mod record;
+pub mod rule;
 pub mod task;
 pub mod trees;
 pub mod units;

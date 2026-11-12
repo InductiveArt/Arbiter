@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use crate::core::claims;
 use crate::core::graph::Graph;
 use crate::core::pack::Finding;
+use crate::core::rule;
+use crate::core::rule::Rule;
 
 const BRIEF: &str = ".arbiter/brief.toml";
 
@@ -432,4 +434,64 @@ pub fn findings(found: &Graph) -> Vec<Finding> {
     read(found)
         .map(|reading| reading.findings)
         .unwrap_or_default()
+}
+
+pub const RULES: &[Rule] = &[
+    rule::record(
+        "unwired-claim",
+        "claims",
+        ".arbiter/brief.toml",
+        "every claim answers a need in the brief",
+    ),
+    rule::record(
+        "unanswered-need",
+        "claims",
+        ".arbiter/brief.toml",
+        "every need binds claims, or says why not: planned or manual",
+    ),
+    rule::record(
+        "stale-binding",
+        "claims",
+        ".arbiter/brief.toml",
+        "a binding names a claim the tree speaks; a reworded claim is rebound",
+    ),
+    rule::record(
+        "empty-case",
+        "claims",
+        ".arbiter/brief.toml",
+        "a case declares at least one need; a case with no needs proves nothing",
+    ),
+    rule::record(
+        "misplaced-case",
+        "claims",
+        ".arbiter/brief.toml",
+        "a placed case names a unit this repository builds",
+    ),
+    rule::record(
+        "orphan-case",
+        "claims",
+        ".arbiter/brief.toml",
+        "a case serving a need serves one another case states",
+    ),
+    rule::record(
+        "unmandated-trial",
+        "claims",
+        ".arbiter/brief.toml",
+        "a trial proves needs its case states; one proving nothing does not sit",
+    ),
+    rule::record(
+        "stale-mandate",
+        "claims",
+        ".arbiter/brief.toml",
+        "every sentence a trial proves is a need of its case",
+    ),
+];
+
+// The brief record as one law the gate runs under its judge task.
+pub fn brief_law() -> crate::core::rule::Law {
+    crate::core::rule::Law {
+        task: "brief",
+        rules: RULES,
+        run: findings,
+    }
 }

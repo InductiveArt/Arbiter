@@ -4,13 +4,23 @@ use std::path::PathBuf;
 
 use crate::core::graph::Graph;
 use crate::core::pack::Finding;
-use crate::core::task::Law;
+use crate::core::rule;
+use crate::core::rule::Law;
+use crate::core::rule::Rule;
 
 const LICENSES: &str = ".arbiter/licenses.toml";
+
+pub const RULES: &[Rule] = &[rule::record(
+    "unallowed-license",
+    "third-parties",
+    ".arbiter/licenses.toml",
+    "a written allowlist holds every third party's license; no list is no policy yet",
+)];
 
 pub fn licenses_law() -> Law {
     Law {
         task: "licenses",
+        rules: RULES,
         run: judge,
     }
 }

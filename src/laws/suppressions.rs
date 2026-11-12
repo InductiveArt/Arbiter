@@ -6,11 +6,28 @@ use crate::core::graph::strongly_connected;
 use crate::core::graph::Graph;
 use crate::core::measures::sibling_graphs;
 use crate::core::pack::Finding;
-use crate::core::task::Law;
+use crate::core::rule;
+use crate::core::rule::Law;
+use crate::core::rule::Rule;
+
+pub const RULES: &[Rule] = &[
+    rule::record(
+        "blanket-suppression",
+        "suppressions",
+        ".arbiter/suppressions.toml",
+        "a suppression names the one rule it quiets; a blanket form is refused, never recorded",
+    ),
+    rule::facts(
+        "sibling-cycle",
+        "folders",
+        "every folder's children form an order; two siblings reaching each other are one concept split, or a representation unfinished",
+    ),
+];
 
 pub fn suppressions_law() -> Law {
     Law {
         task: "suppressions",
+        rules: RULES,
         run: judge,
     }
 }

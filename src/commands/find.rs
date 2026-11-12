@@ -2,7 +2,6 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use crate::core::claims;
-use crate::core::pack;
 use crate::core::pack::Finding;
 use crate::laws::economy::winnow;
 use crate::packs::graphed;
@@ -27,8 +26,8 @@ fn bare(rest: &[String]) -> ExitCode {
     let folder = |at: usize| rest.get(at).cloned().unwrap_or_else(|| ".".to_string());
     let (rule, asked) = match rest.first().map(String::as_str) {
         None => (None, ".".to_string()),
-        Some(word) if pack::findable(word) => (Some(word.to_string()), folder(1)),
-        Some(word) if pack::drillable(word) => {
+        Some(word) if crate::laws::findable(word) => (Some(word.to_string()), folder(1)),
+        Some(word) if crate::laws::drillable(word) => {
             eprintln!(
                 "find: {word} fires through the gate's outcomes; \
                  run arbiter gate . and read .arbiter/last/report.md"

@@ -1,6 +1,7 @@
 use std::process::ExitCode;
 
-use crate::core::pack;
+use crate::core::rule::Power;
+use crate::laws;
 
 pub fn run(arguments: &[String]) -> ExitCode {
     if arguments.first().map(String::as_str) == Some("rules") {
@@ -22,10 +23,9 @@ pub fn run(arguments: &[String]) -> ExitCode {
 // on one graph, a record row waits for the user's record.
 fn matrix() {
     let packs = crate::packs::all();
-    let width = pack::RULES
+    let width = laws::matrix()
         .iter()
-        .chain(pack::CORE)
-        .map(|(rule, _)| rule.len())
+        .map(|rule| rule.name.len())
         .max()
         .unwrap_or(0);
     print!("  {:width$}  {:14}", "rule", "power");
@@ -33,19 +33,19 @@ fn matrix() {
         print!("  {:10}", pack.label());
     }
     println!();
-    for (group, members) in pack::GROUPS {
+    for (group, members) in laws::groups() {
         println!("{group}");
-        for member in *members {
-            if !pack::RULES.iter().any(|(rule, _)| rule == member) {
-                println!("  {member:width$}  {}", tagged(member));
+        for rule in members {
+            if !laws::per_language(rule.name) {
+                println!("  {:width$}  {}", rule.name, tagged(rule.name));
                 continue;
             }
-            print!("  {member:width$}  {:14}", tagged(member));
+            print!("  {:width$}  {:14}", rule.name, tagged(rule.name));
             for pack in &packs {
                 let answer = pack
                     .rules()
                     .iter()
-                    .find(|(name, _)| name == member)
+                    .find(|(name, _)| *name == rule.name)
                     .map(|(_, answer)| *answer);
                 let cell = match answer {
                     Some("held") => "held",
@@ -67,8 +67,8 @@ fn matrix() {
 
 // The glance column: origin and power in one word each.
 fn tagged(rule: &str) -> String {
-    let core = pack::CORE.iter().any(|(name, _)| *name == rule);
-    let record = matches!(pack::power(rule), pack::Power::Record(_));
+    let core = !laws::per_language(rule);
+    let record = matches!(laws::power(rule), Power::Record(_));
     match (core, record) {
         (true, true) => "core, record".to_string(),
         (true, false) => "core, facts".to_string(),
@@ -81,47 +81,45 @@ fn tagged(rule: &str) -> String {
 // with its why. A core judgment has no stances; its law is the answer. A
 // group prints every law on its shelf.
 fn ruled(asked: &str) -> ExitCode {
-    if let Some((group, members)) = pack::GROUPS.iter().find(|(group, _)| *group == asked) {
+    for (group, members) in laws::groups() {
+        if group != asked {
+            continue;
+        }
         println!("{group}:");
-        for member in *members {
-            if let Some(law) = pack::law(member) {
-                println!("  {member}: {law}");
-            }
+        for rule in members {
+            println!("  {}: {}", rule.name, rule.law);
         }
         return ExitCode::SUCCESS;
     }
-    if let Some((rule, law)) = pack::RULES.iter().find(|(rule, _)| *rule == asked) {
-        println!("{rule}");
+    if let Some(law) = laws::law(asked) {
+        println!("{asked}");
         labeled("law", law);
         labeled("power", &empowered(asked));
-        labeled("judged", "by each language's pack, stance by stance");
-        println!();
-        for pack in crate::packs::all() {
-            let answer = pack
-                .rules()
-                .iter()
-                .find(|(name, _)| name == rule)
-                .map(|(_, answer)| *answer);
-            match answer {
-                Some("held") => println!("  {:10} held", pack.label()),
-                Some(told) => println!(
-                    "  {:10} never — {}",
-                    pack.label(),
-                    told.strip_prefix("never: ").unwrap_or(told)
-                ),
-                None => println!("  {:10} open", pack.label()),
+        if laws::per_language(asked) {
+            labeled("judged", "by each language's pack, stance by stance");
+            println!();
+            for pack in crate::packs::all() {
+                let answer = pack
+                    .rules()
+                    .iter()
+                    .find(|(name, _)| *name == asked)
+                    .map(|(_, answer)| *answer);
+                match answer {
+                    Some("held") => println!("  {:10} held", pack.label()),
+                    Some(told) => println!(
+                        "  {:10} never — {}",
+                        pack.label(),
+                        told.strip_prefix("never: ").unwrap_or(told)
+                    ),
+                    None => println!("  {:10} open", pack.label()),
+                }
             }
+        } else {
+            labeled(
+                "judged",
+                "on the one graph — every unit and import, all languages at once",
+            );
         }
-        return ExitCode::SUCCESS;
-    }
-    if let Some((name, law)) = pack::CORE.iter().find(|(name, _)| *name == asked) {
-        println!("{name}");
-        labeled("law", law);
-        labeled("power", &empowered(asked));
-        labeled(
-            "judged",
-            "on the one graph — every unit and import, all languages at once",
-        );
         return ExitCode::SUCCESS;
     }
     eprintln!("rules: no rule or group named {asked}; arbiter rules prints the matrix");
@@ -131,9 +129,9 @@ fn ruled(asked: &str) -> ExitCode {
 // Where the law detains its power: the facts alone, or a record the user
 // wrote - a record-powered law waits until its record exists.
 fn empowered(rule: &str) -> String {
-    match pack::power(rule) {
-        pack::Power::Facts => "the facts".to_string(),
-        pack::Power::Record(file) => {
+    match laws::power(rule) {
+        Power::Facts => "the facts".to_string(),
+        Power::Record(file) => {
             format!("the user's record ({file}); without the record, the law waits")
         }
     }

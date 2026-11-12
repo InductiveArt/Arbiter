@@ -47,7 +47,7 @@ fn every_finding_names_a_law_the_matrix_drills() {
     assert!(!all.is_empty());
     for finding in &all {
         assert!(
-            arbiter::core::pack::drillable(&finding.name),
+            arbiter::laws::drillable(&finding.name),
             "{} is a finding name no rule answers",
             finding.name
         );

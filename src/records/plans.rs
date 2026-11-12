@@ -6,6 +6,8 @@ use std::path::PathBuf;
 
 use crate::core::graph::Graph;
 use crate::core::pack::Finding;
+use crate::core::rule;
+use crate::core::rule::Rule;
 use crate::core::units::fits;
 
 pub const PLANS: &str = ".arbiter/plans.toml";
@@ -565,4 +567,25 @@ pub fn ladder(reading: &Reading, plan: &Plan) -> Vec<Vec<(String, String)>> {
         }
     }
     rungs
+}
+
+pub const RULES: &[Rule] = &[
+    rule::record("phantom-service", "plans", ".arbiter/plans.toml", "every name a plan record dials - a need, a channel, a placement - is a declared service"),
+    rule::record("boot-cycle", "plans", ".arbiter/plans.toml", "a plan's needs form an order; a cycle in bring-up is a plan that cannot boot"),
+    rule::record("undeclared-volume", "plans", ".arbiter/plans.toml", "a volume a service mounts is declared by the record"),
+    rule::record("unbacked-volume", "plans", ".arbiter/plans.toml", "a declared volume names its backup policy; state is never implicit"),
+    rule::record("unplanned-service", "plans", ".arbiter/plans.toml", "once a plan is written, every service is placed by one"),
+    rule::record("overcommitted-machine", "plans", ".arbiter/plans.toml", "a plan's placements fit the machine's declared capacity"),
+    rule::record("uninvited-channel", "plans", ".arbiter/plans.toml", "a channel reaches only services whose accepts grant the caller; an absent grant binds nothing"),
+    rule::record("stale-channel-grant", "plans", ".arbiter/plans.toml", "an accepts entry names a caller that dials it; one never dialed is deleted"),
+    rule::record("unbuilt-artifact", "plans", ".arbiter/plans.toml", "a service naming its unit names one this repository builds"),
+];
+
+// The plans record as one law the gate runs under its judge task.
+pub fn plans_law() -> crate::core::rule::Law {
+    crate::core::rule::Law {
+        task: "plans",
+        rules: RULES,
+        run: findings,
+    }
 }

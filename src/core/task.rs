@@ -8,14 +8,6 @@ pub struct Task {
     pub run: fn(&[String]) -> ExitCode,
 }
 
-// A named judgment the gate runs under its judge task: it reads the resolved
-// graph and yields the findings that break it. The gate gathers every law's
-// findings the way a parent task gathers its children.
-pub struct Law {
-    pub task: &'static str,
-    pub run: fn(&crate::core::graph::Graph) -> Vec<crate::core::pack::Finding>,
-}
-
 // How a task ended. A task ends Failed when the work itself could not stand.
 pub enum Outcome {
     Ok,

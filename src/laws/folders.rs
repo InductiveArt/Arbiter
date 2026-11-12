@@ -5,12 +5,42 @@ use std::path::PathBuf;
 
 use crate::core::graph::Graph;
 use crate::core::pack::Finding;
-use crate::core::task::Law;
+use crate::core::rule;
+use crate::core::rule::Law;
+use crate::core::rule::Rule;
 use crate::core::units::DECLARATIONS;
+
+pub const RULES: &[Rule] = &[
+    rule::record(
+        "uninvited-folder-use",
+        "folders",
+        ".arbiter/units.toml",
+        "a declared folder is entered only by what its visibility grants",
+    ),
+    rule::record(
+        "stale-folder-grant",
+        "folders",
+        ".arbiter/units.toml",
+        "a folder's grant names a user it has; one never used is deleted",
+    ),
+    rule::record(
+        "undeclared-folder-use",
+        "folders",
+        ".arbiter/units.toml",
+        "a declared folder's deps name everything it uses, inside its unit or out",
+    ),
+    rule::record(
+        "stale-folder-declaration",
+        "folders",
+        ".arbiter/units.toml",
+        "a declared folder dep is used; one never used is deleted",
+    ),
+];
 
 pub fn folders_law() -> Law {
     Law {
         task: "folders",
+        rules: RULES,
         run: judge,
     }
 }

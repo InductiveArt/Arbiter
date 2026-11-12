@@ -2,7 +2,6 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::core::measures;
-use crate::core::pack;
 use crate::gate::Run;
 use crate::ledger;
 use crate::records::brief;
@@ -116,16 +115,16 @@ fn snapshot(run: &Run) -> serde_json::Value {
             })
         })
         .collect();
-    let rules: Vec<serde_json::Value> = pack::GROUPS
-        .iter()
+    let rules: Vec<serde_json::Value> = crate::laws::groups()
+        .into_iter()
         .flat_map(|(group, members)| {
-            members.iter().map(move |member| {
+            members.into_iter().map(move |rule| {
                 serde_json::json!({
-                    "name": member,
-                    "law": pack::law(member).unwrap_or(""),
+                    "name": rule.name,
+                    "law": rule.law,
                     "group": group,
-                    "core": pack::CORE.iter().any(|(name, _)| name == member),
-                    "record": matches!(pack::power(member), pack::Power::Record(_)),
+                    "core": !crate::laws::per_language(rule.name),
+                    "record": matches!(rule.power, crate::core::rule::Power::Record(_)),
                 })
             })
         })

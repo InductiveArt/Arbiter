@@ -22,40 +22,38 @@ fn the_skill_speaks_each_command_with_its_own_line() {
 
 #[test]
 fn every_rule_sits_in_exactly_one_group() {
-    use arbiter::core::pack::law;
-    use arbiter::core::pack::CORE;
-    use arbiter::core::pack::GROUPS;
-    use arbiter::core::pack::RULES;
     let mut counts = std::collections::HashMap::new();
-    for (_, members) in GROUPS {
-        for member in *members {
-            assert!(law(member).is_some(), "{member} names no rule");
-            *counts.entry(*member).or_insert(0) += 1;
+    for (_, members) in arbiter::laws::groups() {
+        for rule in members {
+            *counts.entry(rule.name).or_insert(0) += 1;
         }
     }
-    for (rule, _) in RULES.iter().chain(CORE) {
+    for rule in arbiter::laws::matrix() {
         assert_eq!(
-            counts.get(rule),
+            counts.get(rule.name),
             Some(&1),
-            "{rule} sits in no group, or in two"
+            "{} sits in no group, or in two",
+            rule.name
         );
     }
 }
 
 #[test]
 fn a_gated_law_drills_but_is_not_findable() {
-    use arbiter::core::pack::drillable;
-    use arbiter::core::pack::findable;
-    use arbiter::core::pack::CORE;
-    use arbiter::core::pack::GATED;
-    use arbiter::core::pack::RULES;
-    for gated in GATED {
-        assert!(drillable(gated), "{gated} names no rule");
-        assert!(!findable(gated));
-    }
-    for (rule, _) in RULES.iter().chain(CORE) {
-        if !GATED.contains(rule) {
-            assert!(findable(rule), "{rule} should be findable");
+    for rule in arbiter::laws::matrix() {
+        assert!(
+            arbiter::laws::drillable(rule.name),
+            "{} names no rule",
+            rule.name
+        );
+        if rule.gated {
+            assert!(!arbiter::laws::findable(rule.name));
+        } else {
+            assert!(
+                arbiter::laws::findable(rule.name),
+                "{} should be findable",
+                rule.name
+            );
         }
     }
 }

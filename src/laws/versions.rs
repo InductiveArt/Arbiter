@@ -6,11 +6,20 @@ use crate::core::graph::Graph;
 use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::pack::Repo;
-use crate::core::task::Law;
+use crate::core::rule;
+use crate::core::rule::Law;
+use crate::core::rule::Rule;
+
+pub const RULES: &[Rule] = &[rule::facts(
+    "split-version",
+    "third-parties",
+    "a third party resolves to one version across the repository's lockfiles; a copy nested inside another third party is that party's own",
+)];
 
 pub fn versions_law() -> Law {
     Law {
         task: "versions",
+        rules: RULES,
         run: judge,
     }
 }

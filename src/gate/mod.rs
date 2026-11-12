@@ -127,15 +127,10 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         all.extend(dead);
         all.extend(dialed);
         for law in crate::laws::all() {
+            if briefless && law.task == "brief" {
+                continue;
+            }
             all.extend(j.run(law.task, |_| crate::core::task::Done::ok((law.run)(&found))));
-        }
-        all.extend(j.run("plans", |_| {
-            crate::core::task::Done::ok(crate::records::plans::findings(&found))
-        }));
-        if !briefless {
-            all.extend(j.run("brief", |_| {
-                crate::core::task::Done::ok(crate::records::brief::findings(&found))
-            }));
         }
         for pack in &found.packs {
             all.extend(j.run(pack.label(), |_| {

@@ -7,11 +7,20 @@ use crate::core::pack::Def;
 use crate::core::pack::Edge;
 use crate::core::pack::Finding;
 use crate::core::pack::Repo;
-use crate::core::task::Law;
+use crate::core::rule;
+use crate::core::rule::Law;
+use crate::core::rule::Rule;
+
+pub const RULES: &[Rule] = &[rule::facts(
+    "unit-cycle",
+    "units",
+    "units form an order; no two import each other, however long the loop",
+)];
 
 pub fn cycles_law() -> Law {
     Law {
         task: "cycles",
+        rules: RULES,
         run: judge,
     }
 }

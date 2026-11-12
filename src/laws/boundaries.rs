@@ -8,12 +8,42 @@ use crate::core::measures::listed;
 use crate::core::measures::sanctioned;
 use crate::core::measures::shown;
 use crate::core::pack::Finding;
-use crate::core::task::Law;
+use crate::core::rule;
+use crate::core::rule::Law;
+use crate::core::rule::Rule;
 use crate::core::units::DECLARATIONS;
+
+pub const RULES: &[Rule] = &[
+    rule::record(
+        "uninvited-unit-use",
+        "units",
+        ".arbiter/units.toml",
+        "a unit is used only by the units its declared visibility grants",
+    ),
+    rule::record(
+        "stale-unit-grant",
+        "units",
+        ".arbiter/units.toml",
+        "a visibility grant names a unit that uses it; one never used is deleted",
+    ),
+    rule::record(
+        "undeclared-unit-use",
+        "units",
+        ".arbiter/units.toml",
+        "a unit declaring deps names every unit it uses",
+    ),
+    rule::record(
+        "stale-unit-declaration",
+        "units",
+        ".arbiter/units.toml",
+        "a declared unit dep is used; one never used is deleted",
+    ),
+];
 
 pub fn boundaries_law() -> Law {
     Law {
         task: "boundaries",
+        rules: RULES,
         run: judge,
     }
 }
