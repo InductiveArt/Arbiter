@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::Path;
 
-use arbiter::laws::judged;
 use arbiter::packs::graphed;
+use arbiter::tasks::laws::judged;
 
 fn seeded(root: &Path, record: &str) {
     let _ = fs::remove_dir_all(root);

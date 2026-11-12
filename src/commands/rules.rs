@@ -1,7 +1,7 @@
 use std::process::ExitCode;
 
 use crate::core::rule::Power;
-use crate::laws;
+use crate::tasks::laws;
 
 pub fn run(arguments: &[String]) -> ExitCode {
     if arguments.first().map(String::as_str) == Some("rules") {

@@ -106,7 +106,7 @@ fn a_published_unit_keeps_its_unused_surface() {
     let path = root.to_string_lossy();
 
     let judged = graphed(&path).expect("the folder exists");
-    let (flagged, _) = arbiter::laws::economy::winnow(
+    let (flagged, _) = arbiter::tasks::laws::economy::winnow(
         &judged.defs,
         &judged.edges,
         &judged.repo,
@@ -116,7 +116,7 @@ fn a_published_unit_keeps_its_unused_surface() {
 
     fs::write(root.join("PUBLISHED"), "").expect("the folder is writable");
     let declared = graphed(&path).expect("the folder exists");
-    let (kept, _) = arbiter::laws::economy::winnow(
+    let (kept, _) = arbiter::tasks::laws::economy::winnow(
         &declared.defs,
         &declared.edges,
         &declared.repo,
@@ -487,8 +487,12 @@ fn a_symbol_reached_only_by_commissioned_tests_is_nascent_not_dead() {
 
     let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
     let commissioned = arbiter::records::brief::commissioned(&judged);
-    let (findings, nascent) =
-        arbiter::laws::economy::winnow(&judged.defs, &judged.edges, &judged.repo, &commissioned);
+    let (findings, nascent) = arbiter::tasks::laws::economy::winnow(
+        &judged.defs,
+        &judged.edges,
+        &judged.repo,
+        &commissioned,
+    );
     assert!(
         findings
             .iter()
@@ -505,8 +509,12 @@ fn a_symbol_reached_only_by_commissioned_tests_is_nascent_not_dead() {
     .expect("the folder is writable");
     let again = graphed(&root.to_string_lossy()).expect("the folder exists");
     let commissioned = arbiter::records::brief::commissioned(&again);
-    let (findings, nascent) =
-        arbiter::laws::economy::winnow(&again.defs, &again.edges, &again.repo, &commissioned);
+    let (findings, nascent) = arbiter::tasks::laws::economy::winnow(
+        &again.defs,
+        &again.edges,
+        &again.repo,
+        &commissioned,
+    );
     assert!(
         findings
             .iter()
@@ -603,7 +611,7 @@ fn a_broken_unit_declaration_is_named_never_read_as_virgin() {
     fs::write(root.join(".arbiter/units.toml"), "[units. not toml")
         .expect("the folder is writable");
     let found = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let findings = arbiter::laws::judged(&found);
+    let findings = arbiter::tasks::laws::judged(&found);
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].name, "unparsable-user-record");
     assert!(findings[0]

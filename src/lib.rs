@@ -3,7 +3,6 @@ pub mod core;
 pub mod court;
 pub mod examine;
 pub mod gate;
-pub mod laws;
 pub mod ledger;
 pub mod packs;
 pub mod records;

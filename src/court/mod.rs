@@ -115,7 +115,7 @@ fn snapshot(run: &Run) -> serde_json::Value {
             })
         })
         .collect();
-    let rules: Vec<serde_json::Value> = crate::laws::groups()
+    let rules: Vec<serde_json::Value> = crate::tasks::laws::groups()
         .into_iter()
         .flat_map(|(group, members)| {
             members.into_iter().map(move |rule| {
@@ -123,7 +123,7 @@ fn snapshot(run: &Run) -> serde_json::Value {
                     "name": rule.name,
                     "law": rule.law,
                     "group": group,
-                    "core": !crate::laws::per_language(rule.name),
+                    "core": !crate::tasks::laws::per_language(rule.name),
                     "record": matches!(rule.power, crate::core::rule::Power::Record(_)),
                 })
             })

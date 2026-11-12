@@ -8,10 +8,10 @@ use crate::core::graph;
 use crate::core::pack::Finding;
 use crate::core::units;
 use crate::gate::tools::Outcome;
-use crate::laws::economy;
 use crate::ledger;
 use crate::packs;
 use crate::records::brief;
+use crate::tasks::laws::economy;
 
 // One whole judgment of a repository: both planes, with the ledger's footer.
 // What the gate says of the brief: the step skipped, no brief written yet, or
@@ -126,7 +126,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         });
         all.extend(dead);
         all.extend(dialed);
-        for law in crate::laws::all() {
+        for law in crate::tasks::laws::all() {
             if briefless && law.task == "brief" {
                 continue;
             }

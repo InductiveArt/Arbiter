@@ -23,12 +23,12 @@ fn the_skill_speaks_each_command_with_its_own_line() {
 #[test]
 fn every_rule_sits_in_exactly_one_group() {
     let mut counts = std::collections::HashMap::new();
-    for (_, members) in arbiter::laws::groups() {
+    for (_, members) in arbiter::tasks::laws::groups() {
         for rule in members {
             *counts.entry(rule.name).or_insert(0) += 1;
         }
     }
-    for rule in arbiter::laws::matrix() {
+    for rule in arbiter::tasks::laws::matrix() {
         assert_eq!(
             counts.get(rule.name),
             Some(&1),
@@ -40,17 +40,17 @@ fn every_rule_sits_in_exactly_one_group() {
 
 #[test]
 fn a_gated_law_drills_but_is_not_findable() {
-    for rule in arbiter::laws::matrix() {
+    for rule in arbiter::tasks::laws::matrix() {
         assert!(
-            arbiter::laws::drillable(rule.name),
+            arbiter::tasks::laws::drillable(rule.name),
             "{} names no rule",
             rule.name
         );
         if rule.gated {
-            assert!(!arbiter::laws::findable(rule.name));
+            assert!(!arbiter::tasks::laws::findable(rule.name));
         } else {
             assert!(
-                arbiter::laws::findable(rule.name),
+                arbiter::tasks::laws::findable(rule.name),
                 "{} should be findable",
                 rule.name
             );

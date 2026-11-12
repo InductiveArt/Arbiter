@@ -17,7 +17,7 @@ deps = ["src/core"]
 [units.".".inner."src/records"]
 deps = ["src/core"]
 
-[units.".".inner."src/laws"]
+[units.".".inner."src/tasks/laws"]
 deps = ["src/core", "src/records", "src/ledger.rs"]
 
 
@@ -28,19 +28,19 @@ deps = ["src/core", "src/records"]
 deps = ["src/core"]
 
 [units.".".inner."src/gate"]
-deps = ["src/core", "src/records", "src/laws", "src/ledger.rs", "src/packs"]
+deps = ["src/core", "src/records", "src/tasks/laws", "src/ledger.rs", "src/packs"]
 
 [units.".".inner."src/court"]
-deps = ["src/core", "src/records", "src/laws", "src/ledger.rs", "src/gate", "src/packs"]
+deps = ["src/core", "src/records", "src/tasks/laws", "src/ledger.rs", "src/gate", "src/packs"]
 
 [units.".".inner."src/tasks"]
-deps = ["src/core", "src/records", "src/packs"]
+deps = ["src/core", "src/records", "src/ledger.rs", "src/packs"]
 
 [units.".".inner."src/commands"]
 deps = [
   "src/core",
   "src/records",
-  "src/laws",
+  "src/tasks/laws",
   "src/examine.rs",
   "src/ledger.rs",
   "src/gate",

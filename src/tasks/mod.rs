@@ -1,6 +1,7 @@
 pub mod deps;
 pub mod fallout;
 pub mod impact;
+pub mod laws;
 pub mod plan;
 pub mod rhymes;
 pub mod tangles;

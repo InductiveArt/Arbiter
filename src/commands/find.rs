@@ -3,9 +3,9 @@ use std::process::ExitCode;
 
 use crate::core::claims;
 use crate::core::pack::Finding;
-use crate::laws::economy::winnow;
 use crate::packs::graphed;
 use crate::records::brief;
+use crate::tasks::laws::economy::winnow;
 
 // The one query door: a task name names a report, a rule names one law's
 // instances, bare is every tool-free finding. find routes to the task that owns
@@ -26,8 +26,8 @@ fn bare(rest: &[String]) -> ExitCode {
     let folder = |at: usize| rest.get(at).cloned().unwrap_or_else(|| ".".to_string());
     let (rule, asked) = match rest.first().map(String::as_str) {
         None => (None, ".".to_string()),
-        Some(word) if crate::laws::findable(word) => (Some(word.to_string()), folder(1)),
-        Some(word) if crate::laws::drillable(word) => {
+        Some(word) if crate::tasks::laws::findable(word) => (Some(word.to_string()), folder(1)),
+        Some(word) if crate::tasks::laws::drillable(word) => {
             eprintln!(
                 "find: {word} fires through the gate's outcomes; \
                  run arbiter gate . and read .arbiter/last/report.md"
@@ -50,7 +50,7 @@ fn bare(rest: &[String]) -> ExitCode {
     let commissioned = brief::commissioned(&found);
     let (winnowed, _) = winnow(&found.defs, &found.edges, &found.repo, &commissioned);
     let mut all = winnowed;
-    all.extend(crate::laws::judged(&found));
+    all.extend(crate::tasks::laws::judged(&found));
     all.extend(claims::vanished(&found));
     all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     emit(&all, rule.as_deref());

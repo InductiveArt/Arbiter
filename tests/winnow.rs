@@ -1,6 +1,6 @@
-use arbiter::laws::economy::winnow;
-use arbiter::laws::judged;
 use arbiter::packs::graphed;
+use arbiter::tasks::laws::economy::winnow;
+use arbiter::tasks::laws::judged;
 
 const DEMO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/demo");
 
@@ -47,7 +47,7 @@ fn every_finding_names_a_law_the_matrix_drills() {
     assert!(!all.is_empty());
     for finding in &all {
         assert!(
-            arbiter::laws::drillable(&finding.name),
+            arbiter::tasks::laws::drillable(&finding.name),
             "{} is a finding name no rule answers",
             finding.name
         );
