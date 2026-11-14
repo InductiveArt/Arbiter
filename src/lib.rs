@@ -7,3 +7,4 @@ pub mod ledger;
 pub mod packs;
 pub mod records;
 pub mod tasks;
+pub mod wip;

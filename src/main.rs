@@ -18,6 +18,9 @@ fn main() -> ExitCode {
         Some("adopt") => commands::adopt::run(&arguments),
         Some("rules") => commands::rules::run(&arguments),
         Some("ledger") => commands::ledger::run(&arguments),
+        Some("worker") => {
+            arbiter::wip::worker::serve(&arguments[1..], &arbiter::wip::registry::known())
+        }
         Some(command) => {
             eprintln!("arbiter: no command named {command}");
             commands::table::taught();

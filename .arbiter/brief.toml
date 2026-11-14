@@ -417,3 +417,248 @@ story = "the tool teaches its own use, and the taught word cannot drift"
   [[case.need]]
   need = "every rule sits in one group, and the group answers for its laws"
   claims = [". |  | every rule sits in exactly one group"]
+
+[[case]]
+name = "task plan"
+story = "work is declared as tasks registered in the binary and wired by the types they read and produce; a plan selects them by name and a run is verified whole before anything starts; each attempt runs as a process of its own, accounted by the kernel, and every record lands on disk under its run; a read declares when it fires, so both branches of a judgment are declared and the run takes one"
+
+  [[case.need]]
+  need = "a task declares what it reads from its signature, when each read fires, and what it produces from its return; its body runs on the decoded inputs and its product is encoded"
+  claims = [
+    ". |  | a task declares its reads from its signature",
+    ". |  | a task declares when each read fires",
+    ". |  | a task reading nothing declares no reads",
+    ". |  | a task performs its body on the decoded inputs and encodes its product",
+  ]
+
+  [[case.need]]
+  need = "a read fired by failing carries who failed and why; one fired by finishing carries the outcome and the value left"
+  claims = [
+    ". |  | a failure read carries who failed and why",
+    ". |  | a finishing read carries the outcome and the value left",
+  ]
+
+  [[case.need]]
+  need = "a plan selects its tasks by name from those the binary knows, in the order named, and refuses, before anything runs, a name the binary does not know, two producers of one type, a cycle, two tasks of one name, or a read fired by failing or finishing of a type no task produces"
+  claims = [
+    ". |  | a plan refuses a task the registry does not know",
+    ". |  | a plan holds its tasks in the order named",
+    ". |  | a plan rejects two tasks of one name",
+    ". |  | a plan rejects a type two tasks produce",
+    ". |  | a plan rejects a cycle in its data",
+    ". |  | a plan rejects a read fired by failing or finishing of a type no task produces",
+  ]
+
+  [[case.need]]
+  need = "a plan knows its own wiring: what it must be seeded with, who waits on whom whatever fires the read, and where each task stands"
+  claims = [
+    ". |  | a plan names the types it must be seeded with",
+    ". |  | a plan wires a reader behind its producer",
+    ". |  | a plan wires a reader of a failure behind its producer like any reader",
+    ". |  | a plan finds a task s position by name",
+  ]
+
+  [[case.need]]
+  need = "a value is held by type as the encoded bytes it crosses between processes as, written once to disk so the process reading it is handed a file, and decoded back by its type; a value that does not decode as its type fails the attempt by name"
+  claims = [
+    ". |  | a value is read back by its type",
+    ". |  | a type never put reads as nothing",
+    ". |  | a value is held as the bytes it crosses as",
+    ". |  | placing a store writes each value once into the folder",
+    ". |  | a value that does not decode as its type fails the attempt by name",
+  ]
+
+  [[case.need]]
+  need = "parts are pulled in the order asked: the value for a read fired by passing, the completion for one fired by failing or finishing, both for a finishing read whose producer left a value"
+  claims = [
+    ". |  | pulled values come in the reads order",
+    ". |  | a read fired by failing or finishing pulls the completion not only a value",
+  ]
+
+  [[case.need]]
+  need = "a reader runs only when every read fires: a skipped producer skips it, a branch not taken leaves it unneeded, each named by the task that decided, and a finishing read fires whatever happened"
+  claims = [
+    ". |  | a reader whose every read fires has to run",
+    ". |  | a failure read of a task that passed is unneeded and names that task",
+    ". |  | a value read of a branch not taken is unneeded for the same reason",
+    ". |  | a skipped producer skips its reader even beside a branch not taken",
+    ". |  | a finishing read fires whatever the producer s outcome",
+  ]
+
+  [[case.need]]
+  need = "a run starts a task the moment its inputs are held, so independent tasks run at once"
+  claims = [
+    ". |  | a task starts only once every type it reads is produced",
+    ". |  | independent tasks run at the same time",
+  ]
+
+  [[case.need]]
+  need = "a run is verified whole before it starts: every type read is produced or seeded, no seed shadows a producer, the worker binary is an executable file and the root is a folder; every problem is named in one refusal and no process starts"
+  claims = [
+    ". |  | a run is refused with every problem named and nothing started",
+    ". |  | a run refuses to start when a read type is neither produced nor seeded",
+    ". |  | a run refuses a seed of a type a task produces",
+    ". |  | a run refuses a worker that is not an executable file",
+  ]
+
+  [[case.need]]
+  need = "a failed task takes down only what stands on it, named by the task that failed"
+  claims = [
+    ". |  | a failed task skips every task standing on it and the rest still run",
+  ]
+
+  [[case.need]]
+  need = "a task reading a failure runs only when that task fails, and the passed branch is skipped then; when the task passes, the failure's reader and what stands on it are unneeded and the run stays clean"
+  claims = [
+    ". |  | a task reading a failure runs when that task fails and the passed branch is skipped",
+    ". |  | a task reading a failure is unneeded when that task passes and the run stays clean",
+    ". |  | what stands on a branch not taken is unneeded for the same reason",
+    ". |  | an outcome is clean when it passed or was not needed",
+  ]
+
+  [[case.need]]
+  need = "a task reading a completion runs whatever happened to its producer"
+  claims = [
+    ". |  | a task reading a completion runs whatever happened to its producer",
+  ]
+
+  [[case.need]]
+  need = "every task keeps its own record, with path ids, inner steps and nested plans under it; each task of a nested plan is a process of its own, its folder under its parent's"
+  claims = [
+    ". |  | every task keeps its own step in plan order with path ids",
+    ". |  | an inner step nests under its parent with a path id",
+    ". |  | a failing inner step is recorded and its failure returned",
+    ". |  | a plan run inside a task nests its steps under that task",
+  ]
+
+  [[case.need]]
+  need = "every run has its own id, ordered and read back from its text, and every attempt at a task is a job named by the run, the task's path and the attempt; a task never attempted is attempt 0"
+  claims = [
+    ". |  | two run ids taken in a row differ",
+    ". |  | a run id reads back from its text and other text reads as nothing",
+    ". |  | a job id reads as run path and attempt",
+    ". |  | a run has its own id and every step carries it with the attempt",
+  ]
+
+  [[case.need]]
+  need = "every attempt is a process of its own: the worker binary is handed the attempt's folder, finds the task by name, checks the inputs against the task's declaration, and leaves its product and record there; an attempt that cannot be made leaves a failed record or none"
+  claims = [
+    ". |  | a worker performs the named task on the inputs handed and leaves its product and record",
+    ". |  | a worker asked for a task it does not know leaves a failed record",
+    ". |  | a worker handed inputs the task does not declare fails before the body runs",
+    ". |  | a worker without an order makes no attempt",
+    ". |  | a worker that cannot start fails its attempt",
+  ]
+
+  [[case.need]]
+  need = "a run is served by a bounded number of slots, so wide work runs as wide as the machine allows and no wider; each attempt records its slot and how long it waited for one"
+  claims = [
+    ". |  | one slot runs the tasks one after the other",
+    ". |  | an attempt records its slot and the time it waited for one",
+  ]
+
+  [[case.need]]
+  need = "a task allows one attempt of any length and computes every time unless told otherwise; a failed attempt earns the retries declared, each attempt keeps its record, and a failure's readers see the last attempt"
+  claims = [
+    ". |  | a task allows one attempt of any length and computes every time unless told otherwise",
+    ". |  | a failed attempt is tried again up to the retries and each keeps its record",
+    ". |  | a failure read fires only once the retries are spent",
+  ]
+
+  [[case.need]]
+  need = "an attempt past its time is asked to stop, its whole process tree with it, and forced once the grace is spent; a body that checks in stops at its next checkpoint and leaves its record, a body that does not is killed, and either way the slot is freed"
+  claims = [
+    ". |  | a task out of time is timed out and its process tree ended so the slot is freed",
+    ". |  | a body that checks in stops at its next checkpoint once out of time",
+    ". |  | a body deaf to the request to stop is killed once the grace is spent",
+    ". |  | a checkpoint fails once the job is cancelled",
+    ". |  | a command runs to its end with its output read",
+    ". |  | a command is killed once the job is cancelled",
+    ". |  | a signal to a group ends the leader and what it started",
+  ]
+
+  [[case.need]]
+  need = "cancelling a run stops what is out and what was about to go out; only what the stopping unlocks still runs, so a failure's readers answer it"
+  claims = [
+    ". |  | a cancel token wakes each asker once and a late asker at once",
+    ". |  | cancelling a run stops what is out and about to go out while a failure s readers still answer",
+  ]
+
+  [[case.need]]
+  need = "a timed-out or cancelled attempt ended without passing: it skips its value readers and fires its failure readers, like a failure"
+  claims = [
+    ". |  | an outcome failed when an attempt ended without passing",
+    ". |  | a timed out or cancelled producer skips its value readers and fires its failure readers",
+  ]
+
+  [[case.need]]
+  need = "a body that panics fails its attempt like one that returns a failure, with what it said, and the run goes on"
+  claims = [
+    ". |  | a body that panics fails its attempt and the rest of the run goes on",
+  ]
+
+  [[case.need]]
+  need = "a body is decorated before the task erases its types, so a decorated task declares exactly what the plain one does"
+  claims = [
+    ". |  | a decorated body keeps the task s declaration",
+  ]
+
+  [[case.need]]
+  need = "a cached task's product is stored under a key made of the worker binary, the task and its inputs; the same key is replayed without a process and the record says so, any other key is computed"
+  claims = [
+    ". |  | a product s key follows the task and its inputs and nothing else",
+    ". |  | a cached task is replayed from the store on the same inputs and computed on others",
+  ]
+
+  [[case.need]]
+  need = "every frame measures itself from inside: when it began, how long it ran, and the CPU time of its thread; an inner frame is already inside its parent's figures; a body records its own measures by name"
+  claims = [
+    ". |  | a frame records when it began and how long it ran",
+    ". |  | a frame is charged the cpu time its thread spends",
+    ". |  | a sleeping frame spends wall but little cpu",
+    ". |  | a thread s cpu time grows while it computes and not while it sleeps",
+    ". |  | an inner step is an inner frame counted inside its parent",
+    ". |  | a measure is recorded by name",
+  ]
+
+  [[case.need]]
+  need = "every process is reaped with the kernel's account of it: how it ended, by exit code or signal, its CPU, its peak memory, its faults and switches; a process that ended is seen before it is reaped, so what it left in its group is ended with it"
+  claims = [
+    ". |  | a reaped child reports how it ended and what it used",
+    ". |  | a running child reaps as nothing yet and a killed one as its signal",
+    ". |  | an ended child is seen as exited before it is reaped",
+    ". |  | a command s account is recorded on the frame that ran it",
+  ]
+
+  [[case.need]]
+  need = "an attempt's record carries the kernel's account of its own process, and a report sums the accounts of every attempt of its own tasks: times and counts sum, the peak keeps the largest"
+  claims = [
+    ". |  | an attempt s record carries the kernel s account of its process",
+    ". |  | a report sums the kernel s account of every attempt",
+    ". |  | adding accounts sums time and counts and keeps the largest peak",
+  ]
+
+  [[case.need]]
+  need = "every attempt leaves on disk, under its run, the order it was handed, the record it left, its product and what it printed; a record is plain data that reads back equal; a run writes its whole report when it ends"
+  claims = [
+    ". |  | a run leaves every attempt s order record product and output on disk",
+    ". |  | a record written as json reads back equal",
+  ]
+
+  [[case.need]]
+  need = "a root keeps the newest runs, every run still going, and the products they refer to; the rest is swept at the end of each run"
+  claims = [
+    ". |  | a run keeps only the newest runs and the products they refer to",
+    ". |  | a sweep keeps the newest runs and the products they refer to and drops the rest",
+    ". |  | a sweep leaves a run still going whatever its age",
+  ]
+
+  [[case.need]]
+  need = "what a process prints is kept on disk up to the cap and counted whole"
+  claims = [
+    ". |  | a chatty worker s output is capped on disk and counted whole",
+  ]
+
+  [[case.need]]
+  need = "the gate's judgment runs as one plan"
+  planned = true
