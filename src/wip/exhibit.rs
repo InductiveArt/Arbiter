@@ -11,7 +11,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::wip::plan::Plan;
-use crate::wip::runner::run_within;
+use crate::wip::run::runner::run_within;
 use crate::wip::store::Store;
 use crate::wip::task::Done;
 use crate::wip::task::Failed;

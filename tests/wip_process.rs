@@ -25,17 +25,21 @@ use arbiter::wip::exhibit::Turns;
 use arbiter::wip::exhibit::Verdict;
 use arbiter::wip::job::Cancel;
 use arbiter::wip::job::RunId;
+use arbiter::wip::layout::KEY_FILE;
+use arbiter::wip::layout::RUNNING_FILE;
+use arbiter::wip::layout::RUNS_DIR;
+use arbiter::wip::layout::RUN_FILE;
+use arbiter::wip::layout::STDERR_FILE;
+use arbiter::wip::layout::STDOUT_FILE;
+use arbiter::wip::layout::STORE_DIR;
 use arbiter::wip::plan::Plan;
 use arbiter::wip::registry::known;
-use arbiter::wip::runner::Problem;
-use arbiter::wip::runner::Runner;
-use arbiter::wip::runner::KEY_FILE;
-use arbiter::wip::runner::RUNNING_FILE;
-use arbiter::wip::runner::RUNS_DIR;
-use arbiter::wip::runner::RUN_FILE;
-use arbiter::wip::runner::STDERR_FILE;
-use arbiter::wip::runner::STDOUT_FILE;
-use arbiter::wip::runner::STORE_DIR;
+use arbiter::wip::run::observer::Event;
+use arbiter::wip::run::observer::Observer;
+use arbiter::wip::run::observer::Quiet;
+use arbiter::wip::run::refusal::Problem;
+use arbiter::wip::run::report::Report;
+use arbiter::wip::run::runner::Runner;
 use arbiter::wip::store::Need;
 use arbiter::wip::store::Store;
 use arbiter::wip::trace::Outcome;
@@ -97,7 +101,7 @@ fn sourced(compiles: bool) -> Store {
     store
 }
 
-fn outcome_of(report: &arbiter::wip::runner::Report, name: &str) -> Option<Outcome> {
+fn outcome_of(report: &Report, name: &str) -> Option<Outcome> {
     report.step(name).map(|step| step.outcome.clone())
 }
 
@@ -546,7 +550,7 @@ fn cancelling_a_run_stops_what_is_out_and_about_to_go_out_while_a_failure_s_read
     });
     let report = runner()
         .slots(1)
-        .run_with(&plan, seeded("repo", true), &root, &cancel)
+        .run_with(&plan, seeded("repo", true), &root, &cancel, &mut Quiet)
         .expect("the root is seeded");
     assert!(report.seconds < 2.5, "the run took {}s", report.seconds);
     assert_eq!(outcome_of(&report, "slow"), Some(Outcome::Cancelled));
@@ -566,6 +570,56 @@ fn cancelling_a_run_stops_what_is_out_and_about_to_go_out_while_a_failure_s_read
         Some("Cancelled Ok".to_string())
     );
     assert!(matches!(report.outcome, Outcome::Failed(_)));
+    let _ = fs::remove_dir_all(&root);
+}
+
+// Writes down each event as one line, so the order can be read back.
+struct Heard(Vec<String>);
+
+impl Observer for Heard {
+    fn event(&mut self, event: Event<'_>) {
+        self.0.push(match event {
+            Event::Started { job, slot } => format!("started {} on {slot}", job.path),
+            Event::Ended { step } => format!("ended {} {:?}", step.job.path, step.outcome),
+            Event::Settled { path, outcome } => format!("settled {path} {outcome:?}"),
+            Event::Finished { report } => format!("finished {:?}", report.outcome),
+        })
+    }
+}
+
+#[test]
+fn an_observer_hears_each_start_each_record_each_settling_and_the_finish_in_order() {
+    let root = root("observed");
+    let mut heard = Heard(Vec::new());
+    let report = runner()
+        .run_with(
+            &gate(),
+            seeded("repo", true),
+            &root,
+            &Cancel::new(),
+            &mut heard,
+        )
+        .expect("the root is seeded");
+    assert_eq!(report.outcome, Outcome::Ok);
+    let heard = heard.0;
+    assert_eq!(
+        heard.first().map(String::as_str),
+        Some("started gate/scan on 0")
+    );
+    assert_eq!(heard.last().map(String::as_str), Some("finished Ok"));
+    for name in ["scan", "resolve", "cycles", "boundaries", "tools", "ledger"] {
+        let at = |prefix: &str| {
+            heard
+                .iter()
+                .position(|line| line.starts_with(&format!("{prefix} gate/{name} ")))
+                .unwrap_or_else(|| panic!("{name} was not heard to have {prefix}: {heard:#?}"))
+        };
+        assert!(
+            at("started") < at("ended") && at("ended") < at("settled"),
+            "{name} was heard out of order: {heard:#?}"
+        );
+    }
+    assert_eq!(heard.len(), 6 * 3 + 1);
     let _ = fs::remove_dir_all(&root);
 }
 

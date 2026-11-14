@@ -493,12 +493,29 @@ story = "work is declared as tasks registered in the binary and wired by the typ
   ]
 
   [[case.need]]
-  need = "a run is verified whole before it starts: every type read is produced or seeded, no seed shadows a producer, the worker binary is an executable file and the root is a folder; every problem is named in one refusal and no process starts"
+  need = "a run is verified whole before it starts: every type read is produced or seeded, no seed shadows a producer, the medium can perform an attempt, which for processes means the worker binary is an executable file, and the root is a folder; every problem is named in one refusal and no process starts"
   claims = [
     ". |  | a run is refused with every problem named and nothing started",
     ". |  | a run refuses to start when a read type is neither produced nor seeded",
     ". |  | a run refuses a seed of a type a task produces",
     ". |  | a run refuses a worker that is not an executable file",
+  ]
+
+  [[case.need]]
+  need = "the run's decisions come from a flow with nothing in it that waits, reads a file or starts a process: fed what ended, it answers with the attempts wanted, the stops, the records that followed and the tasks settled, so every rule of readiness, branching, retry, cancel and replay is proved without running anything"
+  claims = [
+    ". |  | a flow asks first for the tasks whose reads are all held",
+    ". |  | a flow asks for a reader the moment its producer passes",
+    ". |  | a flow skips the readers of a failed task and asks for its failure readers",
+    ". |  | a flow asks again after a failure until the retries are spent",
+    ". |  | a flow cancelled stops what was asked and a withdrawn attempt ends as attempt zero",
+    ". |  | a flow keys a cached task and replays a product as attempt zero",
+  ]
+
+  [[case.need]]
+  need = "a run tells an observer each event as it happens: an attempt starting on its slot, each record as it lands, each task settling, and the run finishing with its report, in that order"
+  claims = [
+    ". |  | an observer hears each start each record each settling and the finish in order",
   ]
 
   [[case.need]]

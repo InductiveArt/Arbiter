@@ -4,10 +4,11 @@
 #[cfg(feature = "exhibit")]
 pub mod exhibit;
 pub mod job;
+pub mod layout;
 pub mod plan;
 pub mod registry;
 pub mod resources;
-pub mod runner;
+pub mod run;
 pub mod store;
 pub mod task;
 pub mod trace;
