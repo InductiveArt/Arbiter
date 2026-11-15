@@ -12,41 +12,19 @@ use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Power;
 use crate::core::rule::Rule;
-use crate::records::brief::brief_law;
-use crate::records::plans::plans_law;
 use boundaries::boundaries_law;
 use cycles::cycles_law;
+use economy::economy_law;
 use folders::folders_law;
 use licenses::licenses_law;
 use suppressions::suppressions_law;
 use versions::versions_law;
 
-// The rules the economy law fires: declared here because that task yields notes
-// as well as findings, so it runs beside the registry rather than inside it.
-const ECONOMY: &[Rule] = &[
-    rule::facts(
-        "dead-symbol",
-        "symbols",
-        "a public symbol no user reaches is named for deletion",
-    ),
-    rule::facts(
-        "tests-only-symbol",
-        "symbols",
-        "a test keeps nothing alive: a symbol only tests reach is scaffolding or dead",
-    ),
-];
-
-// The rules no single graph law owns: the vanished claim the claims task fires,
-// and the unparsable record any record law fires when a record will not parse.
-const VANISHED: &[Rule] = &[rule::record(
-    "vanished-claim",
-    "claims",
-    ".arbiter/reference.json",
-    "a claim once signed leaves only with the user's signature",
-)];
+// The rule no single law owns: the unparsable record any record law fires when
+// a record will not parse.
 const SHARED: &[Rule] = &[rule::facts(
     "unparsable-user-record",
-    "claims",
+    "records",
     "a record the user wrote parses, or the break itself is the finding; a store is rebuilt, never judged",
 )];
 
@@ -54,14 +32,13 @@ const SHARED: &[Rule] = &[rule::facts(
 // each; the per-language laws live with their packs and run beside these.
 pub fn all() -> Vec<Law> {
     vec![
+        economy_law(),
         cycles_law(),
         boundaries_law(),
         folders_law(),
         licenses_law(),
         versions_law(),
         suppressions_law(),
-        plans_law(),
-        brief_law(),
     ]
 }
 
@@ -88,8 +65,6 @@ pub fn matrix() -> Vec<&'static Rule> {
     for law in all() {
         rules.extend(law.rules.iter());
     }
-    rules.extend(ECONOMY.iter());
-    rules.extend(VANISHED.iter());
     rules.extend(SHARED.iter());
     rules.extend(rule::PER_LANGUAGE.iter());
     rules

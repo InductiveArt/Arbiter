@@ -1,10 +1,8 @@
 use std::process::ExitCode;
 
-use crate::core::claims;
 use crate::core::pack::Suppression;
 use crate::ledger;
 use crate::packs::graphed;
-use crate::records::brief;
 
 pub fn run(arguments: &[String]) -> ExitCode {
     if arguments.first().map(String::as_str) == Some("ledger") {
@@ -27,24 +25,12 @@ pub fn run(arguments: &[String]) -> ExitCode {
             }
             let counted = ledger::counted(&found);
             let packages = ledger::packages(&found);
-            let spoken = claims::identities(&found);
-            let demanded: Vec<String> = brief::read(&found)
-                .map(|reading| {
-                    reading
-                        .needs
-                        .iter()
-                        .map(|need| format!("{} | {}", need.case, need.need))
-                        .collect()
-                })
-                .unwrap_or_default();
-            match ledger::record(&found.root, &counted, &packages, &spoken, &demanded) {
+            match ledger::record(&found.root, &counted, &packages) {
                 Ok(path) => {
                     println!(
-                        "sign: {} suppressions, {} third parties, {} claims and {} needs recorded in {}",
+                        "sign: {} suppressions and {} third parties recorded in {}",
                         counted.len(),
                         packages.len(),
-                        spoken.len(),
-                        demanded.len(),
                         path.to_string_lossy()
                     );
                     for pack in &found.packs {
@@ -112,22 +98,6 @@ fn ledgered(found: &crate::core::graph::Graph) -> ExitCode {
             );
             for name in fresh {
                 println!("  {name}");
-            }
-        }
-    }
-    let spoken = claims::identities(found).len();
-    match claims::recorded(&found.root) {
-        None => println!("{:14} {} spoken", "claims", spoken),
-        Some(_) => {
-            let lost = claims::gone(found);
-            println!(
-                "{:14} {} spoken, {} vanished since the signature",
-                "claims",
-                spoken,
-                lost.len()
-            );
-            for claim in &lost {
-                println!("  '{claim}'");
             }
         }
     }

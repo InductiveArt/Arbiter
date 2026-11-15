@@ -1,9 +1,8 @@
 # Arbiter
 
 One binary that judges a repository: the symbol graph resolved across its
-languages, each unit's tools pinned to one bar, and the brief tying every
-test to a need it answers. Agents work inside the judgment; the user signs
-what it may not decide.
+languages, and each unit's tools pinned to one bar. Agents work inside the
+judgment; the user signs what it may not decide.
 
 ## Start
 
@@ -17,7 +16,7 @@ arbiter           # the commands, one line each
 
 The acts are `gate`, `adopt` and `ledger sign`; the reads - `find`
 (findings by rule, fallout of a name, deps of a unit, rhymes), `ledger`,
-`brief`, `rules` - never write. Every finding names the law it breaks,
+`rules` - never write. Every finding names the law it breaks,
 and the same word drills it: `arbiter rules <rule>` for the law,
 `arbiter find <rule> .` for the instances.
 
@@ -46,20 +45,18 @@ pinned sysroot is the cell's job, not this repository's.
 
 ## The shape
 
-- `processes.md` is the plan: the axes the work stands on, why each
-  process step exists, and the constitution no step may cross.
 - A language is a pack - typescript, python, rust, cpp, proto, infra. The
   core resolves and judges one graph and knows no language.
 - `arbiter rules` prints what holds where and each rule's one-line law;
   `arbiter rules <rule>` prints one rule's stance in every language, with
   each never's why.
 - Decisions live in `.arbiter/`: `units.toml`, `licenses.toml`,
-  `brief.toml`, and the reference the signature records. The first gate seeds the
+  and the reference the signature records. The first gate seeds the
   toml files as comments; writing a real entry is the user's ruling, signed
   by committing. `last/` is the newest run's report and `warm/` the store;
   neither commits.
-- `arbiter ledger sign .` is the user's signature: suppressions, third parties
-  and claims recorded. What leaves afterwards without a new signature is a
+- `arbiter ledger sign .` is the user's signature: suppressions and third
+  parties recorded. What leaves afterwards without a new signature is a
   finding.
 
 ## For agents

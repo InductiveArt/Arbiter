@@ -12,8 +12,8 @@ use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::wip::job::JobId;
-use crate::wip::trace::Outcome;
+use crate::wip::job::id::JobId;
+use crate::wip::trace::outcome::Outcome;
 
 // One type asked of the store, carrying its name so a gap is reported by name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -226,9 +226,9 @@ mod tests {
     use super::Read;
     use super::Store;
     use super::When;
-    use crate::wip::job::JobId;
-    use crate::wip::job::RunId;
-    use crate::wip::trace::Outcome;
+    use crate::wip::job::id::JobId;
+    use crate::wip::job::id::RunId;
+    use crate::wip::trace::outcome::Outcome;
 
     struct A;
     struct B;

@@ -7,8 +7,7 @@ const DEMO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/demo");
 #[test]
 fn the_fixture_yields_its_known_findings() {
     let found = graphed(DEMO).expect("the fixture folder exists");
-    let shown: Vec<String> = winnow(&found.defs, &found.edges, &found.repo, &Default::default())
-        .0
+    let shown: Vec<String> = winnow(&found)
         .iter()
         .map(|finding| {
             format!(
@@ -39,11 +38,8 @@ fn the_fixture_yields_its_known_findings() {
 #[test]
 fn every_finding_names_a_law_the_matrix_drills() {
     let found = graphed(DEMO).expect("the fixture folder exists");
-    let mut all = winnow(&found.defs, &found.edges, &found.repo, &Default::default()).0;
-    all.extend(judged(&found));
+    let mut all = judged(&found);
     all.extend(arbiter::ledger::blanket_findings(&found));
-    all.extend(arbiter::core::claims::vanished(&found));
-    all.extend(arbiter::records::brief::findings(&found));
     assert!(!all.is_empty());
     for finding in &all {
         assert!(
@@ -85,6 +81,7 @@ fn integrity_names_the_cycle_and_each_reexport() {
             "libs/cyc_a units import each other: libs/cyc_a, libs/cyc_b",
             "libs/cyc_a/src/cyc_a/calc.py libs/cyc_a uses libs/cyc_b, \
              which only nothing/* may",
+            "libs/dead_py/src/dead/calc.py orphan has no user anywhere",
             "libs/dead_py/src/dead/calc.py # type: ignore quiets more than one named rule",
             "libs/dead_py/uv.lock requests is locked at 2.31.0 in libs/dead_py/uv.lock \
              and 2.32.0 in libs/used_py/uv.lock",
@@ -92,8 +89,15 @@ fn integrity_names_the_cycle_and_each_reexport() {
              a symbol is imported from the module defining it",
             "libs/facade/src/facade/inner.py a comment names dashboard_frontend, \
              which nothing in the file defines, uses or quotes",
+            "libs/testy/src/testy/calc.py helper has no user but tests",
             "libs/testy/tests/test_calc.py asserts True; \
              an assertion compares the system to an expectation",
+            "native/geo.h Shape has no user anywhere",
+            "native/geo.h diameter has no user anywhere",
+            "native/geo.h perimeter has no user anywhere",
+            "proto/billing/invoice.proto Ghost has no user anywhere",
+            "proto/billing/invoice.proto Billing has no user anywhere",
+            "proto/billing/invoice.proto GetInvoice has no user anywhere",
             "proto/billing/invoice.proto buf:lint:ignore quiets more than one named rule",
             "proto/buf.yaml buf.build/demo/never is declared, \
              and nothing in the unit reaches it",
@@ -118,8 +122,6 @@ fn integrity_names_the_cycle_and_each_reexport() {
              and the unit's manifest does not declare it",
             "web/src/__tests__/panel.test.ts asserts 1 equals itself; \
              an assertion compares the system to an expectation",
-            "web/src/__tests__/panel.test.ts a test the tree cannot name; \
-             a claim speaks a literal sentence",
             "web/src/barrel.ts re-exports from \"./index\"; a module offers only its own names",
             "web/src/boot.ts bootpkg is imported, and the unit's manifest does not declare it",
             "web/src/boot.ts sparkpkg is imported, and the unit's manifest does not declare it",
@@ -130,6 +132,7 @@ fn integrity_names_the_cycle_and_each_reexport() {
              base; a protocol satisfied by shape is still named",
             "web/src/ghost_rpc.ts ./gen/phantom_pb names no contract; \
              a generated import answers for the contract it was generated from",
+            "web/src/index.ts ghost has no user anywhere",
             "web/src/lazy.ts imports a module through a computed value; \
              a module is named by a literal",
             "web/src/panel.ts names 3 symbols in one import; \

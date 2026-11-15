@@ -144,25 +144,7 @@ pub fn reference(root: &Path) -> Option<Vec<(String, String)>> {
     )
 }
 
-pub fn recorded_needs(root: &Path) -> Option<Vec<String>> {
-    let text = fs::read_to_string(root.join(REFERENCE)).ok()?;
-    let parsed: serde_json::Value = serde_json::from_str(&text).ok()?;
-    let entries = parsed.get("needs")?.as_array()?;
-    Some(
-        entries
-            .iter()
-            .filter_map(|entry| entry.as_str().map(str::to_string))
-            .collect(),
-    )
-}
-
-pub fn record(
-    root: &Path,
-    current: &[Suppression],
-    packages: &[String],
-    claims: &[String],
-    needs: &[String],
-) -> io::Result<PathBuf> {
+pub fn record(root: &Path, current: &[Suppression], packages: &[String]) -> io::Result<PathBuf> {
     let entries: Vec<serde_json::Value> = current
         .iter()
         .map(|suppression| {
@@ -175,8 +157,6 @@ pub fn record(
     let written = serde_json::to_string_pretty(&serde_json::json!({
         "suppressions": entries,
         "packages": packages,
-        "claims": claims,
-        "needs": needs,
     }))
     .map_err(io::Error::other)?;
     let path = root.join(REFERENCE);

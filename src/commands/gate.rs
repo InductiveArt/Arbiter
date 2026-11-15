@@ -7,7 +7,6 @@ pub fn run(arguments: &[String]) -> ExitCode {
     if let Some(command @ "gate") = arguments.first().map(String::as_str) {
         let cold = arguments.iter().any(|argument| argument == "--cold");
         let fixing = arguments.iter().any(|argument| argument == "--fix");
-        let briefless = arguments.iter().any(|argument| argument == "--no-brief");
         let asked = arguments
             .iter()
             .skip(1)
@@ -24,7 +23,7 @@ pub fn run(arguments: &[String]) -> ExitCode {
             );
             return ExitCode::from(2);
         }
-        let Some(run) = gate::run(&asked, fixing, cold, briefless) else {
+        let Some(run) = gate::run(&asked, fixing, cold) else {
             eprintln!("{command}: no folder at {asked}");
             return ExitCode::from(2);
         };
@@ -80,43 +79,6 @@ pub fn run(arguments: &[String]) -> ExitCode {
             Some(added) => println!(
                 "  {:15} {} locked, {added} added since the signature",
                 "third parties", run.third
-            ),
-        }
-        match run.claims_vanished {
-            None => println!(
-                "  {:15} {} spoken, no reference recorded",
-                "claims", run.claims
-            ),
-            Some(0) => println!("  {:15} {} spoken, none vanished", "claims", run.claims),
-            Some(vanished) => println!(
-                "  {:15} {} spoken, {vanished} vanished since the signature",
-                "claims", run.claims
-            ),
-        }
-        match run.needs_added {
-            None => println!(
-                "  {:15} {} stated, no reference recorded",
-                "needs", run.needs_stated
-            ),
-            Some(added) => println!(
-                "  {:15} {} stated, {added} added since the signature",
-                "needs", run.needs_stated
-            ),
-        }
-        match run.brief {
-            gate::BriefLine::Skipped => println!("  {:15} skipped", "brief"),
-            gate::BriefLine::Unwritten => println!("  {:15} no brief written", "brief"),
-            gate::BriefLine::Read {
-                cases,
-                tested,
-                planned,
-                manual,
-                unanswered,
-                unwired,
-            } => println!(
-                "  {:15} {cases} cases — {tested} tested, {planned} planned, \
-                 {manual} manual, {unanswered} unanswered; {unwired} claims unwired",
-                "brief"
             ),
         }
         for note in &run.notes {

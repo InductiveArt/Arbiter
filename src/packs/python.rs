@@ -10,12 +10,10 @@ use tree_sitter::Tree;
 
 use crate::core::pack::dial;
 use crate::core::pack::pinned;
-use crate::core::pack::Claim;
 use crate::core::pack::Def;
 use crate::core::pack::Definition;
 use crate::core::pack::Edge;
 use crate::core::pack::Finding;
-use crate::core::pack::Launch;
 use crate::core::pack::Pack;
 use crate::core::pack::Repo;
 use crate::core::pack::Suppression;
@@ -121,38 +119,6 @@ impl Pack for Python {
         Some(include_str!("../../packs/python/tools.toml"))
     }
 
-    // A unit whose package carries a __main__ starts as a module; the src
-    // layout reaches the interpreter through PYTHONPATH.
-    fn launch(&self, root: &Path, unit: &Path) -> Option<Launch> {
-        let folder = root.join(unit);
-        let manifest = fs::read_to_string(folder.join("pyproject.toml")).ok()?;
-        let parsed = manifest.parse::<toml::Value>().ok()?;
-        let name = parsed.get("project")?.get("name")?.as_str()?;
-        let module = name.replace('-', "_");
-        let command: Vec<String> = ["uv", "run", "--no-sync", "python", "-m", &module]
-            .iter()
-            .map(|part| (*part).to_string())
-            .collect();
-        if folder
-            .join("src")
-            .join(&module)
-            .join("__main__.py")
-            .is_file()
-        {
-            return Some(Launch {
-                command,
-                env: vec![("PYTHONPATH".to_string(), "src".to_string())],
-            });
-        }
-        if folder.join(&module).join("__main__.py").is_file() {
-            return Some(Launch {
-                command,
-                env: Vec::new(),
-            });
-        }
-        None
-    }
-
     fn configs(&self) -> &'static [(&'static str, &'static str)] {
         &[("ruff.toml", include_str!("../../packs/python/ruff.toml"))]
     }
@@ -181,15 +147,6 @@ impl Pack for Python {
             ));
         };
         Some((manifest_findings(&manifest, home), Vec::new()))
-    }
-
-    fn claims(&self, source: &str) -> Vec<Claim> {
-        let Some(tree) = trees::parse(&language(), source) else {
-            return Vec::new();
-        };
-        let mut found = Vec::new();
-        claimed(tree.root_node(), source, &mut Vec::new(), &mut found);
-        found
     }
 
     fn shapes(&self, source: &str) -> Vec<trees::Shape> {
@@ -1214,42 +1171,6 @@ fn is_error(value: &toml::Value) -> bool {
     value.as_str() == Some("error") || value.as_bool() == Some(true)
 }
 
-// pytest's grammar of behavior: a test_ function claims its name as a
-// sentence, framed by the classes that hold it.
-fn claimed(node: tree_sitter::Node, source: &str, path: &mut Vec<String>, found: &mut Vec<Claim>) {
-    if node.kind() == "class_definition" {
-        if let Some(name) = node.child_by_field_name("name") {
-            path.push(name.utf8_text(source.as_bytes()).unwrap_or("").to_string());
-            let mut walker = node.walk();
-            for child in node.children(&mut walker) {
-                claimed(child, source, path, found);
-            }
-            path.pop();
-            return;
-        }
-    }
-    if node.kind() == "function_definition" {
-        if let Some(name) = node.child_by_field_name("name") {
-            let name = name.utf8_text(source.as_bytes()).unwrap_or("");
-            if let Some(rest) = name.strip_prefix("test_") {
-                // A skipped or expected-to-fail test proves nothing.
-                if silenced(node, source) {
-                    return;
-                }
-                found.push(Claim {
-                    path: path.clone(),
-                    sentence: rest.replace('_', " "),
-                    line: node.start_position().row + 1,
-                });
-            }
-        }
-    }
-    let mut walker = node.walk();
-    for child in node.children(&mut walker) {
-        claimed(child, source, path, found);
-    }
-}
-
 // A pytest skip, skipif or xfail is a suppression the ledger counts.
 fn marked(node: tree_sitter::Node, source: &str) -> Vec<(String, usize)> {
     let mut found = Vec::new();
@@ -1272,30 +1193,6 @@ fn marked(node: tree_sitter::Node, source: &str) -> Vec<(String, usize)> {
     }
     found.sort_by_key(|(_, line)| *line);
     found
-}
-
-// Whether a test's decorators silence it: skip and skipif never run it, and a
-// strict xfail proves only that it fails.
-fn silenced(function: tree_sitter::Node, source: &str) -> bool {
-    let Some(parent) = function.parent() else {
-        return false;
-    };
-    if parent.kind() != "decorated_definition" {
-        return false;
-    }
-    let mut walker = parent.walk();
-    let silenced = parent.children(&mut walker).any(|child| {
-        child.kind() == "decorator"
-            && ["mark.skipif", "mark.skip", "mark.xfail"]
-                .iter()
-                .any(|form| {
-                    child
-                        .utf8_text(source.as_bytes())
-                        .unwrap_or("")
-                        .contains(form)
-                })
-    });
-    silenced
 }
 
 // assert True and assert on a value compared to itself: always true, asserting

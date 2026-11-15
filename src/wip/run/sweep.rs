@@ -4,12 +4,12 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::wip::job::RunId;
+use crate::wip::job::id::RunId;
+use crate::wip::kernel::child::alive;
 use crate::wip::layout::KEY_FILE;
 use crate::wip::layout::RUNNING_FILE;
 use crate::wip::layout::RUNS_DIR;
 use crate::wip::layout::STORE_DIR;
-use crate::wip::resources::alive;
 
 // Keeps the newest runs and every run still going, deletes the rest, and
 // drops from the store every product no kept run refers to. Only folders
@@ -82,7 +82,7 @@ mod tests {
     use std::process;
 
     use super::sweep;
-    use crate::wip::job::RunId;
+    use crate::wip::job::id::RunId;
     use crate::wip::layout::KEY_FILE;
     use crate::wip::layout::RUNNING_FILE;
     use crate::wip::layout::RUNS_DIR;

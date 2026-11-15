@@ -8,7 +8,6 @@ use tree_sitter::Tree;
 
 use crate::core::pack::dial;
 use crate::core::pack::pinned;
-use crate::core::pack::Claim;
 use crate::core::pack::Def;
 use crate::core::pack::Definition;
 use crate::core::pack::Edge;
@@ -53,8 +52,6 @@ pub struct TypeScript {
     // The lines holding a type-only import, which erases at build time.
     typed: std::collections::HashSet<(PathBuf, usize)>,
     tautologies: Vec<(PathBuf, usize, String)>,
-    // Test calls whose sentence no literal provides: claims the tree cannot speak.
-    strays: Vec<(PathBuf, usize)>,
     interfaces: Vec<String>,
     classes: Vec<(PathBuf, usize, String, Vec<String>)>,
     // One annotated parameter: function name, position, and its type names.
@@ -177,15 +174,6 @@ impl Pack for TypeScript {
         Some((found, Vec::new()))
     }
 
-    fn claims(&self, source: &str) -> Vec<Claim> {
-        let Some(tree) = trees::parse(&language(), source) else {
-            return Vec::new();
-        };
-        let mut found = Vec::new();
-        claimed(tree.root_node(), source, &mut Vec::new(), &mut found);
-        found
-    }
-
     fn shapes(&self, source: &str) -> Vec<trees::Shape> {
         trees::shapes(&language(), source)
     }
@@ -226,11 +214,6 @@ impl Pack for TypeScript {
         }
         for (text, line) in tautologies(tree.root_node(), source) {
             self.tautologies.push((file.to_path_buf(), line, text));
-        }
-        if testish(file) {
-            for line in strays(tree.root_node(), source) {
-                self.strays.push((file.to_path_buf(), line));
-            }
         }
         doors(tree.root_node(), source, file, self);
         if !surface {
@@ -359,16 +342,6 @@ impl Pack for TypeScript {
             let unit = repo.unit_of(file);
             repo.is_test(unit, &repo.units[unit].path.clone())
         };
-        findings.extend(self.strays.iter().filter(|(file, _)| !fixture(file)).map(
-            |(file, line)| Finding {
-                check: "integrity",
-                file: file.clone(),
-                line: *line,
-                name: "stray-test".to_string(),
-                reason:
-                    "a test the tree cannot name; a claim speaks a literal sentence".to_string(),
-            },
-        ));
         findings.extend(
             self.tautologies
                 .iter()
@@ -1604,68 +1577,8 @@ fn normalized(path: &Path) -> PathBuf {
     parts.iter().collect()
 }
 
-// The vitest grammar of behavior: describe frames a path, it and test claim a
-// sentence; a describe body is walked inside its own frame.
-fn claimed(node: tree_sitter::Node, source: &str, path: &mut Vec<String>, found: &mut Vec<Claim>) {
-    if node.kind() == "call_expression" {
-        let (name, mark) = test_callee(node, source);
-        if matches!(name, "describe" | "it" | "test" | "bench") {
-            // A skipped or todo claim proves nothing, so it never enters the tree.
-            if matches!(mark, "skip" | "todo") {
-                return;
-            }
-            if let Some(sentence) = first_sentence(node, source) {
-                if name == "describe" {
-                    path.push(sentence);
-                    let mut walker = node.walk();
-                    for child in node.children(&mut walker) {
-                        claimed(child, source, path, found);
-                    }
-                    path.pop();
-                } else {
-                    found.push(Claim {
-                        path: path.clone(),
-                        sentence,
-                        line: node.start_position().row + 1,
-                    });
-                }
-                return;
-            }
-        }
-    }
-    let mut walker = node.walk();
-    for child in node.children(&mut walker) {
-        claimed(child, source, path, found);
-    }
-}
-
-fn first_sentence(call: tree_sitter::Node, source: &str) -> Option<String> {
-    let arguments = call.child_by_field_name("arguments")?;
-    let mut walker = arguments.walk();
-    for argument in arguments.named_children(&mut walker) {
-        if argument.kind() == "string" || argument.kind() == "template_string" {
-            let text = argument.utf8_text(source.as_bytes()).ok()?;
-            return Some(text.trim_matches(['"', '\'', '`']).to_string());
-        }
-        // A naming helper still names by a literal: the sentence rides one
-        // call deep, as test(its("...")) does.
-        if argument.kind() == "call_expression" {
-            if let Some(inner) = argument.child_by_field_name("arguments") {
-                let mut deeper = inner.walk();
-                for part in inner.named_children(&mut deeper) {
-                    if part.kind() == "string" || part.kind() == "template_string" {
-                        let text = part.utf8_text(source.as_bytes()).ok()?;
-                        return Some(text.trim_matches(['"', '\'', '`']).to_string());
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
 // A skipped, focused or postponed test is a suppression the ledger counts:
-// skip and todo silence the claim, only silences every sibling.
+// skip and todo silence the test, only silences every sibling.
 fn marked(node: tree_sitter::Node, source: &str) -> Vec<(String, usize)> {
     let mut found = Vec::new();
     let mut stack = vec![node];
@@ -1762,89 +1675,6 @@ fn simple_argument(call: tree_sitter::Node, source: &str) -> Option<String> {
         return None;
     }
     Some(argument.utf8_text(source.as_bytes()).ok()?.to_string())
-}
-
-// The test vocabulary a call speaks, through a member or an each table: the
-// caller's name and the property marking it, if any.
-fn test_callee<'tree>(
-    node: tree_sitter::Node<'tree>,
-    source: &'tree str,
-) -> (&'tree str, &'tree str) {
-    let Some(callee) = node.child_by_field_name("function") else {
-        return ("", "");
-    };
-    match callee.kind() {
-        "identifier" => (callee.utf8_text(source.as_bytes()).unwrap_or(""), ""),
-        "member_expression" => member_parts(callee, source),
-        // it.each(table)("sentence", run): the sentence rides the outer call.
-        "call_expression" => match callee.child_by_field_name("function") {
-            Some(inner) if inner.kind() == "member_expression" => {
-                let (name, mark) = member_parts(inner, source);
-                if mark == "each" {
-                    (name, "each")
-                } else {
-                    ("", "")
-                }
-            }
-            _ => ("", ""),
-        },
-        _ => ("", ""),
-    }
-}
-
-fn member_parts<'tree>(
-    member: tree_sitter::Node<'tree>,
-    source: &'tree str,
-) -> (&'tree str, &'tree str) {
-    let name = member
-        .child_by_field_name("object")
-        .filter(|object| object.kind() == "identifier")
-        .and_then(|object| object.utf8_text(source.as_bytes()).ok())
-        .unwrap_or("");
-    let mark = member
-        .child_by_field_name("property")
-        .and_then(|property| property.utf8_text(source.as_bytes()).ok())
-        .unwrap_or("");
-    (name, mark)
-}
-
-// Test files by their names alone, the way the repository tells them.
-fn testish(file: &Path) -> bool {
-    let stem = file
-        .file_stem()
-        .map(|stem| stem.to_string_lossy().to_string())
-        .unwrap_or_default();
-    stem.starts_with("test_")
-        || stem.ends_with("_test")
-        || stem.ends_with(".test")
-        || file
-            .components()
-            .any(|part| part.as_os_str() == "tests" || part.as_os_str() == "__tests__")
-}
-
-// A test call whose sentence no literal provides is a stray: it runs, yet the
-// tree cannot speak for it, so no need can bind it.
-fn strays(node: tree_sitter::Node, source: &str) -> Vec<usize> {
-    let mut found = Vec::new();
-    let mut stack = vec![node];
-    while let Some(node) = stack.pop() {
-        if node.kind() == "call_expression" {
-            // bench stays out: a fluent builder of that name is not a test form.
-            let (name, mark) = test_callee(node, source);
-            if matches!(name, "describe" | "it" | "test")
-                && !matches!(mark, "skip" | "todo")
-                && first_sentence(node, source).is_none()
-            {
-                found.push(node.start_position().row + 1);
-            }
-        }
-        let mut walker = node.walk();
-        for child in node.children(&mut walker) {
-            stack.push(child);
-        }
-    }
-    found.sort_unstable();
-    found
 }
 
 // Collects the door shapes: interfaces, each class's named heritage,

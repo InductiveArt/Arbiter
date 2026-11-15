@@ -4,11 +4,8 @@ use std::path::PathBuf;
 use crate::core::measures;
 use crate::gate::Run;
 use crate::ledger;
-use crate::records::brief;
-use crate::records::plans;
 
 const TEMPLATE: &str = include_str!("court.html");
-const DOCKET: &str = include_str!("docket.js");
 
 // The court: the run rendered whole as one page and one snapshot, written as
 // evidence beside the report. The page is self-contained - the snapshot is
@@ -31,9 +28,7 @@ pub fn write(run: &Run) -> Option<PathBuf> {
 // The embedded form: `</` is split so no reason can close the script early.
 pub fn page(data: &serde_json::Value) -> String {
     let embedded = data.to_string().replace("</", "<\\/");
-    TEMPLATE
-        .replace("/*ARBITER_DATA*/", &embedded)
-        .replace("/*ARBITER_DOCKET*/", DOCKET)
+    TEMPLATE.replace("/*ARBITER_DATA*/", &embedded)
 }
 
 // One task of the run tree, rendered with its subtree: the console draws the
@@ -151,47 +146,6 @@ fn snapshot(run: &Run) -> serde_json::Value {
         .into_iter()
         .map(|(place, members)| serde_json::json!({ "place": place, "members": members }))
         .collect();
-    let plans = plans_snapshot(run);
-    let brief = brief::read(found).map(|reading| {
-        let needs: Vec<serde_json::Value> = reading
-            .needs
-            .iter()
-            .map(|need| {
-                let state = match need.state {
-                    brief::State::Tested => "tested",
-                    brief::State::Planned => "planned",
-                    brief::State::Manual => "manual",
-                    brief::State::Unanswered => "unanswered",
-                };
-                serde_json::json!({
-                    "case": need.case,
-                    "need": need.need,
-                    "state": state,
-                    "claims": need.entries.len(),
-                })
-            })
-            .collect();
-        let seated: Vec<serde_json::Value> = reading
-            .cases
-            .iter()
-            .map(|case| {
-                serde_json::json!({
-                    "name": case.name,
-                    "unit": case.unit,
-                    "serves": case.serves,
-                })
-            })
-            .collect();
-        serde_json::json!({
-            "cases": reading.cases.len(),
-            "seated": seated,
-            "claims": reading.claims,
-            "needs": needs,
-        })
-    });
-    let receipts = fs::read_to_string(run.root.join(".arbiter/last/receipts.json"))
-        .ok()
-        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
     let counted: Vec<serde_json::Value> = ledger::counted(found)
         .iter()
         .map(|suppression| {
@@ -221,12 +175,8 @@ fn snapshot(run: &Run) -> serde_json::Value {
         "families": families,
         "declared": declared,
         "tangles": tangles,
-        "plans": plans,
-        "brief": brief,
-        "receipts": receipts,
         "suppressions": { "counted": counted, "added": run.added },
         "third": { "locked": run.third, "added": run.third_added },
-        "claims": run.claims,
     })
 }
 
@@ -280,93 +230,4 @@ fn declared_units(run: &Run) -> Vec<serde_json::Value> {
             })
         })
         .collect()
-}
-
-fn plans_snapshot(run: &Run) -> serde_json::Value {
-    let Some(Ok(reading)) = plans::read(&run.root) else {
-        return serde_json::json!({ "services": [], "plans": [], "doors": [], "channels": [] });
-    };
-    let services: Vec<serde_json::Value> = reading
-        .services
-        .iter()
-        .map(|service| {
-            serde_json::json!({
-                "name": service.name,
-                "unit": service.unit,
-                "replicas": service.replicas,
-                "needs": service.needs,
-                "volumes": service.volumes,
-                "cpu": service.cpu,
-                "memory_mb": service.memory_mb,
-                "accepts": service.accepts,
-                "line": service.line,
-            })
-        })
-        .collect();
-    let replicas_of = |name: &str| {
-        reading
-            .services
-            .iter()
-            .find(|service| service.name == name)
-            .map_or(1, |service| service.replicas.max(1))
-    };
-    let plans: Vec<serde_json::Value> = reading
-        .plans
-        .iter()
-        .map(|plan| {
-            let ladder: Vec<Vec<serde_json::Value>> = plans::ladder(&reading, plan)
-                .into_iter()
-                .map(|rung| {
-                    rung.into_iter()
-                        .map(|(service, machine)| {
-                            serde_json::json!({
-                                "service": service,
-                                "machine": machine,
-                                "replicas": replicas_of(&service),
-                            })
-                        })
-                        .collect()
-                })
-                .collect();
-            serde_json::json!({ "name": plan.name, "ladder": ladder })
-        })
-        .collect();
-    let mut doors = Vec::new();
-    let mut channels = Vec::new();
-    for service in &reading.services {
-        for (domain, port, to) in &service.serves {
-            doors.push(serde_json::json!({
-                "domain": domain, "port": port, "to": to, "via": service.name,
-            }));
-        }
-        for (to, contract) in &service.channels {
-            channels.push(serde_json::json!({
-                "from": service.name, "to": to, "contract": contract,
-            }));
-        }
-    }
-    let machines: Vec<serde_json::Value> = reading
-        .machines
-        .iter()
-        .map(|machine| {
-            serde_json::json!({
-                "name": machine.name,
-                "cpu": machine.cpu,
-                "memory_mb": machine.memory_mb,
-            })
-        })
-        .collect();
-    let volumes: Vec<serde_json::Value> = reading
-        .volumes
-        .iter()
-        .map(|volume| serde_json::json!({ "name": volume.name, "backup": volume.backup }))
-        .collect();
-    serde_json::json!({
-        "services": services,
-        "plans": plans,
-        "doors": doors,
-        "channels": channels,
-        "machines": machines,
-        "volumes": volumes,
-    })
 }

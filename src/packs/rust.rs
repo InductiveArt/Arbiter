@@ -6,7 +6,6 @@ use tree_sitter::Node;
 use tree_sitter::Tree;
 
 use crate::core::pack::dial;
-use crate::core::pack::Claim;
 use crate::core::pack::Def;
 use crate::core::pack::Definition;
 use crate::core::pack::Edge;
@@ -128,15 +127,6 @@ impl Pack for Rust {
             ));
         };
         Some((manifest_findings(&manifest, home), Vec::new()))
-    }
-
-    fn claims(&self, source: &str) -> Vec<Claim> {
-        let Some(tree) = trees::parse(&language(), source) else {
-            return Vec::new();
-        };
-        let mut found = Vec::new();
-        claimed(tree.root_node(), source, &mut Vec::new(), &mut found);
-        found
     }
 
     fn mend(&self, root: &Path, repo: &Repo) -> Vec<String> {
@@ -660,84 +650,6 @@ fn uses(tree: &Tree, source: &str) -> Vec<(String, String, usize, bool)> {
             ))
         })
         .collect()
-}
-
-// Rust's grammar of behavior: a #[test] function claims its name as a
-// sentence, framed by its modules; the conventional tests module frames nothing.
-fn claimed(node: tree_sitter::Node, source: &str, path: &mut Vec<String>, found: &mut Vec<Claim>) {
-    if node.kind() == "mod_item" {
-        if let Some(name) = node.child_by_field_name("name") {
-            let name = name.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-            let framed = name != "tests";
-            if framed {
-                path.push(name);
-            }
-            let mut walker = node.walk();
-            for child in node.children(&mut walker) {
-                claimed(child, source, path, found);
-            }
-            if framed {
-                path.pop();
-            }
-            return;
-        }
-    }
-    if node.kind() == "function_item" && attributed(node, source) {
-        // An ignored test never runs, so it proves nothing.
-        if ignored(node, source) {
-            return;
-        }
-        if let Some(name) = node.child_by_field_name("name") {
-            found.push(Claim {
-                path: path.clone(),
-                sentence: name
-                    .utf8_text(source.as_bytes())
-                    .unwrap_or("")
-                    .replace('_', " "),
-                line: node.start_position().row + 1,
-            });
-        }
-    }
-    let mut walker = node.walk();
-    for child in node.children(&mut walker) {
-        claimed(child, source, path, found);
-    }
-}
-
-fn attributed(function: tree_sitter::Node, source: &str) -> bool {
-    let mut before = function.prev_named_sibling();
-    while let Some(node) = before {
-        if node.kind() != "attribute_item" {
-            return false;
-        }
-        if node
-            .utf8_text(source.as_bytes())
-            .unwrap_or("")
-            .contains("test")
-        {
-            return true;
-        }
-        before = node.prev_named_sibling();
-    }
-    false
-}
-
-fn ignored(function: tree_sitter::Node, source: &str) -> bool {
-    let mut before = function.prev_named_sibling();
-    while let Some(node) = before {
-        if node.kind() != "attribute_item" {
-            return false;
-        }
-        if node
-            .utf8_text(source.as_bytes())
-            .unwrap_or("")
-            .contains("#[ignore")
-        {
-            return true;
-        }
-        before = node.prev_named_sibling();
-    }
-    false
 }
 
 // assert!(true) and assert_eq! on a value paired with itself: always true,

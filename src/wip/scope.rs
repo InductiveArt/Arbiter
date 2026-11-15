@@ -1,166 +1,27 @@
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::Path;
-use std::path::PathBuf;
 use std::process::Command;
 use std::process::Output;
 use std::process::Stdio;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 use std::time::Instant;
 use std::time::SystemTime;
 
-use serde::Deserialize;
-use serde::Serialize;
-
-use crate::wip::job::Cancel;
-use crate::wip::job::JobId;
-use crate::wip::resources::reap;
-use crate::wip::resources::thread_cpu;
-use crate::wip::resources::Account;
-use crate::wip::resources::Resources;
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Outcome {
-    Ok,
-    Failed(String),
-    // Ran past the time its task allowed.
-    TimedOut,
-    // Stopped from outside before it could finish.
-    Cancelled,
-    // Never ran: a task it stands on did not pass, named by that task's path.
-    Skipped(String),
-    // Never ran: the branch it reads was not taken, named by the task that
-    // decided it. By design, so it counts against nothing.
-    Unneeded(String),
-}
-
-impl Outcome {
-    pub fn clean(&self) -> bool {
-        matches!(self, Outcome::Ok | Outcome::Unneeded(_))
-    }
-
-    // An attempt that ended without passing, as opposed to one never made.
-    pub fn failed(&self) -> bool {
-        matches!(
-            self,
-            Outcome::Failed(_) | Outcome::TimedOut | Outcome::Cancelled
-        )
-    }
-}
-
-#[derive(Debug)]
-pub struct Failure {
-    pub reason: String,
-}
-
-impl From<String> for Failure {
-    fn from(reason: String) -> Self {
-        Failure { reason }
-    }
-}
-
-impl From<&str> for Failure {
-    fn from(reason: &str) -> Self {
-        Failure {
-            reason: reason.to_string(),
-        }
-    }
-}
-
-// How a record relates to the one holding it. An attempt ran as a process of
-// its own and is accounted on its own; an inner frame ran inside its parent,
-// on the parent's thread, so its figures are already inside the parent's.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Frame {
-    Attempt,
-    Inner,
-}
-
-// One unit of work that ran, with the units it ran inside itself. The job
-// names the run, the path from the root and the attempt, so a unit is found by
-// name at any depth and one try is told from the next. Plain data throughout,
-// so a record is written and read back whole.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Step {
-    pub job: JobId,
-    pub name: String,
-    pub outcome: Outcome,
-    pub frame: Frame,
-    pub began: Option<SystemTime>,
-    // The slot that ran the attempt, and how long it waited for one.
-    pub slot: Option<usize>,
-    pub wait: Option<Duration>,
-    // The product was taken from the store; no process ran.
-    pub replayed: bool,
-    // What the frame measured of itself, from inside.
-    pub resources: Resources,
-    // The attempt's own process, as the run that spawned it saw it.
-    pub account: Option<Account>,
-    // Quantities the body itself counted, by name.
-    pub measures: BTreeMap<String, f64>,
-    pub evidence: Vec<String>,
-    pub children: Vec<Step>,
-}
-
-impl Step {
-    // The record of a task that never ran.
-    pub fn unrun(job: JobId, name: &str, outcome: Outcome) -> Step {
-        Step {
-            job,
-            name: name.to_string(),
-            outcome,
-            frame: Frame::Attempt,
-            began: None,
-            slot: None,
-            wait: None,
-            replayed: false,
-            resources: Resources::default(),
-            account: None,
-            measures: BTreeMap::new(),
-            evidence: Vec::new(),
-            children: Vec::new(),
-        }
-    }
-
-    pub fn seconds(&self) -> f64 {
-        self.resources.wall.as_secs_f64()
-    }
-}
-
-// Where an attempt lives on disk: its own folder, where its files and any plan
-// it runs land, and the store shared by the whole run.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Site {
-    pub dir: PathBuf,
-    pub store: PathBuf,
-}
-
-static TERMINATED: AtomicBool = AtomicBool::new(false);
-
-// Whether the host asked this process to stop.
-pub fn terminated() -> bool {
-    TERMINATED.load(Ordering::Relaxed)
-}
-
-// Makes the host's request to stop set a flag instead of ending the process
-// at once, so a body stops at its next checkpoint and leaves its record.
-#[cfg(unix)]
-pub fn stop_on_terminate() {
-    extern "C" fn noted(_: libc::c_int) {
-        TERMINATED.store(true, Ordering::Relaxed);
-    }
-    let handler = noted as extern "C" fn(libc::c_int) as libc::sighandler_t;
-    unsafe {
-        libc::signal(libc::SIGTERM, handler);
-    }
-}
-
-#[cfg(not(unix))]
-pub fn stop_on_terminate() {}
+use crate::wip::job::cancel::Cancel;
+use crate::wip::job::id::JobId;
+use crate::wip::kernel::child::reap;
+use crate::wip::kernel::clock::thread_cpu;
+use crate::wip::kernel::signal::terminated;
+use crate::wip::layout::Site;
+use crate::wip::trace::account::Account;
+use crate::wip::trace::account::Resources;
+use crate::wip::trace::outcome::Failure;
+use crate::wip::trace::outcome::Outcome;
+use crate::wip::trace::step::Frame;
+use crate::wip::trace::step::Step;
 
 // What a running unit writes through: notes and measures on its own record,
 // inner units each measured and nested under it, child processes reaped with
@@ -381,15 +242,15 @@ mod tests {
     use std::time::Duration;
     use std::time::Instant;
 
-    use super::Failure;
-    use super::Frame;
-    use super::Outcome;
     use super::Scope;
-    use super::Site;
-    use super::Step;
-    use crate::wip::job::Cancel;
-    use crate::wip::job::JobId;
-    use crate::wip::job::RunId;
+    use crate::wip::job::cancel::Cancel;
+    use crate::wip::job::id::JobId;
+    use crate::wip::job::id::RunId;
+    use crate::wip::layout::Site;
+    use crate::wip::trace::outcome::Failure;
+    use crate::wip::trace::outcome::Outcome;
+    use crate::wip::trace::step::Frame;
+    use crate::wip::trace::step::Step;
 
     fn site() -> Site {
         Site {
@@ -520,26 +381,6 @@ mod tests {
         let json = serde_json::to_vec_pretty(&step).expect("a record encodes");
         let back: Step = serde_json::from_slice(&json).expect("a record decodes");
         assert_eq!(back, step);
-    }
-
-    #[test]
-    fn an_outcome_is_clean_when_it_passed_or_was_not_needed() {
-        assert!(Outcome::Ok.clean());
-        assert!(Outcome::Unneeded("gate/check".to_string()).clean());
-        assert!(!Outcome::Failed("broke".to_string()).clean());
-        assert!(!Outcome::TimedOut.clean());
-        assert!(!Outcome::Cancelled.clean());
-        assert!(!Outcome::Skipped("gate/check".to_string()).clean());
-    }
-
-    #[test]
-    fn an_outcome_failed_when_an_attempt_ended_without_passing() {
-        assert!(Outcome::Failed("broke".to_string()).failed());
-        assert!(Outcome::TimedOut.failed());
-        assert!(Outcome::Cancelled.failed());
-        assert!(!Outcome::Ok.failed());
-        assert!(!Outcome::Skipped("gate/check".to_string()).failed());
-        assert!(!Outcome::Unneeded("gate/check".to_string()).failed());
     }
 
     #[test]

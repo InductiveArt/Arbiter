@@ -14,37 +14,121 @@ deps = []
 [units.".".inner."src/packs"]
 deps = ["src/core"]
 
-[units.".".inner."src/records"]
-deps = ["src/core"]
-
 [units.".".inner."src/tasks/laws"]
-deps = ["src/core", "src/records", "src/ledger.rs"]
+deps = ["src/core", "src/ledger.rs"]
 
-
-[units.".".inner."src/examine.rs"]
-deps = ["src/core", "src/records"]
 
 [units.".".inner."src/ledger.rs"]
 deps = ["src/core"]
 
 [units.".".inner."src/gate"]
-deps = ["src/core", "src/records", "src/tasks", "src/tasks/laws", "src/ledger.rs", "src/packs"]
+deps = ["src/core", "src/tasks", "src/tasks/laws", "src/ledger.rs", "src/packs"]
 
 [units.".".inner."src/court"]
-deps = ["src/core", "src/records", "src/tasks/laws", "src/ledger.rs", "src/gate", "src/packs"]
+deps = ["src/core", "src/tasks/laws", "src/ledger.rs", "src/gate", "src/packs"]
 
 [units.".".inner."src/tasks"]
-deps = ["src/core", "src/records", "src/ledger.rs", "src/packs"]
+deps = ["src/core", "src/ledger.rs", "src/packs"]
 
 [units.".".inner."src/commands"]
 deps = [
   "src/core",
-  "src/records",
   "src/tasks/laws",
-  "src/examine.rs",
   "src/ledger.rs",
   "src/gate",
   "src/court",
   "src/packs",
   "src/tasks",
+  "src/wip/store.rs",
+  "src/wip/task.rs",
+  "src/wip_tasks",
+]
+
+[units.".".inner."src/wip"]
+deps = []
+
+[units.".".inner."src/wip/job"]
+deps = []
+
+[units.".".inner."src/wip/trace"]
+deps = ["src/wip/job"]
+
+[units.".".inner."src/wip/kernel"]
+deps = ["src/wip/trace"]
+
+[units.".".inner."src/wip/layout.rs"]
+deps = []
+
+[units.".".inner."src/wip/scope.rs"]
+deps = ["src/wip/job", "src/wip/kernel", "src/wip/trace", "src/wip/layout.rs"]
+
+[units.".".inner."src/wip/store.rs"]
+deps = ["src/wip/job", "src/wip/trace"]
+
+[units.".".inner."src/wip/pull.rs"]
+deps = ["src/wip/job", "src/wip/trace", "src/wip/store.rs"]
+
+[units.".".inner."src/wip/task.rs"]
+deps = [
+  "src/wip/job",
+  "src/wip/trace",
+  "src/wip/layout.rs",
+  "src/wip/pull.rs",
+  "src/wip/scope.rs",
+  "src/wip/store.rs",
+]
+
+[units.".".inner."src/wip/plan.rs"]
+deps = ["src/wip/trace", "src/wip/pull.rs", "src/wip/scope.rs", "src/wip/store.rs", "src/wip/task.rs"]
+
+[units.".".inner."src/wip/worker.rs"]
+deps = [
+  "src/wip/job",
+  "src/wip/kernel",
+  "src/wip/trace",
+  "src/wip/layout.rs",
+  "src/wip/pull.rs",
+  "src/wip/scope.rs",
+  "src/wip/store.rs",
+  "src/wip/task.rs",
+]
+
+[units.".".inner."src/wip/run"]
+deps = [
+  "src/wip/job",
+  "src/wip/kernel",
+  "src/wip/trace",
+  "src/wip/layout.rs",
+  "src/wip/plan.rs",
+  "src/wip/pull.rs",
+  "src/wip/scope.rs",
+  "src/wip/store.rs",
+  "src/wip/task.rs",
+  "src/wip/worker.rs",
+]
+
+[units.".".inner."src/wip/exhibit"]
+deps = [
+  "src/wip/trace",
+  "src/wip/run",
+  "src/wip/plan.rs",
+  "src/wip/pull.rs",
+  "src/wip/scope.rs",
+  "src/wip/store.rs",
+  "src/wip/task.rs",
+]
+
+[units.".".inner."src/wip/registry.rs"]
+deps = ["src/wip/exhibit", "src/wip/task.rs"]
+
+[units.".".inner."src/wip_tasks"]
+deps = [
+  "src/core",
+  "src/wip/job",
+  "src/wip/trace",
+  "src/wip/layout.rs",
+  "src/wip/pull.rs",
+  "src/wip/scope.rs",
+  "src/wip/store.rs",
+  "src/wip/task.rs",
 ]

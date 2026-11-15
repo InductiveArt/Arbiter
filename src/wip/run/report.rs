@@ -7,11 +7,11 @@ use std::path::PathBuf;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::wip::job::RunId;
-use crate::wip::resources::Usage;
+use crate::wip::job::id::RunId;
 use crate::wip::store::Store;
-use crate::wip::trace::Outcome;
-use crate::wip::trace::Step;
+use crate::wip::trace::account::Usage;
+use crate::wip::trace::outcome::Outcome;
+use crate::wip::trace::step::Step;
 
 // How a run ended, the kernel's account of every attempt of its own tasks
 // summed, where it lives on disk, what it left in the store, and every

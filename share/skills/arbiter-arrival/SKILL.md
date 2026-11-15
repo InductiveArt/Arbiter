@@ -16,7 +16,7 @@ campaigns land in the user's order.
 2. A preflight gap ("X is not on this machine") is a broken machine, never
    a finding: the machine is fixed before anything is judged.
 3. Report the dashboard whole: each failing check, the finding counts by
-   rule, the suppression count, the brief line. The detail lives in
+   rule, the suppression count. The detail lives in
    `.arbiter/last/report.md`, one section per failure. Then ask the user
    which campaign to open, and do the asked task meanwhile.
 
@@ -39,12 +39,8 @@ hand.
    symbols, cycles, re-exports, hidden names, undeclared and unused
    dependencies. One rule at a time; a deletion follows the dead-symbol
    fix - find fallout, an independent grep, then delete until dry.
-5. **The brief.** The existing tests are already claims; `arbiter brief .`
-   prints the whole tree to draft from. Draft cases from the frames and
-   wire every claim; the user signs by committing. From the first written
-   case the gate holds every need answered and every claim wired.
-6. **The signature.** The user runs `arbiter ledger sign .` and today's
-   suppressions, dependencies and claims become the reference: the gate
+5. **The signature.** The user runs `arbiter ledger sign .` and today's
+   suppressions and dependencies become the reference: the gate
    then names only what moved. That is the ratchet - debt frozen, nothing
    new unsigned.
 

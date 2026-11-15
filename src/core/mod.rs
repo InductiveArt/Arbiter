@@ -1,8 +1,7 @@
-pub mod claims;
 pub mod digest;
 
-// The one version the whole binary stamps: the gate's snapshot, the examiner's
-// receipts, and the adopted files all name this. It sits in core because every
+// The one version the whole binary stamps: the gate's snapshot and the adopted
+// files both name this. It sits in core because every
 // plane that stamps it already stands on core.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

@@ -7,26 +7,22 @@ use std::process::ExitCode;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::wip::job::Cancel;
-use crate::wip::job::JobId;
+use crate::wip::job::cancel::Cancel;
+use crate::wip::job::id::JobId;
+use crate::wip::kernel::signal::stop_on_terminate;
+use crate::wip::layout::Site;
+use crate::wip::layout::ORDER_FILE;
+use crate::wip::layout::PRODUCT_FILE;
+use crate::wip::layout::RECORD_FILE;
+use crate::wip::layout::STARTED_FILE;
+use crate::wip::scope::Scope;
 use crate::wip::store::Completion;
 use crate::wip::store::Part;
 use crate::wip::store::Product;
 use crate::wip::store::When;
 use crate::wip::task::Task;
-use crate::wip::trace::stop_on_terminate;
-use crate::wip::trace::Failure;
-use crate::wip::trace::Outcome;
-use crate::wip::trace::Scope;
-use crate::wip::trace::Site;
-
-// The files an attempt's folder holds: what the run ordered, the mark that the
-// process is ready for its body to begin, what it produced, and the record it
-// left.
-pub const ORDER_FILE: &str = "job.json";
-pub const STARTED_FILE: &str = "started";
-pub const PRODUCT_FILE: &str = "product";
-pub const RECORD_FILE: &str = "record.json";
+use crate::wip::trace::outcome::Failure;
+use crate::wip::trace::outcome::Outcome;
 
 // What the run writes for the process performing an attempt: which attempt,
 // which task by name, where the run's store is, and each read in the task's
@@ -150,17 +146,17 @@ mod tests {
     use super::perform;
     use super::Input;
     use super::Order;
-    use super::PRODUCT_FILE;
-    use super::RECORD_FILE;
-    use crate::wip::job::JobId;
-    use crate::wip::job::RunId;
+    use crate::wip::job::id::JobId;
+    use crate::wip::job::id::RunId;
+    use crate::wip::layout::PRODUCT_FILE;
+    use crate::wip::layout::RECORD_FILE;
+    use crate::wip::pull::In;
+    use crate::wip::scope::Scope;
     use crate::wip::store::When;
-    use crate::wip::task::In;
     use crate::wip::task::Task;
-    use crate::wip::trace::Failure;
-    use crate::wip::trace::Outcome;
-    use crate::wip::trace::Scope;
-    use crate::wip::trace::Step;
+    use crate::wip::trace::outcome::Failure;
+    use crate::wip::trace::outcome::Outcome;
+    use crate::wip::trace::step::Step;
 
     fn double() -> Task {
         Task::new("double", |scope: &mut Scope, n: In<u8>| {

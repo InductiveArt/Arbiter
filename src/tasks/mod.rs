@@ -1,8 +1,6 @@
 pub mod deps;
 pub mod fallout;
-pub mod impact;
 pub mod laws;
-pub mod plan;
 pub mod preflight;
 pub mod rhymes;
 pub mod tangles;
@@ -15,8 +13,6 @@ pub fn all() -> Vec<Task> {
     vec![
         deps::task(),
         fallout::task(),
-        plan::task(),
-        impact::task(),
         rhymes::task(),
         tangles::task(),
     ]

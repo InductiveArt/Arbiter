@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use crate::wip::resources::Usage;
 use crate::wip::run::refusal::Problem;
+use crate::wip::trace::account::Usage;
 
 // How one attempt ended, as its medium saw it: how it was run, how it exited,
 // the kernel's account, how many bytes it printed and how many were kept, and

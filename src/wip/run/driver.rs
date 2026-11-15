@@ -9,11 +9,15 @@ use std::time::Duration;
 use std::time::Instant;
 use std::time::SystemTime;
 
-use crate::wip::job::Cancel;
-use crate::wip::job::JobId;
+use crate::wip::job::cancel::Cancel;
+use crate::wip::job::id::JobId;
+use crate::wip::kernel::signal::terminated;
+use crate::wip::layout::Site;
 use crate::wip::layout::KEY_FILE;
+use crate::wip::layout::ORDER_FILE;
+use crate::wip::layout::PRODUCT_FILE;
+use crate::wip::layout::RECORD_FILE;
 use crate::wip::layout::STDERR_FILE;
-use crate::wip::resources::Account;
 use crate::wip::run::flow::Decision;
 use crate::wip::run::flow::Flow;
 use crate::wip::run::medium::Ended;
@@ -21,15 +25,11 @@ use crate::wip::run::medium::Medium;
 use crate::wip::run::observer::Event;
 use crate::wip::run::observer::Observer;
 use crate::wip::store::Product;
-use crate::wip::trace::terminated;
-use crate::wip::trace::Outcome;
-use crate::wip::trace::Site;
-use crate::wip::trace::Step;
+use crate::wip::trace::account::Account;
+use crate::wip::trace::outcome::Outcome;
+use crate::wip::trace::step::Step;
 use crate::wip::worker::Input;
 use crate::wip::worker::Order;
-use crate::wip::worker::ORDER_FILE;
-use crate::wip::worker::PRODUCT_FILE;
-use crate::wip::worker::RECORD_FILE;
 
 // How long an attempt may take to begin its body, how long it is given to
 // stop once asked before it is forced, and how often the run looks between

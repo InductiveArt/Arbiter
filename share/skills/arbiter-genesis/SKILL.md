@@ -1,6 +1,6 @@
 ---
 name: arbiter-genesis
-description: How a new unit is born in a repository arbiter judges - the birth order from brief to clean gate, each language's minimal anatomy, and the proto contract dance
+description: How a new unit is born in a repository arbiter judges - the birth order from manifest to clean gate, each language's minimal anatomy, and the proto contract dance
 ---
 
 # A unit is born
@@ -8,21 +8,16 @@ description: How a new unit is born in a repository arbiter judges - the birth o
 Birth order, whatever the language. The gate teaches as you go: run
 `arbiter gate .` after each step and fix what it names before the next.
 
-1. The brief first: add the case, or the need under an existing case, that
-   commissions the unit, as `planned = true`. A unit is born commissioned,
-   never orphaned.
-2. The manifest: the smallest shape below. The next gate judges the dials and
+1. The manifest: the smallest shape below. The next gate judges the dials and
    names each option the bar demands - write what it asks, never less.
-3. Join the repository: workspace membership where the ecosystem keeps one
+2. Join the repository: workspace membership where the ecosystem keeps one
    (`pnpm-workspace.yaml`, `[workspace]` members); a `visibility` entry in
    `.arbiter/units.toml` when the unit is not for everyone; the allowlist
    in `licenses.toml` when a new third party arrives. Both files are the
    user's: draft, and they sign by committing.
-4. The first claim: write the failing test wired to the planned need, watch
-   it fail for the reason you expect, make it pass, then trade `planned`
-   for the claim bindings.
-5. `arbiter gate .` clean, then commit manifest, code, test and brief edit
-   as one birth.
+3. The first test: write the failing test, watch it fail for the reason you
+   expect, then make it pass.
+4. `arbiter gate .` clean, then commit manifest, code and test as one birth.
 
 ## Anatomy
 

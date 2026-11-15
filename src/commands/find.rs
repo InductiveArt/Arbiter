@@ -1,11 +1,8 @@
 use std::path::Path;
 use std::process::ExitCode;
 
-use crate::core::claims;
 use crate::core::pack::Finding;
 use crate::packs::graphed;
-use crate::records::brief;
-use crate::tasks::laws::economy::winnow;
 
 // The one query door: a task name names a report, a rule names one law's
 // instances, bare is every tool-free finding. find routes to the task that owns
@@ -47,12 +44,7 @@ fn bare(rest: &[String]) -> ExitCode {
         eprintln!("find: no folder at {asked}");
         return ExitCode::from(2);
     };
-    let commissioned = brief::commissioned(&found);
-    let (winnowed, _) = winnow(&found.defs, &found.edges, &found.repo, &commissioned);
-    let mut all = winnowed;
-    all.extend(crate::tasks::laws::judged(&found));
-    all.extend(claims::vanished(&found));
-    all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
+    let all = crate::tasks::laws::judged(&found);
     emit(&all, rule.as_deref());
     ExitCode::SUCCESS
 }

@@ -2,6 +2,7 @@ use std::env;
 use std::process::ExitCode;
 
 use arbiter::commands;
+use arbiter::wip::task::Task;
 
 fn main() -> ExitCode {
     sigpipe();
@@ -13,14 +14,12 @@ fn main() -> ExitCode {
         }
         Some("gate") => commands::gate::run(&arguments),
         Some("find") => commands::find::run(&arguments[1..]),
-        Some("brief") => commands::brief::run(&arguments),
-        Some("examine") => commands::examine::run(&arguments),
         Some("adopt") => commands::adopt::run(&arguments),
         Some("rules") => commands::rules::run(&arguments),
         Some("ledger") => commands::ledger::run(&arguments),
-        Some("worker") => {
-            arbiter::wip::worker::serve(&arguments[1..], &arbiter::wip::registry::known())
-        }
+        Some("tasks") => commands::tasks::run(),
+        Some("languages") => commands::languages::run(),
+        Some("worker") => arbiter::wip::worker::serve(&arguments[1..], &runnable()),
         Some(command) => {
             eprintln!("arbiter: no command named {command}");
             commands::table::taught();
@@ -31,6 +30,14 @@ fn main() -> ExitCode {
             ExitCode::from(2)
         }
     }
+}
+
+// Every task this binary runs by name: a worker is handed a name and finds
+// the body among these, so a task not listed cannot run.
+fn runnable() -> Vec<Task> {
+    let mut tasks = arbiter::wip_tasks::listed();
+    tasks.extend(arbiter::wip::registry::known());
+    tasks
 }
 
 // A closed pipe ends the read, not the program: piping a report into `head` is

@@ -1,7 +1,7 @@
-use crate::wip::job::JobId;
+use crate::wip::job::id::JobId;
 use crate::wip::run::report::Report;
-use crate::wip::trace::Outcome;
-use crate::wip::trace::Step;
+use crate::wip::trace::outcome::Outcome;
+use crate::wip::trace::step::Step;
 
 // What a run tells as it goes: an attempt out on its slot, a record landing,
 // whether an attempt's, a replay's or one that never ran, a task's final

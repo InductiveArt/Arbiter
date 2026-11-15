@@ -144,12 +144,12 @@ mod tests {
 
     use super::Invalid;
     use super::Plan;
+    use crate::wip::pull::Failed;
+    use crate::wip::pull::In;
+    use crate::wip::scope::Scope;
     use crate::wip::store::Need;
-    use crate::wip::task::Failed;
-    use crate::wip::task::In;
     use crate::wip::task::Task;
-    use crate::wip::trace::Failure;
-    use crate::wip::trace::Scope;
+    use crate::wip::trace::outcome::Failure;
 
     #[derive(Serialize, Deserialize)]
     struct A;

@@ -11,15 +11,15 @@ use std::thread;
 use std::time::Duration;
 use std::time::Instant;
 
-use crate::wip::job::Cancel;
-use crate::wip::job::RunId;
+use crate::wip::job::cancel::Cancel;
+use crate::wip::job::id::RunId;
+use crate::wip::layout::Site;
 use crate::wip::layout::RUNNING_FILE;
 use crate::wip::layout::RUNS_DIR;
 use crate::wip::layout::RUN_FILE;
 use crate::wip::layout::SEEDS_DIR;
 use crate::wip::layout::STORE_DIR;
 use crate::wip::plan::Plan;
-use crate::wip::resources::Usage;
 use crate::wip::run::driver::Driver;
 use crate::wip::run::driver::Timing;
 use crate::wip::run::flow::Flow;
@@ -32,10 +32,10 @@ use crate::wip::run::refusal::Problem;
 use crate::wip::run::refusal::Refused;
 use crate::wip::run::report::Report;
 use crate::wip::run::sweep::sweep;
+use crate::wip::scope::Scope;
 use crate::wip::store::Store;
-use crate::wip::trace::Outcome;
-use crate::wip::trace::Scope;
-use crate::wip::trace::Site;
+use crate::wip::trace::account::Usage;
+use crate::wip::trace::outcome::Outcome;
 
 // How often the run looks at its attempts between events.
 const TICK: Duration = Duration::from_millis(2);
@@ -325,17 +325,17 @@ mod tests {
     use serde::Serialize;
 
     use super::Runner;
-    use crate::wip::job::RunId;
+    use crate::wip::job::id::RunId;
     use crate::wip::layout::RUNS_DIR;
     use crate::wip::layout::STORE_DIR;
     use crate::wip::plan::Plan;
+    use crate::wip::pull::In;
     use crate::wip::run::refusal::Problem;
+    use crate::wip::scope::Scope;
     use crate::wip::store::Need;
     use crate::wip::store::Store;
-    use crate::wip::task::In;
     use crate::wip::task::Task;
-    use crate::wip::trace::Failure;
-    use crate::wip::trace::Scope;
+    use crate::wip::trace::outcome::Failure;
 
     #[derive(Serialize, Deserialize)]
     struct Root(String);

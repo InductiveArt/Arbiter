@@ -13,17 +13,17 @@ use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
 
+use crate::wip::kernel::child::exited;
+use crate::wip::kernel::child::kill;
+use crate::wip::kernel::child::own_group;
+use crate::wip::kernel::child::reap;
+use crate::wip::kernel::child::terminate;
+use crate::wip::layout::STARTED_FILE;
 use crate::wip::layout::STDERR_FILE;
 use crate::wip::layout::STDOUT_FILE;
-use crate::wip::resources::exited;
-use crate::wip::resources::kill;
-use crate::wip::resources::own_group;
-use crate::wip::resources::reap;
-use crate::wip::resources::terminate;
 use crate::wip::run::medium::Ended;
 use crate::wip::run::medium::Medium;
 use crate::wip::run::refusal::Problem;
-use crate::wip::worker::STARTED_FILE;
 
 // Attempts as processes of the worker binary: each is told its folder, leads
 // a process group of its own when asked, has its output pumped to disk up to

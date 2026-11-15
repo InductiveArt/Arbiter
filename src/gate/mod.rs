@@ -1,32 +1,14 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use crate::core::claims;
 use crate::core::graph;
 use crate::core::pack::Finding;
 use crate::core::tools::Outcome;
 use crate::core::units;
 use crate::ledger;
 use crate::packs;
-use crate::records::brief;
-use crate::tasks::laws::economy;
 
-// One whole judgment of a repository: both planes, with the ledger's footer.
-// What the gate says of the brief: the step skipped, no brief written yet, or
-// the counted states of a read one.
-pub enum BriefLine {
-    Skipped,
-    Unwritten,
-    Read {
-        cases: usize,
-        tested: usize,
-        planned: usize,
-        manual: usize,
-        unanswered: usize,
-        unwired: usize,
-    },
-}
-
+// One whole judgment of a repository, with the ledger's footer.
 pub struct Run {
     pub root: PathBuf,
     pub graph: crate::core::graph::Graph,
@@ -38,12 +20,6 @@ pub struct Run {
     pub counted: usize,
     // Suppressions added since the reference; None when none was recorded yet.
     pub added: Option<usize>,
-    pub brief: BriefLine,
-    pub claims: usize,
-    pub claims_vanished: Option<usize>,
-    pub needs_stated: usize,
-    // Needs added since the reference; None when none was recorded yet.
-    pub needs_added: Option<usize>,
     pub third: usize,
     // Third parties added since the reference; None when none was recorded yet.
     pub third_added: Option<usize>,
@@ -53,8 +29,8 @@ pub struct Run {
 
 // Judges everything: the units' tools, then the graph. A fixing run repairs first,
 // so the graph is read only after the repairs have settled.
-pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run> {
-    let (outcomes, mut notes, dialed, found) = if fixing {
+pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
+    let (outcomes, notes, dialed, found) = if fixing {
         let root = PathBuf::from(asked).canonicalize().ok()?;
         let packs = packs::all();
         let repo = units::scan(&root, &packs);
@@ -110,24 +86,9 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         }
         crate::core::task::Done::ok(())
     });
-    let commissioned = brief::commissioned(&found);
-    let (mut all, nascent) = journal.run("judge", |j| {
-        let mut all = Vec::new();
-        // The economy law also reports nascent symbols, so it yields notes too.
-        let (dead, nascent) = j.run("economy", |_| {
-            crate::core::task::Done::ok(economy::winnow(
-                &found.defs,
-                &found.edges,
-                &found.repo,
-                &commissioned,
-            ))
-        });
-        all.extend(dead);
-        all.extend(dialed);
+    let mut all = journal.run("judge", |j| {
+        let mut all = dialed;
         for law in crate::tasks::laws::all() {
-            if briefless && law.task == "brief" {
-                continue;
-            }
             all.extend(j.run(law.task, |_| crate::core::task::Done::ok((law.run)(&found))));
         }
         for pack in &found.packs {
@@ -135,52 +96,8 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
                 crate::core::task::Done::ok(pack.integrity(&found.root, &found.repo))
             }));
         }
-        crate::core::task::Done::ok((all, nascent))
+        crate::core::task::Done::ok(all)
     });
-    notes.extend(nascent);
-    let mut needs_spoken: Vec<String> = Vec::new();
-    let brief = if briefless {
-        BriefLine::Skipped
-    } else {
-        match brief::read(&found) {
-            None => BriefLine::Unwritten,
-            Some(reading) => {
-                needs_spoken = reading
-                    .needs
-                    .iter()
-                    .map(|need| format!("{} | {}", need.case, need.need))
-                    .collect();
-                let count = |state: brief::State| {
-                    reading
-                        .needs
-                        .iter()
-                        .filter(|need| need.state == state)
-                        .count()
-                };
-                BriefLine::Read {
-                    cases: reading.cases.len(),
-                    tested: count(brief::State::Tested),
-                    planned: count(brief::State::Planned),
-                    manual: count(brief::State::Manual),
-                    unanswered: count(brief::State::Unanswered),
-                    unwired: reading.unwired.len(),
-                }
-            }
-        }
-    };
-    let gone = journal.run("claims", |_| {
-        crate::core::task::Done::ok(claims::vanished(&found))
-    });
-    let claims = claims::identities(&found).len();
-    let claims_vanished = claims::recorded(&found.root).map(|_| gone.len());
-    let needs_stated = needs_spoken.len();
-    let needs_added = ledger::recorded_needs(&found.root).map(|recorded| {
-        needs_spoken
-            .iter()
-            .filter(|need| !recorded.contains(need))
-            .count()
-    });
-    all.extend(gone);
     all.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     let (counted, added, third, third_added) = journal.run("ledger", |_| {
         let counted = ledger::counted(&found);
@@ -205,11 +122,6 @@ pub fn run(asked: &str, fixing: bool, cold: bool, briefless: bool) -> Option<Run
         outcomes,
         notes,
         findings: all,
-        brief,
-        claims,
-        claims_vanished,
-        needs_stated,
-        needs_added,
         counted,
         added,
         third,
@@ -358,54 +270,6 @@ const SUPPRESSIONS_SEED: &str = "\
 # # The whole member set, exactly: a third member joining the cycle fires fresh.\n\
 # members = [\"src/a\", \"src/b\"]\n";
 
-const PLANS_SEED: &str = "\
-# The plans: deployment declared before it is possible. Services, the state\n\
-# they keep, the machines expected, and the plans placing them - judged by\n\
-# the gate, consumed by any actuator or none. needs order bring-up and must\n\
-# form a DAG; channels are steady-state calls, consented by accepts.\n\
-#\n\
-# [[service]]\n\
-# name = \"api\"\n\
-# unit = \"apps/api\"\n\
-# needs = [\"postgres\"]\n\
-# channels = [{ to = \"worker\", contract = \"jobs.v1.JobService\" }]\n\
-# accepts = [\"web\"]\n\
-# volumes = [\"api-data\"]\n\
-# cpu = 0.5\n\
-# memory_mb = 512\n\
-#\n\
-# [[volume]]\n\
-# name = \"api-data\"\n\
-# backup = \"daily\"\n\
-#\n\
-# [[machine]]\n\
-# name = \"cell-1\"\n\
-# cpu = 8\n\
-# memory_mb = 16384\n\
-#\n\
-# [[plan]]\n\
-# name = \"local\"\n\
-# place = [{ service = \"api\", on = \"cell-1\" }]\n";
-
-const BRIEF_SEED: &str = "\
-# The brief: the needs this software answers, as cases of activity, each need\n\
-# bound to the claims proving it. A binding is a claim's identity from\n\
-# arbiter brief ., or a frame prefix covering every claim under it. With one\n\
-# case written the gate holds every need answered and every claim wired.\n\
-#\n\
-# [[case]]\n\
-# name = \"joining\"\n\
-# story = \"a peer joins a room and collaborates from the present state\"\n\
-#\n\
-#   [[case.need]]\n\
-#   need = \"a late joiner stands in the present before its first render\"\n\
-#   claims = [\"libs/relay | wire | a late joiner stands in the present\"]\n\
-#\n\
-#   [[case.need]]\n\
-#   need = \"a full room refuses the next peer\"\n\
-#   planned = true\n\
-";
-
 const LICENSES_SEED: &str = "\
 # The licenses third parties may carry. Until an allow list is written here,\n\
 # no license policy exists; once written, every dependency whose license the\n\
@@ -427,8 +291,6 @@ pub fn seeded(root: &std::path::Path) {
         ("units.toml", UNITS_SEED),
         ("licenses.toml", LICENSES_SEED),
         ("suppressions.toml", SUPPRESSIONS_SEED),
-        ("plans.toml", PLANS_SEED),
-        ("brief.toml", BRIEF_SEED),
     ] {
         let path = folder.join(name);
         if !path.exists() {

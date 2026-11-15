@@ -7,178 +7,55 @@ use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use serde::Deserialize;
-use serde::Serialize;
-
+use crate::wip::exhibit::products::After;
+use crate::wip::exhibit::products::Answered;
+use crate::wip::exhibit::products::Appetite;
+use crate::wip::exhibit::products::Archived;
+use crate::wip::exhibit::products::Boom;
+use crate::wip::exhibit::products::Bounds;
+use crate::wip::exhibit::products::Chatter;
+use crate::wip::exhibit::products::Checked;
+use crate::wip::exhibit::products::Costly;
+use crate::wip::exhibit::products::Cycles;
+use crate::wip::exhibit::products::Deaf;
+use crate::wip::exhibit::products::Flaked;
+use crate::wip::exhibit::products::Flakiness;
+use crate::wip::exhibit::products::Graph;
+use crate::wip::exhibit::products::Held;
+use crate::wip::exhibit::products::Landed;
+use crate::wip::exhibit::products::Later;
+use crate::wip::exhibit::products::Licenses;
+use crate::wip::exhibit::products::Never;
+use crate::wip::exhibit::products::Patch;
+use crate::wip::exhibit::products::Printed;
+use crate::wip::exhibit::products::Quick;
+use crate::wip::exhibit::products::Repo;
+use crate::wip::exhibit::products::Reverted;
+use crate::wip::exhibit::products::Root;
+use crate::wip::exhibit::products::Said;
+use crate::wip::exhibit::products::Slept;
+use crate::wip::exhibit::products::Slow;
+use crate::wip::exhibit::products::Source;
+use crate::wip::exhibit::products::Summary;
+use crate::wip::exhibit::products::Told;
+use crate::wip::exhibit::products::Tools;
+use crate::wip::exhibit::products::Turns;
+use crate::wip::exhibit::products::Undone;
+use crate::wip::exhibit::products::Verdict;
 use crate::wip::plan::Plan;
+use crate::wip::pull::Done;
+use crate::wip::pull::Failed;
+use crate::wip::pull::In;
 use crate::wip::run::runner::run_within;
+use crate::wip::scope::Scope;
 use crate::wip::store::Store;
-use crate::wip::task::Done;
-use crate::wip::task::Failed;
-use crate::wip::task::In;
 use crate::wip::task::Task;
-use crate::wip::trace::Failure;
-use crate::wip::trace::Scope;
+use crate::wip::trace::outcome::Failure;
 
 // Tasks with no purpose but to show the runner at work: a gate's shape, a
 // repair tried and judged, and one task for each way an attempt can end. What
 // a task does is decided by what it reads, never by how it was built, since
 // the process running it is handed only its name and its inputs.
-
-#[derive(Serialize, Deserialize)]
-pub struct Root {
-    pub name: String,
-    pub parses: bool,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Repo {
-    pub files: usize,
-    pub parses: bool,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Graph {
-    pub nodes: usize,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Cycles {
-    pub found: usize,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Bounds {
-    pub found: usize,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Tools {
-    pub passed: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Summary {
-    pub line: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Licenses {
-    pub bytes: usize,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Verdict {
-    pub findings: usize,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Source {
-    pub name: String,
-    pub compiles: bool,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Patch {
-    pub text: String,
-    pub compiles: bool,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Checked;
-
-#[derive(Serialize, Deserialize)]
-pub struct Landed;
-
-#[derive(Serialize, Deserialize)]
-pub struct Reverted {
-    pub text: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Archived;
-
-#[derive(Serialize, Deserialize)]
-pub struct Told {
-    pub line: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Slow;
-
-#[derive(Serialize, Deserialize)]
-pub struct Later;
-
-#[derive(Serialize, Deserialize)]
-pub struct After;
-
-#[derive(Serialize, Deserialize)]
-pub struct Undone;
-
-#[derive(Serialize, Deserialize)]
-pub struct Said {
-    pub line: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Boom;
-
-#[derive(Serialize, Deserialize)]
-pub struct Flakiness {
-    pub passes_at: u32,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Flaked {
-    pub attempt: u32,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Never;
-
-#[derive(Serialize, Deserialize)]
-pub struct Answered {
-    pub line: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Slept;
-
-#[derive(Serialize, Deserialize)]
-pub struct Quick;
-
-#[derive(Serialize, Deserialize)]
-pub struct Turns {
-    pub taken: u32,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Deaf;
-
-#[derive(Serialize, Deserialize)]
-pub struct Appetite {
-    pub mebibytes: usize,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Held {
-    pub bytes: usize,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Chatter {
-    pub bytes: usize,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Printed {
-    pub bytes: usize,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct Costly {
-    pub computed_at_nanos: u64,
-}
 
 pub fn scan() -> Task {
     Task::new("scan", |scope: &mut Scope, root: In<Root>| {

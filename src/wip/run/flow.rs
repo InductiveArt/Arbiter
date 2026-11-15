@@ -3,16 +3,16 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::time::SystemTime;
 
-use crate::wip::job::JobId;
-use crate::wip::job::RunId;
+use crate::wip::job::id::JobId;
+use crate::wip::job::id::RunId;
 use crate::wip::plan::Plan;
 use crate::wip::store::Completion;
 use crate::wip::store::Part;
 use crate::wip::store::Product;
 use crate::wip::store::Store;
 use crate::wip::task::Task;
-use crate::wip::trace::Outcome;
-use crate::wip::trace::Step;
+use crate::wip::trace::outcome::Outcome;
+use crate::wip::trace::step::Step;
 
 // What the flow asks of whoever drives it, in the order decided.
 #[derive(Debug, PartialEq)]
@@ -273,18 +273,18 @@ mod tests {
 
     use super::Decision;
     use super::Flow;
-    use crate::wip::job::RunId;
+    use crate::wip::job::id::RunId;
     use crate::wip::plan::Plan;
+    use crate::wip::pull::Failed;
+    use crate::wip::pull::In;
+    use crate::wip::scope::Scope;
     use crate::wip::store::Part;
     use crate::wip::store::Product;
     use crate::wip::store::Store;
-    use crate::wip::task::Failed;
-    use crate::wip::task::In;
     use crate::wip::task::Task;
-    use crate::wip::trace::Failure;
-    use crate::wip::trace::Outcome;
-    use crate::wip::trace::Scope;
-    use crate::wip::trace::Step;
+    use crate::wip::trace::outcome::Failure;
+    use crate::wip::trace::outcome::Outcome;
+    use crate::wip::trace::step::Step;
 
     #[derive(Serialize, Deserialize)]
     struct Root(String);

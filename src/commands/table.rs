@@ -1,13 +1,9 @@
 // The whole grammar: each command with its one line. The bare call prints it,
-// and a claim holds the skill to these exact sentences.
+// and a test holds the skill to these exact sentences.
 pub const COMMANDS: &[(&str, &str)] = &[
     (
-        "gate [--fix] [--cold] [--no-brief]",
+        "gate [--fix] [--cold]",
         "judge everything; red names what stands between the code and clean",
-    ),
-    (
-        "examine [folder]",
-        "perform each case's trial: drive the declared door, read the store raw, write receipts",
     ),
     (
         "find [rule]",
@@ -30,24 +26,12 @@ pub const COMMANDS: &[(&str, &str)] = &[
         "entangled siblings per folder, largest first; a measure, never findings",
     ),
     (
-        "find plan [name]",
-        "a plan's bring-up ladder and channels, before anything exists to run; bare, every plan",
-    ),
-    (
-        "find impact <service>",
-        "everything that falls with one service: the services standing on it and the cases placed over it",
-    ),
-    (
         "ledger",
-        "the signature's account: suppressions, third parties and claims against the reference",
+        "the signature's account: suppressions and third parties against the reference",
     ),
     (
         "ledger sign",
         "record today's account as the reference: the user's signature",
-    ),
-    (
-        "brief [case]",
-        "every need's state against the claims tree; a case is one slice",
     ),
     (
         "rules [rule]",
@@ -62,7 +46,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
 // The bare call teaches: the whole grammar, each command with its one line.
 pub fn taught() {
     println!(
-        "arbiter {} judges a repository: the resolved graph, each unit's pinned tools, the brief.",
+        "arbiter {} judges a repository: the resolved graph and each unit's pinned tools.",
         crate::core::VERSION
     );
     println!();
@@ -75,9 +59,7 @@ pub fn taught() {
         println!("  {call:width$}  {line}");
     }
     println!();
-    println!(
-        "gate, examine, adopt and ledger sign act; find, ledger, brief and rules read and never write."
-    );
+    println!("gate, adopt and ledger sign act; find, ledger and rules read and never write.");
     println!(
         "A command takes the folder last; missing, it judges here. \
          Exit: 0 clean, 1 findings, 2 no judgment — a broken machine, \
