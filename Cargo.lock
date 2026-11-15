@@ -15,11 +15,10 @@ dependencies = [
 name = "arbiter"
 version = "0.28.0"
 dependencies = [
- "arbiter",
- "libc",
  "serde",
  "serde_json",
  "streaming-iterator",
+ "task_runner",
  "toml",
  "tree-sitter",
  "tree-sitter-cpp",
@@ -213,6 +212,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "task_runner"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "serde",
+ "serde_json",
+ "task_runner",
 ]
 
 [[package]]

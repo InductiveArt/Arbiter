@@ -1,0 +1,21 @@
+[package]
+name = "task_runner"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+# Tasks with no purpose but to show the runner at work, compiled in for its tests.
+exhibit = []
+
+[dependencies]
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+task_runner = { path = ".", features = ["exhibit"] }
+
+[[bin]]
+name = "exhibit-worker"
+path = "src/bin/exhibit-worker.rs"
+required-features = ["exhibit"]
