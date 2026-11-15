@@ -95,6 +95,10 @@ impl<'a> Flow<'a> {
         self.plan
     }
 
+    pub fn identity(&self) -> u64 {
+        self.identity
+    }
+
     pub fn job(&self, at: usize, attempt: u32) -> JobId {
         JobId::new(self.run, self.path(at), attempt)
     }
@@ -222,19 +226,23 @@ impl<'a> Flow<'a> {
         out: &mut Vec<Decision>,
     ) {
         self.left -= 1;
-        let job = self.history[at]
-            .last()
-            .expect("a settled task has a record")
-            .job
-            .clone();
-        self.store.finish(
-            self.plan.tasks[at].produces.id,
-            Completion {
-                job,
-                outcome: outcome.clone(),
-            },
-            value,
-        );
+        // A task leaving nothing has no type to be held under: its record is
+        // all it leaves.
+        if !self.plan.tasks[at].leaves_nothing() {
+            let job = self.history[at]
+                .last()
+                .expect("a settled task has a record")
+                .job
+                .clone();
+            self.store.finish(
+                self.plan.tasks[at].produces.id,
+                Completion {
+                    job,
+                    outcome: outcome.clone(),
+                },
+                value,
+            );
+        }
         out.push(Decision::Settled { at, outcome });
         let plan = self.plan;
         for &next in plan.dependents(at) {
@@ -268,6 +276,8 @@ impl<'a> Flow<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::any::TypeId;
+
     use serde::Deserialize;
     use serde::Serialize;
 
@@ -338,6 +348,24 @@ mod tests {
 
     fn repo() -> Product {
         Product::encoded(&Repo).expect("encodes")
+    }
+
+    fn nothing(name: &str) -> Task {
+        Task::new(name, |_: &mut Scope, (): ()| Ok::<(), Failure>(()))
+    }
+
+    #[test]
+    fn a_flow_keeps_no_value_for_a_task_leaving_nothing() {
+        let known = [nothing("one"), nothing("two")];
+        let plan = Plan::new("gate", &known, &["one", "two"]).expect("valid");
+        let (mut flow, _) = begun(&plan);
+        let step = passed(&flow, 0, 1);
+        flow.ended(0, step, Some(Product::encoded(&()).expect("encodes")));
+        let step = failed(&flow, 1, 1);
+        flow.ended(1, step, None);
+        assert!(flow.settled());
+        let (_, store) = flow.records();
+        assert!(!store.has(TypeId::of::<()>()));
     }
 
     #[test]

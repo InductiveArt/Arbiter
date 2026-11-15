@@ -3,9 +3,8 @@ use std::process::ExitCode;
 use crate::core::pack::Pack;
 use crate::core::tools::checks;
 use crate::packs::all;
-use crate::wip_domain::ecosystem::load_ecosystems;
 use crate::wip_domain::ecosystem::Ecosystem;
-use crate::wip_domain::ecosystem::Ecosystems;
+use crate::wip_tasks::load_ecosystems::load_ecosystems;
 
 const HEADS: [&str; 7] = [
     "language",
@@ -23,11 +22,8 @@ pub fn run() -> ExitCode {
             print!("{}", shown(&all(), &ecosystems));
             ExitCode::SUCCESS
         }
-        Err(error) => {
-            eprintln!(
-                "a built-in ecosystem record does not read: {}",
-                error.message()
-            );
+        Err(failure) => {
+            eprintln!("{}", failure.reason);
             ExitCode::from(2)
         }
     }
@@ -37,11 +33,10 @@ pub fn run() -> ExitCode {
 // marking a unit and when that file only lists members; its pack gives the
 // checks holding a unit in the order run, the executables those stand on,
 // the lockfiles read and the folders never read.
-pub fn shown(packs: &[Box<dyn Pack>], ecosystems: &Ecosystems) -> String {
+pub fn shown(packs: &[Box<dyn Pack>], ecosystems: &[Ecosystem]) -> String {
     let mut rows = vec![HEADS.map(str::to_string)];
     for pack in packs {
         let ecosystem = ecosystems
-            .ecosystems
             .iter()
             .find(|ecosystem| ecosystem.name == pack.label());
         let held: Vec<String> = pack

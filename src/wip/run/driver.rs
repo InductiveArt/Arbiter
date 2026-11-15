@@ -238,6 +238,7 @@ impl<'a, 'o, M: Medium> Driver<'a, 'o, M> {
             id: id.clone(),
             task: task.name.clone(),
             store: self.site.store.clone(),
+            identity: self.flow.identity(),
             inputs: task
                 .reads
                 .iter()

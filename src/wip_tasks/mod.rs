@@ -1,19 +1,21 @@
-mod gitignore;
-pub mod group_files_by_unit;
-pub mod list_files;
-pub mod read_markers;
+pub mod find_units;
+pub mod load_ecosystems;
+pub mod run_ecosystem_tools;
+pub mod run_subprocess;
 
 use crate::wip::task::Task;
-use crate::wip_tasks::group_files_by_unit::group_files_by_unit_task;
-use crate::wip_tasks::list_files::list_files_task;
-use crate::wip_tasks::read_markers::read_markers_task;
+use crate::wip_tasks::find_units::find_units_task;
+use crate::wip_tasks::load_ecosystems::load_ecosystems_task;
+use crate::wip_tasks::run_ecosystem_tools::run_ecosystem_tools_task;
+use crate::wip_tasks::run_subprocess::run_subprocess_task;
 
 // Every task the gate is made of, listed one by one so a search for its name
 // lands on its file.
 pub fn listed() -> Vec<Task> {
     vec![
-        list_files_task(),
-        read_markers_task(),
-        group_files_by_unit_task(),
+        load_ecosystems_task(),
+        find_units_task(),
+        run_ecosystem_tools_task(),
+        run_subprocess_task(),
     ]
 }

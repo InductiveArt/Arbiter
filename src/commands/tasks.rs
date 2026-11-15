@@ -28,7 +28,12 @@ pub fn shown(tasks: &[Task]) -> String {
                 reads.join(", ")
             };
             lines.push(format!("  reads   {reads}"));
-            lines.push(format!("  leaves  {}", short(task.produces.name)));
+            let leaves = if task.leaves_nothing() {
+                "nothing".to_string()
+            } else {
+                short(task.produces.name)
+            };
+            lines.push(format!("  leaves  {leaves}"));
             lines.push(format!("  limits  {}", limits(task)));
             lines.join("\n") + "\n"
         })

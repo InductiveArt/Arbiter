@@ -26,14 +26,15 @@ pub enum Invalid {
 }
 
 // Tasks selected by name from those the binary knows, wired by type into
-// something that can run: each type has one producer, no task waits on itself
-// through others, and names are unique so ids are too.
+// something that can run: each type has one producer, any number of tasks
+// leave nothing, no task waits on itself through others, and names are unique
+// so ids are too.
 pub struct Plan {
     pub name: String,
     pub tasks: Vec<Task>,
     // For each task, the tasks reading what it produces.
     dependents: Vec<Vec<usize>>,
-    // For each task, how many of its reads a task here produces.
+    // For each task, how many tasks here it waits on.
     waits: Vec<usize>,
 }
 
@@ -54,6 +55,9 @@ impl Plan {
         }
         let mut producer: HashMap<TypeId, usize> = HashMap::new();
         for (at, task) in tasks.iter().enumerate() {
+            if task.leaves_nothing() {
+                continue;
+            }
             if let Some(&first) = producer.get(&task.produces.id) {
                 return Err(Invalid::TwoProducers {
                     of: task.produces.name,
@@ -82,37 +86,50 @@ impl Plan {
                 }
             }
         }
-        // Everything orders, or whatever remains waits on itself through others.
-        let mut remaining = waits.clone();
-        let mut ready: Vec<usize> = (0..tasks.len()).filter(|&at| remaining[at] == 0).collect();
+        let plan = Plan {
+            name: name.to_string(),
+            tasks,
+            dependents,
+            waits,
+        };
+        plan.orders()?;
+        Ok(plan)
+    }
+
+    // Everything orders, or whatever remains waits on itself through others.
+    fn orders(&self) -> Result<(), Invalid> {
+        let mut remaining = self.waits.clone();
+        let mut ready: Vec<usize> = (0..self.tasks.len())
+            .filter(|&at| remaining[at] == 0)
+            .collect();
         let mut ordered = 0;
         while let Some(at) = ready.pop() {
             ordered += 1;
-            for &next in &dependents[at] {
+            for &next in &self.dependents[at] {
                 remaining[next] -= 1;
                 if remaining[next] == 0 {
                     ready.push(next);
                 }
             }
         }
-        if ordered < tasks.len() {
-            let stuck = (0..tasks.len())
+        if ordered < self.tasks.len() {
+            let stuck = (0..self.tasks.len())
                 .filter(|&at| remaining[at] > 0)
-                .map(|at| tasks[at].name.clone())
+                .map(|at| self.tasks[at].name.clone())
                 .collect();
             return Err(Invalid::Cycle(stuck));
         }
-        Ok(Plan {
-            name: name.to_string(),
-            tasks,
-            dependents,
-            waits,
-        })
+        Ok(())
     }
 
     // The types read that no task here produces: what a run must be seeded with.
     pub fn required(&self) -> Vec<Need> {
-        let produced: HashSet<TypeId> = self.tasks.iter().map(|task| task.produces.id).collect();
+        let produced: HashSet<TypeId> = self
+            .tasks
+            .iter()
+            .filter(|task| !task.leaves_nothing())
+            .map(|task| task.produces.id)
+            .collect();
         let mut needs: Vec<Need> = Vec::new();
         for task in &self.tasks {
             for read in &task.reads {
@@ -198,6 +215,24 @@ mod tests {
             }
             other => panic!("two producers were not refused: {other:?}"),
         }
+    }
+
+    fn nothing(name: &str) -> Task {
+        Task::new(name, |_: &mut Scope, (): ()| Ok::<(), Failure>(()))
+    }
+
+    #[test]
+    fn a_plan_takes_any_number_of_tasks_leaving_nothing() {
+        let plan = Plan::new("p", &[nothing("one"), nothing("two")], &["one", "two"]);
+        assert!(plan.is_ok(), "nothing is no type two tasks both produce");
+    }
+
+    #[test]
+    fn a_read_of_nothing_is_not_answered_by_a_task_leaving_nothing() {
+        let reader = Task::new("reader", |_: &mut Scope, _: In<()>| Ok::<A, Failure>(A));
+        let plan = Plan::new("p", &[nothing("one"), reader], &["one", "reader"]).expect("valid");
+        assert_eq!(plan.waits(), [0, 0]);
+        assert_eq!(plan.required(), [Need::of::<()>()]);
     }
 
     #[test]

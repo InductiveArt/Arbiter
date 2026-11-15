@@ -10,14 +10,20 @@ lacks = ["package"]
 # The adapter: what holds a Rust unit to the bar, in the order run.
 [[check]]
 name = "fmt"
+tool = "format_rust"
 run = ["cargo", "fmt", "--check"]
 fix = ["cargo", "fmt"]
 
 [[check]]
 name = "clippy"
+tool = "lint_rust"
 run = ["cargo", "clippy", "--all-targets", "--quiet", "--", "-D", "warnings"]
 fix = ["cargo", "clippy", "--fix", "--allow-dirty", "--allow-staged", "--all-targets", "--quiet"]
+# The same lint printing JSON lines, which the cargo_json reader reads into
+# findings, and cargo naming the root of the workspace their paths run from.
+findings = { reader = "cargo_json", run = ["cargo", "clippy", "--all-targets", "--quiet", "--message-format=json", "--", "-D", "warnings"], root = ["cargo", "locate-project", "--workspace", "--message-format", "json"] }
 
 [[check]]
 name = "test"
+tool = "test_rust"
 run = ["cargo", "test", "--quiet"]

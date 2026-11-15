@@ -39,6 +39,12 @@ pub struct Scope {
     spawned: Vec<Account>,
     evidence: Vec<String>,
     children: Vec<Step>,
+    // Plans run inside this attempt so far, by any of its frames: a step
+    // starts from its parent's count and hands its own back when it ends.
+    runs: u32,
+    // The identity of the code the run around this attempt keys its products
+    // by; none for an attempt made outside any run.
+    identity: Option<u64>,
 }
 
 impl Scope {
@@ -59,6 +65,8 @@ impl Scope {
             spawned: Vec::new(),
             evidence: Vec::new(),
             children: Vec::new(),
+            runs: 0,
+            identity: None,
         }
     }
 
@@ -117,7 +125,7 @@ impl Scope {
         let begun = Instant::now();
         let mut child = command
             .spawn()
-            .map_err(|error| Failure::from(error.to_string()))?;
+            .map_err(|error| Failure::from(format!("{program} could not be started: {error}")))?;
         let stdout = drained(child.stdout.take());
         let stderr = drained(child.stderr.take());
         let mut stopped: Option<Failure> = None;
@@ -183,13 +191,34 @@ impl Scope {
             self.site.clone(),
             Frame::Inner,
         );
+        inner.runs = self.runs;
+        inner.identity = self.identity;
         let result = work(&mut inner);
+        self.runs = inner.runs;
         let outcome = match &result {
             Ok(_) => Outcome::Ok,
             Err(failure) => Outcome::Failed(failure.reason.clone()),
         };
         self.children.push(inner.finished(name, outcome));
         result
+    }
+
+    // An attempt the run around it hands the identity of its code, so a plan
+    // run inside it keys its products by the same.
+    pub(in crate::wip) fn identified(mut self, identity: u64) -> Scope {
+        self.identity = Some(identity);
+        self
+    }
+
+    pub(in crate::wip) fn identity(&self) -> Option<u64> {
+        self.identity
+    }
+
+    // The number the next plan run inside this attempt goes by, so no two
+    // share a folder or an id.
+    pub(in crate::wip) fn next_run(&mut self) -> u32 {
+        self.runs += 1;
+        self.runs
     }
 
     pub fn attach(&mut self, step: Step) {
@@ -407,6 +436,21 @@ mod tests {
             .expect("echo runs");
         assert!(output.status.success());
         assert_eq!(String::from_utf8_lossy(&output.stdout), "hi\n");
+    }
+
+    #[test]
+    fn a_command_whose_program_cannot_be_started_fails_naming_the_program() {
+        let mut scope = scope("gate/tools");
+        let failed = scope
+            .command(&mut Command::new("arbiter-no-such-program"))
+            .expect_err("nothing ran");
+        assert!(
+            failed
+                .reason
+                .starts_with("arbiter-no-such-program could not be started: "),
+            "the reason names the program: {}",
+            failed.reason
+        );
     }
 
     #[test]

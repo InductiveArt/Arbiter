@@ -25,13 +25,15 @@ use crate::wip::trace::outcome::Failure;
 use crate::wip::trace::outcome::Outcome;
 
 // What the run writes for the process performing an attempt: which attempt,
-// which task by name, where the run's store is, and each read in the task's
-// order, as a file to decode, a completion, or both.
+// which task by name, where the run's store is, the identity of the code the
+// run keys its products by, and each read in the task's order, as a file to
+// decode, a completion, or both.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Order {
     pub id: JobId,
     pub task: String,
     pub store: PathBuf,
+    pub identity: u64,
     pub inputs: Vec<Input>,
 }
 
@@ -69,7 +71,7 @@ pub fn perform(args: &[String], tasks: &[Task]) -> u8 {
         dir: dir.clone(),
         store: order.store.clone(),
     };
-    let mut scope = Scope::new(order.id.clone(), Cancel::new(), site);
+    let mut scope = Scope::new(order.id.clone(), Cancel::new(), site).identified(order.identity);
     let performed = match tasks.iter().find(|task| task.name == order.task) {
         None => Err(Failure::from(format!(
             "this binary knows no task named {}",
@@ -178,6 +180,7 @@ mod tests {
             id: JobId::new(RunId::next(), format!("p/{task}"), 1),
             task: task.to_string(),
             store: dir.join("store"),
+            identity: 0,
             inputs: vec![Input {
                 need: need.to_string(),
                 when: When::Passed,

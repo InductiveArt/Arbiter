@@ -2,58 +2,20 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::path::PathBuf;
 
-use serde::Deserialize;
-use serde::Serialize;
+use crate::wip_domain::file::File;
+use crate::wip_domain::marker::Marker;
+use crate::wip_domain::unit::Unit;
 
-use crate::wip::pull::In;
-use crate::wip::scope::Scope;
-use crate::wip::task::Task;
-use crate::wip::trace::outcome::Failure;
-use crate::wip_tasks::list_files::File;
-use crate::wip_tasks::list_files::Files;
-use crate::wip_tasks::read_markers::Marker;
-use crate::wip_tasks::read_markers::Markers;
-
-// Every unit, sorted by path, the listed folder itself first. Each listed
-// file is under exactly one.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct Units {
-    pub units: Vec<Unit>,
-}
-
-// One unit: its folder by path from the listed folder, empty for that folder
-// itself, the markers it holds, and its files under the paths they were
-// listed by.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct Unit {
-    pub path: PathBuf,
-    pub markers: Vec<Marker>,
-    pub files: Vec<File>,
-}
-
-pub fn group_files_by_unit_task() -> Task {
-    Task::new(
-        "group_files_by_unit",
-        |scope: &mut Scope, (files, markers): (In<Files>, In<Markers>)| {
-            let units = group_files_by_unit(&files, &markers);
-            scope.measure("units", units.units.len() as f64);
-            scope.measure("files", files.files.len() as f64);
-            Ok::<Units, Failure>(units)
-        },
-    )
-    .line(
-        "each unit with its own files: a unit is the listed folder or any folder under it \
-         holding a marker, and a file goes to the deepest unit above it",
-    )
-}
-
-// No disk is touched and no file name is weighed: each marker names its own
+// Every unit, sorted by path, the listed folder itself first. A unit is the
+// listed folder or any folder under it holding a marker, and a file goes to
+// the deepest unit above it, so each listed file is under exactly one. No
+// disk is touched and no file name is weighed: each marker names its own
 // path, so the markers alone say where the units are.
-fn group_files_by_unit(files: &Files, markers: &Markers) -> Units {
+pub fn group_files_by_unit(files: &[File], markers: &[Marker]) -> Vec<Unit> {
     let whole = Path::new("");
     let mut units: BTreeMap<PathBuf, Unit> = BTreeMap::new();
     units.insert(whole.to_path_buf(), unit(whole));
-    for marker in &markers.markers {
+    for marker in markers {
         let folder = marker.path.parent().unwrap_or(whole);
         units
             .entry(folder.to_path_buf())
@@ -61,7 +23,7 @@ fn group_files_by_unit(files: &Files, markers: &Markers) -> Units {
             .markers
             .push(marker.clone());
     }
-    for file in &files.files {
+    for file in files {
         let folder = file
             .path
             .ancestors()
@@ -72,9 +34,7 @@ fn group_files_by_unit(files: &Files, markers: &Markers) -> Units {
             unit.files.push(file.clone());
         }
     }
-    Units {
-        units: units.into_values().collect(),
-    }
+    units.into_values().collect()
 }
 
 fn unit(folder: &Path) -> Unit {
@@ -87,57 +47,39 @@ fn unit(folder: &Path) -> Unit {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
     use std::path::PathBuf;
 
     use super::group_files_by_unit;
-    use super::group_files_by_unit_task;
-    use super::Units;
-    use crate::wip::job::cancel::Cancel;
-    use crate::wip::job::id::JobId;
-    use crate::wip::job::id::RunId;
-    use crate::wip::layout::Site;
-    use crate::wip::scope::Scope;
-    use crate::wip::store::Part;
-    use crate::wip::store::Product;
-    use crate::wip::trace::outcome::Outcome;
-    use crate::wip_tasks::list_files::File;
-    use crate::wip_tasks::list_files::Files;
-    use crate::wip_tasks::read_markers::Marker;
-    use crate::wip_tasks::read_markers::Markers;
+    use crate::wip_domain::file::File;
+    use crate::wip_domain::marker::Marker;
+    use crate::wip_domain::unit::Unit;
 
-    fn list(paths: &[&str]) -> Files {
-        Files {
-            files: paths
-                .iter()
-                .map(|path| File {
-                    path: PathBuf::from(path),
-                    bytes: path.len() as u64,
-                    digest: format!("digest of {path}"),
-                })
-                .collect(),
-        }
+    fn list(paths: &[&str]) -> Vec<File> {
+        paths
+            .iter()
+            .map(|path| File {
+                path: PathBuf::from(path),
+                bytes: path.len() as u64,
+                digest: format!("digest of {path}"),
+            })
+            .collect()
     }
 
     // Each marker by its path and the ecosystem it marks for.
-    fn markers(told: &[(&str, &str)]) -> Markers {
-        Markers {
-            markers: told
-                .iter()
-                .map(|(path, ecosystem)| Marker {
-                    path: PathBuf::from(path),
-                    ecosystem: ecosystem.to_string(),
-                    members_only: false,
-                })
-                .collect(),
-        }
+    fn markers(told: &[(&str, &str)]) -> Vec<Marker> {
+        told.iter()
+            .map(|(path, ecosystem)| Marker {
+                path: PathBuf::from(path),
+                ecosystem: ecosystem.to_string(),
+                members_only: false,
+            })
+            .collect()
     }
 
     // Each unit as its path, the ecosystems of its markers and its files'
     // paths.
-    fn told(units: &Units) -> Vec<(String, Vec<String>, Vec<String>)> {
+    fn told(units: &[Unit]) -> Vec<(String, Vec<String>, Vec<String>)> {
         units
-            .units
             .iter()
             .map(|unit| {
                 (
@@ -192,7 +134,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            units.units[1].files[1], listed.files[2],
+            units[1].files[1], listed[2],
             "a file keeps its size and digest"
         );
     }
@@ -229,8 +171,8 @@ mod tests {
                 ),
             ]
         );
-        let held: usize = units.units.iter().map(|unit| unit.files.len()).sum();
-        assert_eq!(held, listed.files.len(), "each file is under exactly one");
+        let held: usize = units.iter().map(|unit| unit.files.len()).sum();
+        assert_eq!(held, listed.len(), "each file is under exactly one");
     }
 
     #[test]
@@ -257,12 +199,10 @@ mod tests {
             ecosystem: "rust".to_string(),
             members_only: true,
         };
-        let marked = Markers {
-            markers: vec![only_lists.clone()],
-        };
+        let marked = vec![only_lists.clone()];
         let units = group_files_by_unit(&list(&["ws/Cargo.toml"]), &marked);
-        assert_eq!(units.units.len(), 2);
-        assert_eq!(units.units[1].markers, [only_lists]);
+        assert_eq!(units.len(), 2);
+        assert_eq!(units[1].markers, [only_lists]);
     }
 
     #[test]
@@ -272,48 +212,5 @@ mod tests {
             told(&units),
             [unit("", &[], &["a/Cargo.toml", "a/src/lib.rs"])]
         );
-    }
-
-    #[test]
-    fn the_task_reads_the_list_and_the_markers_and_measures_what_it_leaves() {
-        let site = Site {
-            dir: env::temp_dir(),
-            store: env::temp_dir(),
-        };
-        let mut scope = Scope::new(
-            JobId::new(RunId::next(), "group_files_by_unit", 1),
-            Cancel::new(),
-            site,
-        );
-        let parts = vec![
-            Part {
-                value: Some(
-                    Product::encoded(&list(&["a/Cargo.toml", "a/x.rs", "b.md"]))
-                        .expect("a list encodes"),
-                ),
-                completion: None,
-            },
-            Part {
-                value: Some(
-                    Product::encoded(&markers(&[("a/Cargo.toml", "rust")]))
-                        .expect("markers encode"),
-                ),
-                completion: None,
-            },
-        ];
-        let bytes = group_files_by_unit_task()
-            .perform(&mut scope, parts)
-            .expect("the list is grouped");
-        let units: Units = serde_json::from_slice(&bytes).expect("the product decodes");
-        assert_eq!(
-            told(&units),
-            [
-                unit("", &[], &["b.md"]),
-                unit("a", &["rust"], &["a/Cargo.toml", "a/x.rs"]),
-            ]
-        );
-        let step = scope.finished("group_files_by_unit", Outcome::Ok);
-        assert_eq!(step.measures.get("units"), Some(&2.0));
-        assert_eq!(step.measures.get("files"), Some(&3.0));
     }
 }

@@ -1,5 +1,6 @@
 use std::any::type_name;
 use std::any::Any;
+use std::any::TypeId;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,7 +17,8 @@ use crate::wip::trace::outcome::Failure;
 pub type Body = Arc<dyn Fn(&mut Scope, Vec<Part>) -> Result<Vec<u8>, Failure> + Send + Sync>;
 
 // A named unit of work: what it leaves said in one line, the reads it
-// declares, the one type it produces, the body turning the first into the
+// declares, the tasks it runs after, the one type it produces, or nothing,
+// the body turning the first into the
 // second, how long one attempt may take, how many more attempts a failure
 // earns, and whether a product once computed for the same inputs is taken
 // from the store instead of computed again. A task is found by name in the
@@ -63,6 +65,11 @@ impl Task {
     pub fn line(mut self, line: &str) -> Task {
         self.line = line.to_string();
         self
+    }
+
+    // Nothing is no type: any number of tasks may leave it, and none reads it.
+    pub fn leaves_nothing(&self) -> bool {
+        self.produces.id == TypeId::of::<()>()
     }
 
     pub fn within(mut self, timeout: Duration) -> Task {

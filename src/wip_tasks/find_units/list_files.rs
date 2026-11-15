@@ -5,50 +5,17 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::path::PathBuf;
 
-use serde::Deserialize;
-use serde::Serialize;
-
 use crate::core::digest::Digest;
-use crate::wip::pull::In;
 use crate::wip::scope::Scope;
-use crate::wip::task::Task;
 use crate::wip::trace::outcome::Failure;
-use crate::wip_tasks::gitignore::Gitignore;
-
-// The folder a run is pointed at, by its absolute path: the process reading
-// it runs elsewhere than whoever wrote the path.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Folder {
-    pub path: PathBuf,
-}
+use crate::wip_domain::file::File;
+use crate::wip_domain::folder::Folder;
+use crate::wip_tasks::find_units::gitignore::Gitignore;
 
 // Every file under the folder that no rule keeps out, sorted by path. Paths
 // run from the folder, and a digest stands for a file's content, so two
 // listings differ exactly when the files do.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct Files {
-    pub files: Vec<File>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct File {
-    pub path: PathBuf,
-    pub bytes: u64,
-    pub digest: String,
-}
-
-pub fn list_files_task() -> Task {
-    Task::new("list_files", |scope: &mut Scope, folder: In<Folder>| {
-        list_files(scope, &folder)
-    })
-    .line(
-        "every file under one folder with its size and the digest of its content, less what a \
-         .gitignore leaves out; third_party, dot-folders, links and any folder below it holding \
-         its own .arbiter are never read",
-    )
-}
-
-fn list_files(scope: &mut Scope, folder: &Folder) -> Result<Files, Failure> {
+pub fn list_files(scope: &mut Scope, folder: &Folder) -> Result<Vec<File>, Failure> {
     if !folder.path.is_absolute() {
         return Err(Failure::from(format!(
             "the folder {} is not an absolute path",
@@ -93,7 +60,7 @@ fn list_files(scope: &mut Scope, folder: &Folder) -> Result<Files, Failure> {
     scope.measure("skipped", skipped as f64);
     scope.measure("foreign", foreign.len() as f64);
     scope.measure("links", links as f64);
-    Ok(Files { files })
+    Ok(files)
 }
 
 struct Reading<'root> {
@@ -240,18 +207,16 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use super::list_files_task;
-    use super::Files;
-    use super::Folder;
+    use super::list_files;
     use crate::core::digest::Digest;
     use crate::wip::job::cancel::Cancel;
     use crate::wip::job::id::JobId;
     use crate::wip::job::id::RunId;
     use crate::wip::layout::Site;
     use crate::wip::scope::Scope;
-    use crate::wip::store::Part;
-    use crate::wip::store::Product;
     use crate::wip::trace::outcome::Outcome;
+    use crate::wip_domain::file::File;
+    use crate::wip_domain::folder::Folder;
 
     // A folder of its own per test, holding the files written.
     fn folder(name: &str, written: &[(&str, &str)]) -> PathBuf {
@@ -282,25 +247,16 @@ mod tests {
         )
     }
 
-    // The task performed as a worker performs it: the folder handed encoded,
-    // the product decoded, a failure told by its reason.
-    fn performed(scope: &mut Scope, root: &Path) -> Result<Files, String> {
+    // The folder listed, a failure told by its reason.
+    fn performed(scope: &mut Scope, root: &Path) -> Result<Vec<File>, String> {
         let folder = Folder {
             path: root.to_path_buf(),
         };
-        let part = Part {
-            value: Some(Product::encoded(&folder).expect("a folder encodes")),
-            completion: None,
-        };
-        list_files_task()
-            .perform(scope, vec![part])
-            .map(|bytes| serde_json::from_slice(&bytes).expect("the product decodes"))
-            .map_err(|failure| failure.reason)
+        list_files(scope, &folder).map_err(|failure| failure.reason)
     }
 
-    fn paths(listed: &Files) -> Vec<String> {
+    fn paths(listed: &[File]) -> Vec<String> {
         listed
-            .files
             .iter()
             .map(|file| file.path.to_string_lossy().into_owned())
             .collect()
@@ -321,10 +277,10 @@ mod tests {
         let mut scope = scope();
         let listed = performed(&mut scope, &root).expect("the folder is read");
         assert_eq!(paths(&listed), ["b.rs", "src/a.rs"]);
-        assert_eq!(listed.files[0].bytes, 11);
-        assert_eq!(listed.files[0].digest, digest("fn b() {}\n\n"));
-        assert_eq!(listed.files[1].bytes, 10);
-        assert_eq!(listed.files[1].digest, digest("fn a() {}\n"));
+        assert_eq!(listed[0].bytes, 11);
+        assert_eq!(listed[0].digest, digest("fn b() {}\n\n"));
+        assert_eq!(listed[1].bytes, 10);
+        assert_eq!(listed[1].digest, digest("fn a() {}\n"));
         let step = scope.finished("list_files", Outcome::Ok);
         assert_eq!(step.measures.get("files"), Some(&2.0));
         assert_eq!(step.measures.get("bytes"), Some(&21.0));
@@ -344,8 +300,8 @@ mod tests {
         assert_eq!(same, first, "the same content lists the same");
         fs::write(root.join("a.rs"), "two\n").expect("the file is rewritten");
         let other = performed(&mut scope(), &root).expect("the folder is read");
-        assert_eq!(other.files[0].bytes, first.files[0].bytes);
-        assert_eq!(other.files[0].digest, digest("two\n"));
+        assert_eq!(other[0].bytes, first[0].bytes);
+        assert_eq!(other[0].digest, digest("two\n"));
         assert_ne!(
             other, first,
             "another content of the same size lists differently"

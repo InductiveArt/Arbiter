@@ -165,27 +165,37 @@ impl Runner {
                 store: root.join(STORE_DIR),
             },
             grouped: true,
+            identity: self.identity(),
         };
         let report = self.execute(plan, seeds, cancel, place, observer)?;
         sweep(root, self.keep);
         Ok(report)
     }
 
-    // Runs the plan inside a running attempt: same run, ids descending from
-    // that attempt's, its folders under the attempt's, its store shared, the
+    // Runs the plan inside a running attempt: same run, its store shared, the
     // attempt's token stopping the inner tasks too, and each record landing
-    // under it as well as in the report.
+    // under it as well as in the report. Each plan run inside one attempt goes
+    // by the next number, which its folder under the attempt's and its ids
+    // under the attempt's carry, so a second run overwrites nothing of the
+    // first.
     pub fn run_within(
         &self,
         scope: &mut Scope,
         plan: &Plan,
         seeds: Store,
     ) -> Result<Report, Refused> {
+        let number = scope.next_run();
         let place = Place {
             run: scope.job().run,
-            prefix: format!("{}/", scope.id()),
-            site: scope.site().clone(),
+            prefix: format!("{}/{number}/", scope.id()),
+            site: Site {
+                dir: scope.dir().join(RUNS_DIR).join(number.to_string()),
+                store: scope.site().store.clone(),
+            },
             grouped: false,
+            // An attempt made outside any run hands down no identity: the
+            // plan run inside it is then a run of its own.
+            identity: scope.identity().unwrap_or_else(|| self.identity()),
         };
         let report = self.execute(plan, seeds, scope.cancel(), place, &mut Quiet)?;
         for step in report.steps() {
@@ -207,6 +217,7 @@ impl Runner {
             prefix,
             site,
             grouped,
+            identity,
         } = place;
         let problems = self.verify(plan, &store, &site.dir);
         if !problems.is_empty() {
@@ -231,7 +242,7 @@ impl Runner {
             })
         })?;
         let dir = site.dir.clone();
-        let (flow, decisions) = Flow::new(plan, store, self.identity(), run, &prefix);
+        let (flow, decisions) = Flow::new(plan, store, identity, run, &prefix);
         let timing = Timing {
             startup: self.startup,
             grace: self.grace,
@@ -307,12 +318,14 @@ pub fn run_within(scope: &mut Scope, plan: &Plan, seeds: Store) -> Result<Report
 }
 
 // Where a run takes place: its id, the path every task's path starts with,
-// its folders, and whether each attempt leads a process group of its own.
+// its folders, whether each attempt leads a process group of its own, and the
+// identity of the code its products are keyed by.
 struct Place {
     run: RunId,
     prefix: String,
     site: Site,
     grouped: bool,
+    identity: u64,
 }
 
 #[cfg(test)]

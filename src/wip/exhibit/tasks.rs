@@ -138,20 +138,36 @@ pub fn licenses() -> Task {
 // Runs the two laws as a plan of its own, inside this attempt.
 pub fn judge() -> Task {
     Task::new("judge", |scope: &mut Scope, graph: In<Graph>| {
-        let laws = Plan::new("laws", &listed(), &["cycles", "boundaries"])
-            .map_err(|invalid| Failure::from(format!("{invalid:?}")))?;
-        let mut seeds = Store::new();
-        seeds
-            .put(&Graph { nodes: graph.nodes })
-            .map_err(|error| Failure::from(error.to_string()))?;
-        let report = run_within(scope, &laws, seeds)
-            .map_err(|refused| Failure::from(refused.to_string()))?;
-        let cycles = report.get::<Cycles>().map_or(0, |found| found.found);
-        let bounds = report.get::<Bounds>().map_or(0, |found| found.found);
         Ok::<Verdict, Failure>(Verdict {
-            findings: cycles + bounds,
+            findings: laws(scope, graph.nodes)?,
         })
     })
+}
+
+// Runs the two laws twice inside one attempt, the second time from a step of
+// it and over half the graph.
+pub fn rejudge() -> Task {
+    Task::new("rejudge", |scope: &mut Scope, graph: In<Graph>| {
+        let whole = laws(scope, graph.nodes)?;
+        let half = scope.step("again", |step| laws(step, graph.nodes / 2))?;
+        Ok::<Verdict, Failure>(Verdict {
+            findings: whole + half,
+        })
+    })
+}
+
+fn laws(scope: &mut Scope, nodes: usize) -> Result<usize, Failure> {
+    let laws = Plan::new("laws", &listed(), &["cycles", "boundaries"])
+        .map_err(|invalid| Failure::from(format!("{invalid:?}")))?;
+    let mut seeds = Store::new();
+    seeds
+        .put(&Graph { nodes })
+        .map_err(|error| Failure::from(error.to_string()))?;
+    let report =
+        run_within(scope, &laws, seeds).map_err(|refused| Failure::from(refused.to_string()))?;
+    let cycles = report.get::<Cycles>().map_or(0, |found| found.found);
+    let bounds = report.get::<Bounds>().map_or(0, |found| found.found);
+    Ok(cycles + bounds)
 }
 
 pub fn fix() -> Task {
@@ -382,6 +398,7 @@ pub fn listed() -> Vec<Task> {
         ledger(),
         licenses(),
         judge(),
+        rejudge(),
         fix(),
         check(),
         commit(),

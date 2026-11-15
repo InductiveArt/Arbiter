@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
@@ -32,6 +33,7 @@ use arbiter::wip::layout::RECORD_FILE;
 use arbiter::wip::layout::RUNNING_FILE;
 use arbiter::wip::layout::RUNS_DIR;
 use arbiter::wip::layout::RUN_FILE;
+use arbiter::wip::layout::SEEDS_DIR;
 use arbiter::wip::layout::STDERR_FILE;
 use arbiter::wip::layout::STDOUT_FILE;
 use arbiter::wip::layout::STORE_DIR;
@@ -46,6 +48,7 @@ use arbiter::wip::run::runner::Runner;
 use arbiter::wip::store::Need;
 use arbiter::wip::store::Store;
 use arbiter::wip::trace::outcome::Outcome;
+use arbiter::wip::worker::Order;
 
 fn runner() -> Runner {
     Runner::new().worker(PathBuf::from(env!("CARGO_BIN_EXE_arbiter")))
@@ -664,7 +667,7 @@ fn a_plan_run_inside_a_task_nests_its_steps_under_that_task() {
         .collect();
     assert_eq!(
         ids,
-        ["gate/judge/laws/cycles", "gate/judge/laws/boundaries"]
+        ["gate/judge/1/laws/cycles", "gate/judge/1/laws/boundaries"]
     );
     assert!(
         judge.children.iter().all(|step| step.job.run == report.run),
@@ -681,12 +684,112 @@ fn a_plan_run_inside_a_task_nests_its_steps_under_that_task() {
         .dir
         .join("gate")
         .join("judge#1")
+        .join(RUNS_DIR)
+        .join("1")
         .join("laws")
         .join("cycles#1");
     assert!(
         nested.join(RECORD_FILE).is_file(),
         "an inner attempt's folder sits under its parent's"
     );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_plan_run_inside_an_attempt_keys_its_products_by_the_identity_of_the_run_around_it() {
+    let root = root("identity");
+    // A worker whose own bytes differ from the binary it hands each attempt
+    // to: a plan run inside an attempt that hashed the binary it runs in would
+    // key its products by another identity than the run around it.
+    let worker = root.join("worker");
+    fs::write(
+        &worker,
+        format!(
+            "#!/bin/sh\nexec '{}' \"$@\"\n",
+            env!("CARGO_BIN_EXE_arbiter")
+        ),
+    )
+    .expect("a file is written");
+    fs::set_permissions(&worker, fs::Permissions::from_mode(0o755)).expect("made executable");
+    let plan = Plan::new("gate", &known(), &["scan", "resolve", "rejudge"]).expect("valid");
+    let report = Runner::new()
+        .worker(worker)
+        .run(&plan, seeded("repo", true), &root)
+        .expect("the root is seeded");
+    assert_eq!(report.outcome, Outcome::Ok);
+    let attempt = report.dir.join("gate").join("rejudge#1");
+    let around = identity(&attempt);
+    for number in ["1", "2"] {
+        let inner = attempt
+            .join(RUNS_DIR)
+            .join(number)
+            .join("laws")
+            .join("cycles#1");
+        assert_eq!(
+            identity(&inner),
+            around,
+            "run {number} keys by the identity of the run around it"
+        );
+    }
+    let _ = fs::remove_dir_all(&root);
+}
+
+// The identity the order of an attempt hands it.
+fn identity(attempt: &Path) -> u64 {
+    let bytes = fs::read(attempt.join(ORDER_FILE)).expect("the order is kept");
+    serde_json::from_slice::<Order>(&bytes)
+        .expect("the order decodes")
+        .identity
+}
+
+#[test]
+fn two_plans_run_inside_one_attempt_each_keep_their_own_folder_seeds_record_and_ids() {
+    let root = root("twice");
+    let plan = Plan::new("gate", &known(), &["scan", "resolve", "rejudge"]).expect("valid");
+    let report = runner()
+        .run(&plan, seeded("repo", true), &root)
+        .expect("the root is seeded");
+    assert_eq!(report.outcome, Outcome::Ok);
+    assert_eq!(
+        report.get::<Verdict>().map(|verdict| verdict.findings),
+        Some(83 + 43),
+        "each run read its own seeds"
+    );
+    let rejudge = report.step("rejudge").expect("the rejudge task ran");
+    let mut ids: Vec<&str> = Vec::new();
+    for step in &rejudge.children {
+        ids.push(step.job.path.as_str());
+        for inner in &step.children {
+            ids.push(inner.job.path.as_str());
+        }
+    }
+    assert_eq!(
+        ids,
+        [
+            "gate/rejudge/1/laws/cycles",
+            "gate/rejudge/1/laws/boundaries",
+            "gate/rejudge/again",
+            "gate/rejudge/again/2/laws/cycles",
+            "gate/rejudge/again/2/laws/boundaries",
+        ],
+        "a run from a step counts on from the runs before it"
+    );
+    let attempt = report.dir.join("gate").join("rejudge#1");
+    for number in ["1", "2"] {
+        let run = attempt.join(RUNS_DIR).join(number);
+        assert!(run.join(SEEDS_DIR).is_dir(), "run {number} keeps its seeds");
+        assert!(
+            run.join(RUN_FILE).is_file(),
+            "run {number} keeps its record"
+        );
+        assert!(
+            run.join("laws")
+                .join("cycles#1")
+                .join(RECORD_FILE)
+                .is_file(),
+            "run {number} keeps its attempts"
+        );
+    }
     let _ = fs::remove_dir_all(&root);
 }
 

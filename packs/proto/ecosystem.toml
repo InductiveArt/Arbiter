@@ -5,9 +5,11 @@ marker = "buf.yaml"
 # Each tool is pinned, so every unit is held to one bar, not to a machine's.
 [[check]]
 name = "format"
+tool = "format_proto"
 run = ["npx", "--yes", "@bufbuild/buf@1.74.0", "format", "--diff", "--exit-code"]
 fix = ["npx", "--yes", "@bufbuild/buf@1.74.0", "format", "--write"]
 
 [[check]]
 name = "lint"
+tool = "lint_proto"
 run = ["npx", "--yes", "@bufbuild/buf@1.74.0", "lint"]
