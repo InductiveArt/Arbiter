@@ -37,9 +37,9 @@ pub struct File {
     pub digest: String,
 }
 
-pub fn list_files() -> Task {
+pub fn list_files_task() -> Task {
     Task::new("list_files", |scope: &mut Scope, folder: In<Folder>| {
-        listing(scope, &folder)
+        list_files(scope, &folder)
     })
     .line(
         "every file under one folder with its size and the digest of its content, less what a \
@@ -48,7 +48,7 @@ pub fn list_files() -> Task {
     )
 }
 
-fn listing(scope: &mut Scope, folder: &Folder) -> Result<Files, Failure> {
+fn list_files(scope: &mut Scope, folder: &Folder) -> Result<Files, Failure> {
     if !folder.path.is_absolute() {
         return Err(Failure::from(format!(
             "the folder {} is not an absolute path",
@@ -240,7 +240,7 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use super::list_files;
+    use super::list_files_task;
     use super::Files;
     use super::Folder;
     use crate::core::digest::Digest;
@@ -292,7 +292,7 @@ mod tests {
             value: Some(Product::encoded(&folder).expect("a folder encodes")),
             completion: None,
         };
-        list_files()
+        list_files_task()
             .perform(scope, vec![part])
             .map(|bytes| serde_json::from_slice(&bytes).expect("the product decodes"))
             .map_err(|failure| failure.reason)

@@ -103,7 +103,7 @@ impl Pack for Rust {
     }
 
     fn adapter(&self) -> Option<&'static str> {
-        Some(include_str!("../../packs/rust/tools.toml"))
+        Some(include_str!("../../packs/rust/ecosystem.toml"))
     }
 
     // A Cargo.toml declaring a workspace and no package bounds its members.

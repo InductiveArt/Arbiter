@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::ffi::OsStr;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -12,12 +11,8 @@ use crate::wip::task::Task;
 use crate::wip::trace::outcome::Failure;
 use crate::wip_tasks::list_files::File;
 use crate::wip_tasks::list_files::Files;
-
-// The file names that make the folder holding one a unit.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Markers {
-    pub names: Vec<String>,
-}
+use crate::wip_tasks::read_markers::Marker;
+use crate::wip_tasks::read_markers::Markers;
 
 // Every unit, sorted by path, the listed folder itself first. Each listed
 // file is under exactly one.
@@ -32,15 +27,15 @@ pub struct Units {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Unit {
     pub path: PathBuf,
-    pub markers: Vec<String>,
+    pub markers: Vec<Marker>,
     pub files: Vec<File>,
 }
 
-pub fn group_files_by_unit() -> Task {
+pub fn group_files_by_unit_task() -> Task {
     Task::new(
         "group_files_by_unit",
         |scope: &mut Scope, (files, markers): (In<Files>, In<Markers>)| {
-            let units = grouped(&files, &markers);
+            let units = group_files_by_unit(&files, &markers);
             scope.measure("units", units.units.len() as f64);
             scope.measure("files", files.files.len() as f64);
             Ok::<Units, Failure>(units)
@@ -52,25 +47,19 @@ pub fn group_files_by_unit() -> Task {
     )
 }
 
-// No disk is touched: a marker is a listed file, so the list alone says where
-// the units are.
-fn grouped(files: &Files, markers: &Markers) -> Units {
+// No disk is touched and no file name is weighed: each marker names its own
+// path, so the markers alone say where the units are.
+fn group_files_by_unit(files: &Files, markers: &Markers) -> Units {
     let whole = Path::new("");
     let mut units: BTreeMap<PathBuf, Unit> = BTreeMap::new();
     units.insert(whole.to_path_buf(), unit(whole));
-    for file in &files.files {
-        let marker = file
-            .path
-            .file_name()
-            .and_then(OsStr::to_str)
-            .filter(|name| markers.names.iter().any(|marker| marker == name));
-        if let (Some(marker), Some(folder)) = (marker, file.path.parent()) {
-            units
-                .entry(folder.to_path_buf())
-                .or_insert_with(|| unit(folder))
-                .markers
-                .push(marker.to_string());
-        }
+    for marker in &markers.markers {
+        let folder = marker.path.parent().unwrap_or(whole);
+        units
+            .entry(folder.to_path_buf())
+            .or_insert_with(|| unit(folder))
+            .markers
+            .push(marker.clone());
     }
     for file in &files.files {
         let folder = file
@@ -102,8 +91,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::group_files_by_unit;
-    use super::grouped;
-    use super::Markers;
+    use super::group_files_by_unit_task;
     use super::Units;
     use crate::wip::job::cancel::Cancel;
     use crate::wip::job::id::JobId;
@@ -115,6 +103,8 @@ mod tests {
     use crate::wip::trace::outcome::Outcome;
     use crate::wip_tasks::list_files::File;
     use crate::wip_tasks::list_files::Files;
+    use crate::wip_tasks::read_markers::Marker;
+    use crate::wip_tasks::read_markers::Markers;
 
     fn list(paths: &[&str]) -> Files {
         Files {
@@ -129,13 +119,22 @@ mod tests {
         }
     }
 
-    fn markers() -> Markers {
+    // Each marker by its path and the ecosystem it marks for.
+    fn markers(told: &[(&str, &str)]) -> Markers {
         Markers {
-            names: vec!["Cargo.toml".to_string(), "pyproject.toml".to_string()],
+            markers: told
+                .iter()
+                .map(|(path, ecosystem)| Marker {
+                    path: PathBuf::from(path),
+                    ecosystem: ecosystem.to_string(),
+                    members_only: false,
+                })
+                .collect(),
         }
     }
 
-    // Each unit as its path, its markers and its files' paths.
+    // Each unit as its path, the ecosystems of its markers and its files'
+    // paths.
     fn told(units: &Units) -> Vec<(String, Vec<String>, Vec<String>)> {
         units
             .units
@@ -143,7 +142,10 @@ mod tests {
             .map(|unit| {
                 (
                     unit.path.to_string_lossy().into_owned(),
-                    unit.markers.clone(),
+                    unit.markers
+                        .iter()
+                        .map(|marker| marker.ecosystem.clone())
+                        .collect(),
                     unit.files
                         .iter()
                         .map(|file| file.path.to_string_lossy().into_owned())
@@ -153,19 +155,19 @@ mod tests {
             .collect()
     }
 
-    fn unit(path: &str, markers: &[&str], files: &[&str]) -> (String, Vec<String>, Vec<String>) {
+    fn unit(path: &str, ecosystems: &[&str], files: &[&str]) -> (String, Vec<String>, Vec<String>) {
         (
             path.to_string(),
-            markers.iter().map(|name| name.to_string()).collect(),
+            ecosystems.iter().map(|name| name.to_string()).collect(),
             files.iter().map(|file| file.to_string()).collect(),
         )
     }
 
     #[test]
     fn the_listed_folder_is_a_unit_even_with_no_marker_and_holds_what_no_other_takes() {
-        let units = grouped(&list(&["README.md", "docs/a.md"]), &markers());
+        let units = group_files_by_unit(&list(&["README.md", "docs/a.md"]), &markers(&[]));
         assert_eq!(told(&units), [unit("", &[], &["README.md", "docs/a.md"])]);
-        let empty = grouped(&list(&[]), &markers());
+        let empty = group_files_by_unit(&list(&[]), &markers(&[]));
         assert_eq!(told(&empty), [unit("", &[], &[])]);
     }
 
@@ -177,14 +179,14 @@ mod tests {
             "libs/a/src/lib.rs",
             "libs/b.txt",
         ]);
-        let units = grouped(&listed, &markers());
+        let units = group_files_by_unit(&listed, &markers(&[("libs/a/Cargo.toml", "rust")]));
         assert_eq!(
             told(&units),
             [
                 unit("", &[], &["README.md", "libs/b.txt"]),
                 unit(
                     "libs/a",
-                    &["Cargo.toml"],
+                    &["rust"],
                     &["libs/a/Cargo.toml", "libs/a/src/lib.rs"]
                 ),
             ]
@@ -205,19 +207,24 @@ mod tests {
             "tools/x/inner/pyproject.toml",
             "tools/x/src/main.rs",
         ]);
-        let units = grouped(&listed, &markers());
+        let marked = markers(&[
+            ("Cargo.toml", "rust"),
+            ("tools/x/Cargo.toml", "rust"),
+            ("tools/x/inner/pyproject.toml", "python"),
+        ]);
+        let units = group_files_by_unit(&listed, &marked);
         assert_eq!(
             told(&units),
             [
-                unit("", &["Cargo.toml"], &["Cargo.toml", "src/lib.rs"]),
+                unit("", &["rust"], &["Cargo.toml", "src/lib.rs"]),
                 unit(
                     "tools/x",
-                    &["Cargo.toml"],
+                    &["rust"],
                     &["tools/x/Cargo.toml", "tools/x/src/main.rs"]
                 ),
                 unit(
                     "tools/x/inner",
-                    &["pyproject.toml"],
+                    &["python"],
                     &["tools/x/inner/a.py", "tools/x/inner/pyproject.toml"]
                 ),
             ]
@@ -227,15 +234,16 @@ mod tests {
     }
 
     #[test]
-    fn a_folder_holding_two_markers_is_one_unit_naming_both() {
-        let units = grouped(&list(&["app/Cargo.toml", "app/pyproject.toml"]), &markers());
+    fn a_folder_holding_two_markers_is_one_unit_holding_both() {
+        let marked = markers(&[("app/Cargo.toml", "rust"), ("app/pyproject.toml", "python")]);
+        let units = group_files_by_unit(&list(&["app/Cargo.toml", "app/pyproject.toml"]), &marked);
         assert_eq!(
             told(&units),
             [
                 unit("", &[], &[]),
                 unit(
                     "app",
-                    &["Cargo.toml", "pyproject.toml"],
+                    &["rust", "python"],
                     &["app/Cargo.toml", "app/pyproject.toml"]
                 ),
             ]
@@ -243,23 +251,23 @@ mod tests {
     }
 
     #[test]
-    fn a_marker_is_a_whole_file_name() {
-        let listed = list(&["a/Cargo.toml.bak", "b/my-Cargo.toml", "c/Cargo.toml/x"]);
-        let units = grouped(&listed, &markers());
-        assert_eq!(
-            told(&units),
-            [unit(
-                "",
-                &[],
-                &["a/Cargo.toml.bak", "b/my-Cargo.toml", "c/Cargo.toml/x"]
-            )]
-        );
+    fn a_unit_holds_each_of_its_markers_whole() {
+        let only_lists = Marker {
+            path: PathBuf::from("ws/Cargo.toml"),
+            ecosystem: "rust".to_string(),
+            members_only: true,
+        };
+        let marked = Markers {
+            markers: vec![only_lists.clone()],
+        };
+        let units = group_files_by_unit(&list(&["ws/Cargo.toml"]), &marked);
+        assert_eq!(units.units.len(), 2);
+        assert_eq!(units.units[1].markers, [only_lists]);
     }
 
     #[test]
-    fn with_no_marker_named_everything_is_under_the_listed_folder() {
-        let none = Markers { names: Vec::new() };
-        let units = grouped(&list(&["a/Cargo.toml", "a/src/lib.rs"]), &none);
+    fn a_file_named_as_a_marker_makes_no_unit_when_no_marker_tells_it() {
+        let units = group_files_by_unit(&list(&["a/Cargo.toml", "a/src/lib.rs"]), &markers(&[]));
         assert_eq!(
             told(&units),
             [unit("", &[], &["a/Cargo.toml", "a/src/lib.rs"])]
@@ -286,11 +294,14 @@ mod tests {
                 completion: None,
             },
             Part {
-                value: Some(Product::encoded(&markers()).expect("markers encode")),
+                value: Some(
+                    Product::encoded(&markers(&[("a/Cargo.toml", "rust")]))
+                        .expect("markers encode"),
+                ),
                 completion: None,
             },
         ];
-        let bytes = group_files_by_unit()
+        let bytes = group_files_by_unit_task()
             .perform(&mut scope, parts)
             .expect("the list is grouped");
         let units: Units = serde_json::from_slice(&bytes).expect("the product decodes");
@@ -298,7 +309,7 @@ mod tests {
             told(&units),
             [
                 unit("", &[], &["b.md"]),
-                unit("a", &["Cargo.toml"], &["a/Cargo.toml", "a/x.rs"]),
+                unit("a", &["rust"], &["a/Cargo.toml", "a/x.rs"]),
             ]
         );
         let step = scope.finished("group_files_by_unit", Outcome::Ok);

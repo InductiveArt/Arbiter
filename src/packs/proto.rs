@@ -94,7 +94,7 @@ impl Pack for Proto {
     }
 
     fn adapter(&self) -> Option<&'static str> {
-        Some(include_str!("../../packs/proto/tools.toml"))
+        Some(include_str!("../../packs/proto/ecosystem.toml"))
     }
 
     // A v2 buf.yaml listing modules is a workspace: it bounds, and each module judges.

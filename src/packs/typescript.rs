@@ -115,7 +115,7 @@ impl Pack for TypeScript {
     }
 
     fn adapter(&self) -> Option<&'static str> {
-        Some(include_str!("../../packs/typescript/tools.toml"))
+        Some(include_str!("../../packs/typescript/ecosystem.toml"))
     }
 
     // Declaring members and no entry of its own: a root with code declares one.

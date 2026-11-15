@@ -41,6 +41,7 @@ deps = [
   "src/tasks",
   "src/wip/store.rs",
   "src/wip/task.rs",
+  "src/wip_domain",
   "src/wip_tasks",
 ]
 
@@ -121,9 +122,13 @@ deps = [
 [units.".".inner."src/wip/registry.rs"]
 deps = ["src/wip/exhibit", "src/wip/task.rs"]
 
+[units.".".inner."src/wip_domain"]
+deps = []
+
 [units.".".inner."src/wip_tasks"]
 deps = [
   "src/core",
+  "src/wip_domain",
   "src/wip/job",
   "src/wip/trace",
   "src/wip/layout.rs",

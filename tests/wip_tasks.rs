@@ -20,7 +20,7 @@ use arbiter::wip::store::Store;
 use arbiter::wip::task::Task;
 use arbiter::wip::trace::outcome::Failure;
 use arbiter::wip::trace::outcome::Outcome;
-use arbiter::wip_tasks::group_files_by_unit::Markers;
+use arbiter::wip_domain::ecosystem::load_ecosystems;
 use arbiter::wip_tasks::group_files_by_unit::Unit;
 use arbiter::wip_tasks::group_files_by_unit::Units;
 use arbiter::wip_tasks::list_files::Files;
@@ -42,7 +42,7 @@ fn folder(name: &str) -> PathBuf {
 }
 
 #[test]
-fn a_folder_is_listed_then_grouped_as_one_plan_each_task_in_a_process_of_its_own() {
+fn a_folder_is_listed_its_markers_read_and_its_files_grouped_each_task_in_a_process_of_its_own() {
     let repository = folder("repository");
     for (path, content) in [
         ("Cargo.toml", "[package]\n"),
@@ -52,6 +52,9 @@ fn a_folder_is_listed_then_grouped_as_one_plan_each_task_in_a_process_of_its_own
         ("third_party/dep/lib.rs", "x"),
         ("tools/probe/pyproject.toml", "[project]\n"),
         ("tools/probe/probe.py", "x = 1\n"),
+        ("libs/Cargo.toml", "[workspace]\nmembers = [\"a\"]\n"),
+        ("libs/a/Cargo.toml", "[package]\n"),
+        ("libs/a/src/lib.rs", "pub fn a() {}\n"),
         ("apps/other/.arbiter/units.toml", ""),
         ("apps/other/pyproject.toml", "[project]\n"),
         ("apps/other/main.py", "x = 1\n"),
@@ -68,12 +71,14 @@ fn a_folder_is_listed_then_grouped_as_one_plan_each_task_in_a_process_of_its_own
         })
         .expect("a folder encodes");
     seeds
-        .put(&Markers {
-            names: vec!["Cargo.toml".to_string(), "pyproject.toml".to_string()],
-        })
-        .expect("markers encode");
-    let plan = Plan::new("units", &listed(), &["list_files", "group_files_by_unit"])
-        .expect("the two tasks wire into a plan");
+        .put(&load_ecosystems().expect("the records are read"))
+        .expect("the ecosystems encode");
+    let plan = Plan::new(
+        "units",
+        &listed(),
+        &["list_files", "read_markers", "group_files_by_unit"],
+    )
+    .expect("the three tasks wire into a plan");
     let runs = folder("runs");
 
     let report = Runner::new()
@@ -93,19 +98,30 @@ fn a_folder_is_listed_then_grouped_as_one_plan_each_task_in_a_process_of_its_own
         [
             ".gitignore",
             "Cargo.toml",
+            "libs/Cargo.toml",
+            "libs/a/Cargo.toml",
+            "libs/a/src/lib.rs",
             "src/lib.rs",
             "tools/probe/probe.py",
             "tools/probe/pyproject.toml"
         ]
     );
     let units = report.get::<Units>().expect("the units are kept");
-    let told: Vec<(String, Vec<String>, usize)> = units
+    let told: Vec<(String, String, usize)> = units
         .units
         .iter()
         .map(|unit| {
+            let markers: Vec<String> = unit
+                .markers
+                .iter()
+                .map(|marker| match marker.members_only {
+                    true => format!("{} listing members", marker.ecosystem),
+                    false => marker.ecosystem.clone(),
+                })
+                .collect();
             (
                 unit.path.to_string_lossy().into_owned(),
-                unit.markers.clone(),
+                markers.join(", "),
                 unit.files.len(),
             )
         })
@@ -113,26 +129,29 @@ fn a_folder_is_listed_then_grouped_as_one_plan_each_task_in_a_process_of_its_own
     assert_eq!(
         told,
         [
-            (String::new(), vec!["Cargo.toml".to_string()], 3),
-            (
-                "tools/probe".to_string(),
-                vec!["pyproject.toml".to_string()],
-                2
-            ),
+            (String::new(), "rust".to_string(), 3),
+            ("libs".to_string(), "rust listing members".to_string(), 1),
+            ("libs/a".to_string(), "rust".to_string(), 2),
+            ("tools/probe".to_string(), "python".to_string(), 2),
         ]
     );
     let listing = report
         .step("list_files")
         .expect("the attempt left its record");
-    assert_eq!(listing.measures.get("files"), Some(&5.0));
+    assert_eq!(listing.measures.get("files"), Some(&8.0));
     assert_eq!(listing.measures.get("ignored"), Some(&1.0));
     assert_eq!(listing.measures.get("skipped"), Some(&1.0));
     assert_eq!(listing.measures.get("foreign"), Some(&1.0));
     assert_eq!(listing.evidence, ["foreign: apps/other"]);
+    let reading = report
+        .step("read_markers")
+        .expect("the attempt left its record");
+    assert_eq!(reading.measures.get("markers"), Some(&4.0));
+    assert_eq!(reading.measures.get("members_only"), Some(&1.0));
     let grouping = report
         .step("group_files_by_unit")
         .expect("the attempt left its record");
-    assert_eq!(grouping.measures.get("units"), Some(&2.0));
+    assert_eq!(grouping.measures.get("units"), Some(&4.0));
     let _ = fs::remove_dir_all(&repository);
     let _ = fs::remove_dir_all(&runs);
 }
@@ -159,6 +178,13 @@ fn the_tasks_view_tells_what_each_task_leaves_reads_and_is_bounded_by() {
          its own .arbiter are never read\n  \
          reads   Folder\n  \
          leaves  Files\n  \
+         limits  no time limit, one attempt, computed every run\n\
+         \n\
+         read_markers\n  \
+         each listed file that marks a unit, with the ecosystem it marks for and whether it \
+         only lists members\n  \
+         reads   Folder, Files, Ecosystems\n  \
+         leaves  Markers\n  \
          limits  no time limit, one attempt, computed every run\n\
          \n\
          group_files_by_unit\n  \
@@ -203,8 +229,8 @@ fn the_tasks_view_tells_when_a_read_fires_and_every_limit_a_task_sets() {
 }
 
 #[test]
-fn the_languages_view_tells_each_language_s_marker_checks_needs_locks_and_outputs() {
-    let told = languages::shown(&all());
+fn the_languages_view_tells_each_language_s_marker_rule_checks_needs_locks_and_outputs() {
+    let told = languages::shown(&all(), &load_ecosystems().expect("the records are read"));
     let rows: Vec<Vec<&str>> = told
         .lines()
         .map(|line| {
@@ -220,17 +246,27 @@ fn the_languages_view_tells_each_language_s_marker_checks_needs_locks_and_output
             vec![
                 "language",
                 "unit marker",
+                "members only when",
                 "checks",
                 "needs",
                 "lockfiles",
                 "never read"
             ],
-            vec!["cpp", "none", "none", "none", "none", "none"],
-            vec!["infra", "none", "none", "none", "none", "none"],
-            vec!["proto", "buf.yaml", "format, lint", "npx", "none", "none"],
+            vec!["cpp", "none", "never", "none", "none", "none", "none"],
+            vec!["infra", "none", "never", "none", "none", "none", "none"],
+            vec![
+                "proto",
+                "buf.yaml",
+                "never",
+                "format, lint",
+                "npx",
+                "none",
+                "none"
+            ],
             vec![
                 "python",
                 "pyproject.toml",
+                "has tool.uv.workspace, lacks project",
                 "format, lint, types, test",
                 "uv",
                 "uv.lock",
@@ -239,6 +275,7 @@ fn the_languages_view_tells_each_language_s_marker_checks_needs_locks_and_output
             vec![
                 "rust",
                 "Cargo.toml",
+                "has workspace, lacks package",
                 "fmt, clippy, test",
                 "cargo",
                 "Cargo.lock",
@@ -247,6 +284,7 @@ fn the_languages_view_tells_each_language_s_marker_checks_needs_locks_and_output
             vec![
                 "typescript",
                 "package.json",
+                "has workspaces, lacks main, exports, bin",
                 "lint, types, test",
                 "node, npx",
                 "pnpm-lock.yaml, package-lock.json",

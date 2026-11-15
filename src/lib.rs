@@ -6,4 +6,5 @@ pub mod ledger;
 pub mod packs;
 pub mod tasks;
 pub mod wip;
+pub mod wip_domain;
 pub mod wip_tasks;

@@ -1,3 +1,6 @@
+name = "proto"
+marker = "buf.yaml"
+
 # The adapter: what holds a proto unit to the bar, in the order run.
 # Each tool is pinned, so every unit is held to one bar, not to a machine's.
 [[check]]

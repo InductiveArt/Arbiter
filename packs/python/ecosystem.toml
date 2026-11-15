@@ -1,3 +1,12 @@
+name = "python"
+marker = "pyproject.toml"
+
+# A marker holding every key under `has` and none under `lacks` only lists
+# member units and holds no code of its own.
+[members_only]
+has = ["tool.uv.workspace"]
+lacks = ["project"]
+
 # The adapter: what holds a Python unit to the bar, in the order run.
 # Each tool is pinned, so every unit is held to one bar, not to a machine's.
 [[check]]

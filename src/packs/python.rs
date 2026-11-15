@@ -116,7 +116,7 @@ impl Pack for Python {
     }
 
     fn adapter(&self) -> Option<&'static str> {
-        Some(include_str!("../../packs/python/tools.toml"))
+        Some(include_str!("../../packs/python/ecosystem.toml"))
     }
 
     fn configs(&self) -> &'static [(&'static str, &'static str)] {
