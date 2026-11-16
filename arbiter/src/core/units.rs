@@ -1,325 +1,267 @@
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::collections::HashSet;
-use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::Command;
 
-use tree_sitter::Language;
-use tree_sitter::Node;
-
+use crate::core::ecosystems::ecosystems;
+use crate::core::listing::committed::committed;
+use crate::core::listing::list;
+use crate::core::markers::read_markers;
 use crate::core::pack::Pack;
-use crate::core::pack::Repo;
-use crate::core::pack::Unit;
-use crate::core::trees;
+use crate::core::repository::Repo;
+use crate::domain::file::File;
+use crate::domain::marker::Marker;
+use crate::domain::unit::Unit;
 
-pub const DECLARATIONS: &str = ".arbiter/units.toml";
-
-// An exact unit path, or a folder and star covering every unit below it.
-pub fn fits(pattern: &str, unit: &str) -> bool {
-    if pattern == "*" {
-        return true;
-    }
-    match pattern.strip_suffix("/*") {
-        Some(base) => unit == base || unit.starts_with(&format!("{base}/")),
-        None => unit == pattern,
-    }
-}
-
-const BUILD_NAMES: [&str; 3] = ["BUILD.bazel", "BUILD.bazel.held", "BUILD"];
-const MANIFEST_NAMES: [&str; 6] = [
-    "pyproject.toml",
-    "Cargo.toml",
-    "package.json",
-    "go.mod",
-    "buf.yaml",
-    "buf.work.yaml",
-];
-
-pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Repo {
-    let mut builds = Vec::new();
-    let mut found = Found {
-        files: Vec::new(),
-        manifests: Vec::new(),
-        lockfiles: Vec::new(),
-        published: HashSet::new(),
-        foreign: Vec::new(),
+// The repository under a folder as the languages find it: its files, the
+// units their markers make, and what a law asks of the files by name: the
+// manifests, the lockfiles and the PUBLISHED marks.
+pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Result<Repo, String> {
+    let outputs: Vec<&str> = packs
+        .iter()
+        .flat_map(|pack| pack.outputs().iter().copied())
+        .collect();
+    let carried = committed(root);
+    let listing = list(root, &outputs, &carried, &mut || Ok(()))?;
+    let markers = read_markers(root, &listing.files, &ecosystems(packs)?, &mut || Ok(()))?;
+    let units = group_files_by_unit(&listing.files, &markers);
+    let lockfiles: HashSet<&str> = packs
+        .iter()
+        .flat_map(|pack| pack.lockfiles().iter().copied())
+        .collect();
+    let named = |file: &PathBuf, names: &HashSet<&str>| {
+        file.file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| names.contains(name))
     };
-    let skips = ignored(root);
-    walk(root, root, packs, &skips, &mut builds, &mut found);
-    // The whole repository is the unit of last resort for a file no BUILD file claims.
-    let mut units = vec![Unit {
-        path: PathBuf::new(),
-        test_files: HashSet::new(),
-        root_files: HashSet::new(),
-    }];
-    for build in builds {
-        let folder = build.parent().unwrap_or(Path::new("")).to_path_buf();
-        let unit = read_unit(root, &build, folder);
-        if unit.path.as_os_str().is_empty() {
-            units[0] = unit;
-        } else {
-            units.push(unit);
-        }
-    }
-    // A manifest declares a unit the way a BUILD file does, with nothing to add to it.
-    for manifest in &found.manifests {
-        let folder = manifest.parent().unwrap_or(Path::new("")).to_path_buf();
-        if folder.as_os_str().is_empty() || units.iter().any(|unit| unit.path == folder) {
-            continue;
-        }
-        units.push(Unit {
-            path: folder,
-            test_files: HashSet::new(),
-            root_files: HashSet::new(),
-        });
-    }
-    found.files.sort();
-    found.foreign.sort();
-    Repo {
+    let files: Vec<PathBuf> = listing.files.into_iter().map(|file| file.path).collect();
+    let manifests: BTreeSet<PathBuf> = markers.into_iter().map(|marker| marker.path).collect();
+    let published = files
+        .iter()
+        .filter(|file| file.file_name().is_some_and(|name| name == "PUBLISHED"))
+        .map(|file| file.parent().unwrap_or(Path::new("")).to_path_buf())
+        .collect();
+    Ok(Repo {
         units,
-        files: found.files,
-        manifests: found.manifests,
-        lockfiles: found.lockfiles,
-        published: found.published,
-        foreign: found.foreign,
+        roots: HashSet::new(),
+        lockfiles: files
+            .iter()
+            .filter(|file| named(file, &lockfiles))
+            .cloned()
+            .collect(),
+        manifests: manifests.into_iter().collect(),
+        published,
+        foreign: listing.foreign,
+        files,
+    })
+}
+
+// Every unit, sorted by path, the listed folder itself first. A unit is the
+// listed folder or any folder under it holding a marker, and a file goes to
+// the deepest unit above it, so each listed file is under exactly one. No
+// disk is touched and no file name is weighed: each marker names its own
+// path, so the markers alone say where the units are.
+pub fn group_files_by_unit(files: &[File], markers: &[Marker]) -> Vec<Unit> {
+    let whole = Path::new("");
+    let mut units: BTreeMap<PathBuf, Unit> = BTreeMap::new();
+    units.insert(whole.to_path_buf(), unit(whole));
+    for marker in markers {
+        let folder = marker.path.parent().unwrap_or(whole);
+        units
+            .entry(folder.to_path_buf())
+            .or_insert_with(|| unit(folder))
+            .markers
+            .push(marker.clone());
     }
-}
-
-struct Found {
-    files: Vec<PathBuf>,
-    manifests: Vec<PathBuf>,
-    lockfiles: Vec<PathBuf>,
-    published: HashSet<PathBuf>,
-    foreign: Vec<PathBuf>,
-}
-
-// What git ignores is not the repository: a file in it is one git would carry.
-// A committed file stays in it whatever an ignore pattern says, and a folder
-// with no git at all ignores nothing.
-fn ignored(root: &Path) -> HashSet<PathBuf> {
-    let listed = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args([
-            "ls-files",
-            "--others",
-            "--ignored",
-            "--exclude-standard",
-            "--directory",
-            "-z",
-        ])
-        .output();
-    let Ok(listed) = listed else {
-        return HashSet::new();
-    };
-    if !listed.status.success() {
-        return HashSet::new();
-    }
-    String::from_utf8_lossy(&listed.stdout)
-        .split('\0')
-        .filter(|path| !path.is_empty())
-        .map(|path| PathBuf::from(path.trim_end_matches('/')))
-        .collect()
-}
-
-fn walk(
-    root: &Path,
-    folder: &Path,
-    packs: &[Box<dyn Pack>],
-    skips: &HashSet<PathBuf>,
-    builds: &mut Vec<PathBuf>,
-    found: &mut Found,
-) {
-    let Ok(entries) = fs::read_dir(folder) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let Ok(kind) = entry.file_type() else {
-            continue;
-        };
-        if kind.is_symlink() {
-            continue;
-        }
-        let name = entry.file_name().to_string_lossy().to_string();
-        let path = entry.path();
-        let relative = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
-        if skips.contains(&relative) {
-            continue;
-        }
-        if kind.is_dir() {
-            // A third_party folder holds vendored bytes: read by builds, never by the laws.
-            if name.starts_with('.')
-                || name.starts_with("bazel-")
-                || name == "third_party"
-                || packs
-                    .iter()
-                    .any(|pack| pack.outputs().contains(&name.as_str()))
-            {
-                continue;
-            }
-            // A folder with its own .arbiter is another repository: gated
-            // from its own root, named by this run, never crossed.
-            if path.join(".arbiter").is_dir() {
-                found.foreign.push(relative);
-                continue;
-            }
-            walk(root, &path, packs, skips, builds, found);
-        } else if kind.is_file() {
-            if name == "PUBLISHED" {
-                let parent = relative.parent().unwrap_or(Path::new("")).to_path_buf();
-                found.published.insert(parent);
-            } else if BUILD_NAMES.contains(&name.as_str()) {
-                builds.push(relative);
-            } else if MANIFEST_NAMES.contains(&name.as_str()) {
-                found.manifests.push(relative);
-            } else if packs
-                .iter()
-                .any(|pack| pack.lockfiles().contains(&name.as_str()))
-            {
-                found.lockfiles.push(relative);
-            } else if packs.iter().any(|pack| pack.handles(&name)) {
-                found.files.push(relative);
-            }
+    for file in files {
+        let folder = file
+            .path
+            .ancestors()
+            .skip(1)
+            .find(|above| units.contains_key(*above))
+            .unwrap_or(whole);
+        if let Some(unit) = units.get_mut(folder) {
+            unit.files.push(file.clone());
         }
     }
+    units.into_values().collect()
 }
 
-// Starlark is a subset of Python's syntax, so the Python grammar reads a BUILD file.
-fn read_unit(root: &Path, build: &Path, folder: PathBuf) -> Unit {
-    let mut unit = Unit {
-        path: folder,
-        test_files: HashSet::new(),
-        root_files: HashSet::new(),
-    };
-    let Ok(source) = fs::read_to_string(root.join(build)) else {
-        return unit;
-    };
-    let language: Language = tree_sitter_python::LANGUAGE.into();
-    let Some(tree) = trees::parse(&language, &source) else {
-        return unit;
-    };
-    let top = tree.root_node();
-    let mut walker = top.walk();
-    for statement in top.children(&mut walker) {
-        let Some((kind, srcs, main)) = target(statement, &source) else {
-            continue;
-        };
-        if kind.ends_with("_test") {
-            unit.test_files
-                .extend(srcs.iter().map(|src| unit.path.join(src)));
-        } else if kind.ends_with("_binary") {
-            // A binary's entry file is a root: reachability starts there, not at a caller.
-            let roots = main.map(|file| vec![file]).unwrap_or(srcs);
-            unit.root_files
-                .extend(roots.iter().map(|src| unit.path.join(src)));
-        }
+fn unit(folder: &Path) -> Unit {
+    Unit {
+        path: folder.to_path_buf(),
+        markers: Vec::new(),
+        files: Vec::new(),
     }
-    unit
-}
-
-fn target(statement: Node, source: &str) -> Option<(String, Vec<String>, Option<String>)> {
-    if statement.kind() != "expression_statement" {
-        return None;
-    }
-    let call = statement.child(0).filter(|node| node.kind() == "call")?;
-    let function = call.child_by_field_name("function")?;
-    if function.kind() != "identifier" {
-        return None;
-    }
-    let kind = text(function, source);
-    if kind == "load" {
-        return None;
-    }
-    let arguments = call.child_by_field_name("arguments")?;
-    let mut srcs = Vec::new();
-    let mut main = None;
-    let mut walker = arguments.walk();
-    for argument in arguments.children(&mut walker) {
-        if argument.kind() != "keyword_argument" {
-            continue;
-        }
-        let Some(name) = argument.child_by_field_name("name") else {
-            continue;
-        };
-        let Some(value) = argument.child_by_field_name("value") else {
-            continue;
-        };
-        match text(name, source).as_str() {
-            "srcs" => srcs = strings(value, source),
-            "main" => main = strings(value, source).into_iter().next(),
-            _ => {}
-        }
-    }
-    Some((kind, srcs, main))
-}
-
-fn strings(node: Node, source: &str) -> Vec<String> {
-    match node.kind() {
-        "string" => vec![unquoted(&text(node, source))],
-        "list" => {
-            let mut walker = node.walk();
-            node.children(&mut walker)
-                .filter(|child| child.kind() == "string")
-                .map(|child| unquoted(&text(child, source)))
-                .collect()
-        }
-        _ => Vec::new(),
-    }
-}
-
-fn unquoted(quoted: &str) -> String {
-    quoted.trim_matches(['"', '\'']).to_string()
-}
-
-fn text(node: Node, source: &str) -> String {
-    node.utf8_text(source.as_bytes()).unwrap_or("").to_string()
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-    use std::path::Path;
     use std::path::PathBuf;
 
-    use super::Repo;
-    use super::Unit;
+    use super::group_files_by_unit;
+    use crate::domain::file::File;
+    use crate::domain::marker::Marker;
+    use crate::domain::unit::Unit;
 
-    fn repo(paths: &[&str]) -> Repo {
-        Repo {
-            units: paths
-                .iter()
-                .map(|path| Unit {
-                    path: PathBuf::from(path),
-                    test_files: HashSet::new(),
-                    root_files: HashSet::new(),
-                })
-                .collect(),
-            files: Vec::new(),
-            manifests: Vec::new(),
-            lockfiles: Vec::new(),
-            published: HashSet::new(),
-            foreign: Vec::new(),
-        }
+    fn list(paths: &[&str]) -> Vec<File> {
+        paths
+            .iter()
+            .map(|path| File {
+                path: PathBuf::from(path),
+                bytes: path.len() as u64,
+                digest: format!("digest of {path}"),
+            })
+            .collect()
+    }
+
+    // Each marker by its path and the ecosystem it marks for.
+    fn markers(told: &[(&str, &str)]) -> Vec<Marker> {
+        told.iter()
+            .map(|(path, ecosystem)| Marker {
+                path: PathBuf::from(path),
+                ecosystem: ecosystem.to_string(),
+                members_only: false,
+            })
+            .collect()
+    }
+
+    // Each unit as its path, the ecosystems of its markers and its files'
+    // paths.
+    fn told(units: &[Unit]) -> Vec<(String, Vec<String>, Vec<String>)> {
+        units
+            .iter()
+            .map(|unit| {
+                (
+                    unit.path.to_string_lossy().into_owned(),
+                    unit.markers
+                        .iter()
+                        .map(|marker| marker.ecosystem.clone())
+                        .collect(),
+                    unit.files
+                        .iter()
+                        .map(|file| file.path.to_string_lossy().into_owned())
+                        .collect(),
+                )
+            })
+            .collect()
+    }
+
+    fn unit(path: &str, ecosystems: &[&str], files: &[&str]) -> (String, Vec<String>, Vec<String>) {
+        (
+            path.to_string(),
+            ecosystems.iter().map(|name| name.to_string()).collect(),
+            files.iter().map(|file| file.to_string()).collect(),
+        )
     }
 
     #[test]
-    fn the_deepest_unit_claims_the_file() {
-        let repo = repo(&["", "libs", "libs/a"]);
-        assert_eq!(repo.unit_of(Path::new("libs/a/src/x.py")), 2);
-        assert_eq!(repo.unit_of(Path::new("libs/b/src/x.py")), 1);
-        assert_eq!(repo.unit_of(Path::new("apps/x.py")), 0);
+    fn the_listed_folder_is_a_unit_even_with_no_marker_and_holds_what_no_other_takes() {
+        let units = group_files_by_unit(&list(&["README.md", "docs/a.md"]), &markers(&[]));
+        assert_eq!(told(&units), [unit("", &[], &["README.md", "docs/a.md"])]);
+        let empty = group_files_by_unit(&list(&[]), &markers(&[]));
+        assert_eq!(told(&empty), [unit("", &[], &[])]);
     }
 
     #[test]
-    fn a_test_is_told_by_its_name_or_its_folder() {
-        let repo = repo(&[""]);
-        assert!(repo.is_test(0, Path::new("tests/anything.py")));
-        assert!(repo.is_test(0, Path::new("src/test_calc.py")));
-        assert!(repo.is_test(0, Path::new("src/calc_test.cc")));
-        assert!(repo.is_test(0, Path::new("conftest.py")));
-        assert!(repo.is_test(0, Path::new("src/__tests__/calc.ts")));
-        assert!(repo.is_test(0, Path::new("src/calc.test.ts")));
-        assert!(!repo.is_test(0, Path::new("src/calc.py")));
-        assert!(!repo.is_test(0, Path::new("src/latest.ts")));
+    fn a_folder_holding_a_marker_is_a_unit_and_its_files_leave_the_one_above() {
+        let listed = list(&[
+            "README.md",
+            "libs/a/Cargo.toml",
+            "libs/a/src/lib.rs",
+            "libs/b.txt",
+        ]);
+        let units = group_files_by_unit(&listed, &markers(&[("libs/a/Cargo.toml", "rust")]));
+        assert_eq!(
+            told(&units),
+            [
+                unit("", &[], &["README.md", "libs/b.txt"]),
+                unit(
+                    "libs/a",
+                    &["rust"],
+                    &["libs/a/Cargo.toml", "libs/a/src/lib.rs"]
+                ),
+            ]
+        );
+        assert_eq!(
+            units[1].files[1], listed[2],
+            "a file keeps its size and digest"
+        );
+    }
+
+    #[test]
+    fn a_file_goes_to_the_deepest_unit_above_it() {
+        let listed = list(&[
+            "Cargo.toml",
+            "src/lib.rs",
+            "tools/x/Cargo.toml",
+            "tools/x/inner/a.py",
+            "tools/x/inner/pyproject.toml",
+            "tools/x/src/main.rs",
+        ]);
+        let marked = markers(&[
+            ("Cargo.toml", "rust"),
+            ("tools/x/Cargo.toml", "rust"),
+            ("tools/x/inner/pyproject.toml", "python"),
+        ]);
+        let units = group_files_by_unit(&listed, &marked);
+        assert_eq!(
+            told(&units),
+            [
+                unit("", &["rust"], &["Cargo.toml", "src/lib.rs"]),
+                unit(
+                    "tools/x",
+                    &["rust"],
+                    &["tools/x/Cargo.toml", "tools/x/src/main.rs"]
+                ),
+                unit(
+                    "tools/x/inner",
+                    &["python"],
+                    &["tools/x/inner/a.py", "tools/x/inner/pyproject.toml"]
+                ),
+            ]
+        );
+        let held: usize = units.iter().map(|unit| unit.files.len()).sum();
+        assert_eq!(held, listed.len(), "each file is under exactly one");
+    }
+
+    #[test]
+    fn a_folder_holding_two_markers_is_one_unit_holding_both() {
+        let marked = markers(&[("app/Cargo.toml", "rust"), ("app/pyproject.toml", "python")]);
+        let units = group_files_by_unit(&list(&["app/Cargo.toml", "app/pyproject.toml"]), &marked);
+        assert_eq!(
+            told(&units),
+            [
+                unit("", &[], &[]),
+                unit(
+                    "app",
+                    &["rust", "python"],
+                    &["app/Cargo.toml", "app/pyproject.toml"]
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_unit_holds_each_of_its_markers_whole() {
+        let only_lists = Marker {
+            path: PathBuf::from("ws/Cargo.toml"),
+            ecosystem: "rust".to_string(),
+            members_only: true,
+        };
+        let marked = vec![only_lists.clone()];
+        let units = group_files_by_unit(&list(&["ws/Cargo.toml"]), &marked);
+        assert_eq!(units.len(), 2);
+        assert_eq!(units[1].markers, [only_lists]);
+    }
+
+    #[test]
+    fn a_file_named_as_a_marker_makes_no_unit_when_no_marker_tells_it() {
+        let units = group_files_by_unit(&list(&["a/Cargo.toml", "a/src/lib.rs"]), &markers(&[]));
+        assert_eq!(
+            told(&units),
+            [unit("", &[], &["a/Cargo.toml", "a/src/lib.rs"])]
+        );
     }
 }

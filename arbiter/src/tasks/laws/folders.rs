@@ -3,11 +3,11 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::core::declarations::DECLARATIONS;
 use crate::core::graph::Graph;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;
-use crate::core::units::DECLARATIONS;
 use crate::domain::finding::Finding;
 
 pub const RULES: &[Rule] = &[

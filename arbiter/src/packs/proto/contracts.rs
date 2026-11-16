@@ -2,8 +2,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use crate::core::pack::Drift;
-use crate::core::pack::Repo;
+use crate::core::drift::Drift;
+use crate::core::repository::Repo;
 use crate::packs::proto::buf::run_buf;
 use crate::packs::proto::language::MANIFEST;
 

@@ -1,5 +1,5 @@
+use crate::core::edge::Edge;
 use crate::core::graph::Graph;
-use crate::core::pack::Edge;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;

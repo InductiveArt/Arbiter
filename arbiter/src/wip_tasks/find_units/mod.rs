@@ -1,5 +1,3 @@
-mod gitignore;
-mod group_files_by_unit;
 mod list_files;
 mod read_markers;
 
@@ -8,10 +6,10 @@ use task_runner::declaration::pull::In;
 use task_runner::declaration::task::Task;
 use task_runner::record::task_failure::TaskFailure;
 
+use crate::core::units::group_files_by_unit;
 use crate::domain::ecosystem::Ecosystem;
 use crate::domain::folder::Folder;
 use crate::domain::unit::Unit;
-use crate::wip_tasks::find_units::group_files_by_unit::group_files_by_unit;
 use crate::wip_tasks::find_units::list_files::list_files;
 use crate::wip_tasks::find_units::read_markers::read_markers;
 
@@ -24,9 +22,9 @@ pub fn find_units_task() -> Task {
     )
     .line(
         "each unit under one folder with its markers and its own files: the folder itself and \
-         any folder under it holding an ecosystem's marker; what a .gitignore leaves out, \
-         third_party, dot-folders, links and any folder below holding its own .arbiter are \
-         never read",
+         any folder under it holding an ecosystem's marker; what a .gitignore leaves out unless \
+         git carries it, the ecosystems' build output, third_party, dot-folders, links and \
+         any folder below holding its own .arbiter are never read",
     )
 }
 

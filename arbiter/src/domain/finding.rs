@@ -17,6 +17,17 @@ pub struct Finding {
 }
 
 impl Finding {
+    // A dial unset or lowered, placed at the unit's config file.
+    pub fn dial(home: &Path, config: &str, rule: &str, reason: String) -> Self {
+        Finding {
+            check: "ecosystem-dials".to_string(),
+            file: home.join(config),
+            line: None,
+            rule: Some(rule.to_string()),
+            reason,
+        }
+    }
+
     // A finding of the integrity check: a law's rule broken at a place.
     pub fn integrity(file: &Path, line: usize, rule: &str, reason: String) -> Self {
         Finding {

@@ -1,6 +1,6 @@
 use std::process::ExitCode;
 
-use crate::core::pack::Suppression;
+use crate::core::suppression::Suppression;
 use crate::ledger;
 use crate::packs::graphed;
 

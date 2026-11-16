@@ -6,29 +6,21 @@ mod resolve;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Def;
-use crate::core::pack::Definition;
-use crate::core::pack::Edge;
-use crate::core::pack::Pack;
-use crate::core::pack::Repo;
+use crate::core::definition::Def;
+use crate::core::definition::Definition;
+use crate::core::edge::Edge;
+use crate::core::language::Language;
+use crate::core::reader::Reader;
+use crate::core::repository::Repo;
 use crate::core::stance::Stances;
 use crate::core::trees;
 use crate::packs::cpp::reading::Reading;
 
-// The C++ pack as the pack contract asks for it: what the language is, and
-// what it read from each file, one reading per file.
-#[derive(Default)]
-pub struct Cpp {
-    readings: Vec<Reading>,
-}
+// The C++ language as the pack contracts ask for it: what it is, how it
+// reads one file, and what it makes of its readings.
+pub struct Cpp;
 
-impl Cpp {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl Pack for Cpp {
+impl Language for Cpp {
     fn stances(&self) -> &'static Stances {
         &language::STANCES
     }
@@ -48,16 +40,23 @@ impl Pack for Cpp {
     fn roots(&self, _root: &Path, _repo: &Repo) -> Vec<PathBuf> {
         Vec::new()
     }
+}
 
-    fn scan(&mut self, file: &Path, source: &str, surface: bool) -> Vec<Definition> {
-        let Some((reading, definitions)) = read::read(file, source, surface) else {
-            return Vec::new();
-        };
-        self.readings.push(reading);
-        definitions
+impl Reader for Cpp {
+    type Reading = Reading;
+
+    fn read(&self, file: &Path, source: &str, surface: bool) -> Option<(Reading, Vec<Definition>)> {
+        read::read(file, source, surface)
     }
 
-    fn resolve(&self, mine: usize, defs: &[Def], _root: &Path, repo: &Repo) -> Vec<Edge> {
-        resolve::edges(&self.readings, mine, defs, repo)
+    fn resolve(
+        &self,
+        readings: &[Reading],
+        mine: usize,
+        defs: &[Def],
+        _root: &Path,
+        repo: &Repo,
+    ) -> Vec<Edge> {
+        resolve::edges(readings, mine, defs, repo)
     }
 }

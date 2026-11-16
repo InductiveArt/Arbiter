@@ -4,9 +4,9 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::core::digest::Digest;
-use crate::core::pack::Edge;
+use crate::core::edge::Edge;
 use crate::core::pack::Pack;
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 
 // What a warm skip stands on: the unit's whole cone of inputs, keyed by
 // content. The store holds only green runs, and it never commits, so a fresh

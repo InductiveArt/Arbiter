@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::core::graph::Graph;
 use crate::core::pack::Pack;
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;

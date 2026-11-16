@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use crate::core::pack::dial;
 use crate::domain::finding::Finding;
 use crate::packs::rust::language::MANIFEST;
 use crate::packs::rust::manifest::table_at;
@@ -20,7 +19,7 @@ pub fn instances(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
         };
         for (name, spec) in table {
             if spec.get("git").is_some() {
-                findings.push(dial(
+                findings.push(Finding::dial(
                     home,
                     MANIFEST,
                     "off-channel-dependency",
@@ -34,7 +33,7 @@ pub fn instances(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
                 .and_then(toml::Value::as_str)
                 .is_some_and(|path| Path::new(path).is_absolute())
             {
-                findings.push(dial(
+                findings.push(Finding::dial(
                     home,
                     MANIFEST,
                     "off-channel-dependency",

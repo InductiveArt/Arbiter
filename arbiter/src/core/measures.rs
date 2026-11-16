@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 use std::fs;
 
+use crate::core::declarations::fits;
+use crate::core::declarations::DECLARATIONS;
 use crate::core::graph::strongly_connected;
 use crate::core::graph::Graph;
-use crate::core::units::fits;
-use crate::core::units::DECLARATIONS;
 
 // One family of the containment tree, told in repo coordinates: the unit it
 // belongs to, its place, and the edges between its children.

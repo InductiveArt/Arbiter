@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 
 // An external import in a unit whose manifest declares no dependency at all,

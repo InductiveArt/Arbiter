@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::core::pack::Suppression;
+use crate::core::suppression::Suppression;
 
 // What the Rust pack read from one file: the names its paths reach, what it
 // declares and takes in, and what the laws read in it.

@@ -1,11 +1,11 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
+use crate::core::definition::Def;
+use crate::core::edge::Edge;
 use crate::core::graph::strongly_connected;
 use crate::core::graph::Graph;
-use crate::core::pack::Def;
-use crate::core::pack::Edge;
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;

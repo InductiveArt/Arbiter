@@ -29,11 +29,13 @@ pub struct Run {
 
 // Runs everything: the units' tools, then the graph's laws. A fixing run repairs first,
 // so the graph is read only after the repairs have settled, the tools' included.
-pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
+pub fn run(asked: &str, fixing: bool, cold: bool) -> Result<Run, String> {
     let (outcomes, notes, dialed, found) = if fixing {
-        let root = PathBuf::from(asked).canonicalize().ok()?;
+        let root = PathBuf::from(asked)
+            .canonicalize()
+            .map_err(|_| format!("no folder at {asked}"))?;
         let packs = packs::all();
-        let repo = units::scan(&root, &packs);
+        let repo = units::scan(&root, &packs)?;
         // Packs repair their own findings before the tools format the result;
         // the graph and the warm keys read the repaired state.
         let mut mended = Vec::new();
@@ -52,10 +54,10 @@ pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
         );
         notes.extend(mended);
         // A tool's repair rewrites files the graph was read from.
-        let found = crate::packs::graphed(asked)?;
+        let found = graph::graph(asked, packs::all())?;
         (outcomes, notes, dialed, found)
     } else {
-        let found = crate::packs::graphed(asked)?;
+        let found = graph::graph(asked, packs::all())?;
         let warmth = heated(&found, cold);
         let (outcomes, notes, dialed) = crate::tasks::tools::checked(
             &found.root,
@@ -116,7 +118,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
     });
     let units = found.repo.units.len();
     let files = found.repo.files.len();
-    Some(Run {
+    Ok(Run {
         root: found.root.clone(),
         graph: found,
         units,

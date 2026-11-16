@@ -3,6 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::core::declarations::DECLARATIONS;
 use crate::core::graph::Graph;
 use crate::core::measures::listed;
 use crate::core::measures::sanctioned;
@@ -10,7 +11,6 @@ use crate::core::measures::shown;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;
-use crate::core::units::DECLARATIONS;
 use crate::domain::finding::Finding;
 
 pub const RULES: &[Rule] = &[
@@ -142,7 +142,7 @@ fn instances(found: &Graph) -> Vec<Finding> {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::units::fits;
+    use crate::core::declarations::fits;
 
     #[test]
     fn a_star_covers_the_folder_and_everything_below() {

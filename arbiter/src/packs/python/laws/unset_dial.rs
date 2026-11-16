@@ -1,12 +1,11 @@
 use std::path::Path;
 
-use crate::core::pack::dial;
 use crate::domain::finding::Finding;
 use crate::packs::python::language::MANIFEST;
 
 // A unit with no manifest declares no environment at all.
 pub fn missing(home: &Path) -> Finding {
-    dial(
+    Finding::dial(
         home,
         MANIFEST,
         "unset-dial",
@@ -16,7 +15,7 @@ pub fn missing(home: &Path) -> Finding {
 
 // A manifest that does not parse leaves every dial unread.
 pub fn unparsable(home: &Path) -> Finding {
-    dial(
+    Finding::dial(
         home,
         MANIFEST,
         "unset-dial",

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::packs::proto::language::MANIFEST;
 
 // Each unit's buf.yaml with the deps it declares.

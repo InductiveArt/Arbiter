@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::packs::rust::language::MANIFEST;
 
 // Each unit's manifest with its dependency-table keys, dashed, which is how

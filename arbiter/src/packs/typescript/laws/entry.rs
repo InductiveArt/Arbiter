@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::typescript::language::generated;
 use crate::packs::typescript::paths::existing;

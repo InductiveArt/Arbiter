@@ -11,7 +11,7 @@ mod unused_dependency;
 
 use std::path::Path;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::rust::language::MANIFEST;
 use crate::packs::rust::manifest::declared_crates;

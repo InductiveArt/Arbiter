@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use tree_sitter::Language;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::core::stance::Stance::Held;
 use crate::core::stance::Stance::Never;
 use crate::core::stance::Stance::Open;
@@ -58,14 +58,6 @@ pub fn grammar() -> Language {
 
 pub fn handles(name: &str) -> bool {
     name.ends_with(".rs")
-}
-
-// A Cargo.toml declaring a workspace and no package bounds its members.
-pub fn container(manifest: &str) -> bool {
-    let Ok(parsed) = manifest.parse::<toml::Value>() else {
-        return false;
-    };
-    parsed.get("workspace").is_some() && parsed.get("package").is_none()
 }
 
 // Cargo's compatibility: a version's parts up to its first nonzero one

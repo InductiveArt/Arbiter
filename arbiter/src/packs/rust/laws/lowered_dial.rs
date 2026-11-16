@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use crate::core::pack::dial;
 use crate::domain::finding::Finding;
 use crate::packs::rust::language::MANIFEST;
 use crate::packs::rust::manifest::table_at;
@@ -16,7 +15,7 @@ pub fn instances(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
             };
             for (name, level) in table {
                 if allows(level) {
-                    findings.push(dial(
+                    findings.push(Finding::dial(
                         home,
                         MANIFEST,
                         "lowered-dial",

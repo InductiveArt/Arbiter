@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::packs::typescript::language::MANIFEST;
 
 // One unit's declarations, the tables that ship kept apart from the one that

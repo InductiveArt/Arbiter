@@ -61,17 +61,6 @@ pub fn handles(name: &str) -> bool {
     !name.ends_with(".d.ts") && (name.ends_with(".ts") || name.ends_with(".tsx"))
 }
 
-// Declaring members and no entry of its own: a root with code declares one.
-pub fn container(manifest: &str) -> bool {
-    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(manifest) else {
-        return false;
-    };
-    parsed.get("workspaces").is_some()
-        && parsed.get("main").is_none()
-        && parsed.get("exports").is_none()
-        && parsed.get("bin").is_none()
-}
-
 // What protobuf's generators write for TypeScript, by file name.
 pub fn generated(name: &str) -> bool {
     name.ends_with("_pb.ts") || name.ends_with(".pb.ts")

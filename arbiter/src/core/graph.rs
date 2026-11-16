@@ -2,10 +2,10 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::core::pack::Def;
-use crate::core::pack::Edge;
+use crate::core::definition::Def;
+use crate::core::edge::Edge;
 use crate::core::pack::Pack;
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::core::units;
 
 pub struct Graph {
@@ -20,19 +20,18 @@ pub struct Graph {
 
 // The engine receives the packs: which packs exist is composition knowledge,
 // and the base never knows the registry of its implementors.
-pub fn graph(asked: &str, mut packs: Vec<Box<dyn Pack>>) -> Option<Graph> {
+pub fn graph(asked: &str, mut packs: Vec<Box<dyn Pack>>) -> Result<Graph, String> {
     let clock = std::time::Instant::now();
-    let root = PathBuf::from(asked).canonicalize().ok()?;
-    let mut repo = units::scan(&root, &packs);
+    let root = PathBuf::from(asked)
+        .canonicalize()
+        .map_err(|_| format!("no folder at {asked}"))?;
+    let mut repo = units::scan(&root, &packs)?;
     let scan_seconds = clock.elapsed().as_secs_f64();
     let rooted: Vec<PathBuf> = packs
         .iter()
         .flat_map(|pack| pack.roots(&root, &repo))
         .collect();
-    for file in rooted {
-        let unit = repo.unit_of(&file);
-        repo.units[unit].root_files.insert(file);
-    }
+    repo.roots.extend(rooted);
     let mut defs: Vec<Def> = Vec::new();
     for file in &repo.files {
         let Ok(source) = fs::read_to_string(root.join(file)) else {
@@ -48,7 +47,7 @@ pub fn graph(asked: &str, mut packs: Vec<Box<dyn Pack>>) -> Option<Graph> {
         let unit = repo.unit_of(file);
         // Tests, roots and generated files are leaves: they use, and offer nothing they define.
         let surface = !repo.is_test(unit, file)
-            && !repo.units[unit].root_files.contains(file)
+            && !repo.roots.contains(file)
             && !packs[index].generated(&name);
         for definition in packs[index].scan(file, &source, surface) {
             defs.push(Def {
@@ -65,7 +64,7 @@ pub fn graph(asked: &str, mut packs: Vec<Box<dyn Pack>>) -> Option<Graph> {
     for (index, pack) in packs.iter().enumerate() {
         edges.extend(pack.resolve(index, &defs, &root, &repo));
     }
-    Some(Graph {
+    Ok(Graph {
         root,
         repo,
         defs,

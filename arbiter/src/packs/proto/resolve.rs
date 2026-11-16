@@ -1,6 +1,6 @@
-use crate::core::pack::Def;
-use crate::core::pack::Edge;
-use crate::core::pack::Repo;
+use crate::core::definition::Def;
+use crate::core::edge::Edge;
+use crate::core::repository::Repo;
 use crate::packs::proto::reading::Reading;
 
 // A type reference reaches a definition in its own file, or in a file it imports.

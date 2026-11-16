@@ -6,29 +6,21 @@ mod reading;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Def;
-use crate::core::pack::Definition;
-use crate::core::pack::Edge;
-use crate::core::pack::Pack;
-use crate::core::pack::Repo;
+use crate::core::definition::Def;
+use crate::core::definition::Definition;
+use crate::core::edge::Edge;
+use crate::core::language::Language;
+use crate::core::reader::Reader;
+use crate::core::repository::Repo;
 use crate::core::stance::Stances;
 use crate::domain::finding::Finding;
 use crate::packs::infra::reading::Reading;
 
 // Deployment manifests as checked text: the pack defines no symbols and runs
 // no tools; it holds the written state to the laws text alone can prove.
-#[derive(Default)]
-pub struct Infra {
-    readings: Vec<Reading>,
-}
+pub struct Infra;
 
-impl Infra {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl Pack for Infra {
+impl Language for Infra {
     fn stances(&self) -> &'static Stances {
         &language::STANCES
     }
@@ -44,17 +36,27 @@ impl Pack for Infra {
     fn roots(&self, _root: &Path, _repo: &Repo) -> Vec<PathBuf> {
         Vec::new()
     }
+}
 
-    fn scan(&mut self, file: &Path, source: &str, surface: bool) -> Vec<Definition> {
-        self.readings.extend(read::read(file, source, surface));
+impl Reader for Infra {
+    type Reading = Reading;
+
+    fn read(&self, file: &Path, source: &str, surface: bool) -> Option<(Reading, Vec<Definition>)> {
+        read::read(file, source, surface).map(|reading| (reading, Vec::new()))
+    }
+
+    fn resolve(
+        &self,
+        _readings: &[Reading],
+        _mine: usize,
+        _defs: &[Def],
+        _root: &Path,
+        _repo: &Repo,
+    ) -> Vec<Edge> {
         Vec::new()
     }
 
-    fn integrity(&self, _root: &Path, _repo: &Repo) -> Vec<Finding> {
-        laws::instances(&self.readings)
-    }
-
-    fn resolve(&self, _mine: usize, _defs: &[Def], _root: &Path, _repo: &Repo) -> Vec<Edge> {
-        Vec::new()
+    fn laws(&self, readings: &[Reading], _root: &Path, _repo: &Repo) -> Vec<Finding> {
+        laws::instances(readings)
     }
 }

@@ -5,7 +5,14 @@ use std::process::Command;
 // answer. A gap is a broken machine, so the caller stops before running anything.
 pub fn preflight(root: &Path) -> Vec<String> {
     let packs = crate::packs::all();
-    let repo = crate::core::units::scan(root, &packs);
+    // A folder that cannot be read leaves no gap to name: the run says why.
+    let Ok(repo) = root
+        .canonicalize()
+        .map_err(|error| error.to_string())
+        .and_then(|root| crate::core::units::scan(&root, &packs))
+    else {
+        return Vec::new();
+    };
     let mut needed: std::collections::BTreeMap<&str, Vec<&str>> = Default::default();
     for pack in &packs {
         let Some(manifest) = pack.manifest() else {

@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::rust::language::BUILTIN_CRATES;
 use crate::packs::rust::manifest::Crates;

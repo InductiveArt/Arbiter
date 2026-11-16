@@ -13,7 +13,7 @@ mod unused_dependency;
 use std::fs;
 use std::path::Path;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::python::distributions::declared_distributions;
 use crate::packs::python::language::MANIFEST;

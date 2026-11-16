@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::proto::manifest::declared_deps;
 use crate::packs::proto::reading::Reading;

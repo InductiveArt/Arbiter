@@ -1,13 +1,15 @@
 use std::path::Path;
 
 use crate::core::pack::Pack;
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::core::tools::checks;
 use crate::core::tools::executed;
 use crate::core::tools::filled;
 use crate::core::tools::materialized;
 use crate::core::tools::Outcome;
 use crate::domain::finding::Finding;
+use crate::domain::marker::Marker;
+use crate::domain::unit::Unit;
 
 pub fn checked(
     root: &Path,
@@ -34,13 +36,10 @@ pub fn checked(
         // Dials are findings, and a finding never rests on the store: they are
         // read fresh for every unit, warm or not.
         for pack in packs {
-            let Some(manifest) = pack.manifest() else {
+            let Some(marker) = marked(unit, pack.label()) else {
                 continue;
             };
-            let Ok(declared) = std::fs::read_to_string(folder.join(manifest)) else {
-                continue;
-            };
-            if pack.container(&declared) {
+            if marker.members_only {
                 continue;
             }
             if let Some((found, told)) = pack.dials(&unit.path, &folder) {
@@ -71,13 +70,10 @@ pub fn checked(
         }
         let first = outcomes.len();
         for pack in packs {
-            let Some(manifest) = pack.manifest() else {
+            let Some(marker) = marked(unit, pack.label()) else {
                 continue;
             };
-            let Ok(declared) = std::fs::read_to_string(folder.join(manifest)) else {
-                continue;
-            };
-            if pack.container(&declared) {
+            if marker.members_only {
                 notes.push(format!(
                     "{shown} is a {} workspace; its members are the units checked",
                     pack.label()
@@ -149,4 +145,11 @@ pub fn checked(
         }
     }
     (outcomes, notes, dialed)
+}
+
+// The unit's marker for one ecosystem, when the unit holds one.
+fn marked<'unit>(unit: &'unit Unit, ecosystem: &str) -> Option<&'unit Marker> {
+    unit.markers
+        .iter()
+        .find(|marker| marker.ecosystem == ecosystem)
 }

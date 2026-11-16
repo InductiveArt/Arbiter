@@ -1,92 +1,28 @@
-use std::ffi::OsStr;
-use std::fs;
-use std::path::Path;
-use std::str;
-
-use serde_json::Value;
-
 use task_runner::context::task_context::TaskContext;
 use task_runner::record::task_failure::TaskFailure;
 
-use crate::core::digest::Digest;
+use crate::core::markers;
 use crate::domain::ecosystem::Ecosystem;
 use crate::domain::file::File;
 use crate::domain::folder::Folder;
 use crate::domain::marker::Marker;
 
-// Every marker among the listed files, sorted by path, then by ecosystem. A
-// marker is opened only when its ecosystem has a rule to read it by.
+// Every marker among the listed files, as the markers are read, with how many
+// there are and how many only list members.
 pub fn read_markers(
     context: &mut TaskContext,
     folder: &Folder,
     files: &[File],
     ecosystems: &[Ecosystem],
 ) -> Result<Vec<Marker>, TaskFailure> {
-    let mut markers = Vec::new();
-    for file in files {
-        let Some(name) = file.path.file_name().and_then(OsStr::to_str) else {
-            continue;
-        };
-        for ecosystem in ecosystems {
-            if ecosystem.marker != name {
-                continue;
-            }
-            context.checkpoint()?;
-            let members_only = match &ecosystem.members_only {
-                None => false,
-                Some(rule) => rule.fits(&document(&folder.path, file)?),
-            };
-            markers.push(Marker {
-                path: file.path.clone(),
-                ecosystem: ecosystem.name.clone(),
-                members_only,
-            });
-        }
-    }
-    markers.sort_by(|one, other| {
-        one.path
-            .cmp(&other.path)
-            .then_with(|| one.ecosystem.cmp(&other.ecosystem))
-    });
-    let only_list = markers.iter().filter(|marker| marker.members_only).count();
-    context.measure("markers", markers.len() as f64);
+    let found = markers::read_markers(&folder.path, files, ecosystems, &mut || {
+        context.checkpoint().map_err(|failure| failure.reason)
+    })
+    .map_err(TaskFailure::from)?;
+    let only_list = found.iter().filter(|marker| marker.members_only).count();
+    context.measure("markers", found.len() as f64);
     context.measure("members_only", only_list as f64);
-    Ok(markers)
-}
-
-// The marker's content as a tree of keys. It must still be the content that
-// was listed, or what is told of it would not belong to the list.
-fn document(root: &Path, file: &File) -> Result<Value, TaskFailure> {
-    let shown = file.path.display();
-    let content = fs::read(root.join(&file.path))
-        .map_err(|error| TaskFailure::from(format!("{shown} could not be read: {error}")))?;
-    let mut digest = Digest::new();
-    digest.eat(&content);
-    if digest.hex() != file.digest {
-        return Err(TaskFailure::from(format!(
-            "{shown} changed since it was listed"
-        )));
-    }
-    match file.path.extension().and_then(OsStr::to_str) {
-        Some("toml") => {
-            let text = str::from_utf8(&content).map_err(|error| {
-                TaskFailure::from(format!("{shown} could not be read as toml: {error}"))
-            })?;
-            toml::from_str(text).map_err(|error| {
-                let told: Vec<&str> = error.message().lines().map(str::trim).collect();
-                TaskFailure::from(format!(
-                    "{shown} could not be read as toml: {}",
-                    told.join(", ")
-                ))
-            })
-        }
-        Some("json") => serde_json::from_slice(&content).map_err(|error| {
-            TaskFailure::from(format!("{shown} could not be read as json: {error}"))
-        }),
-        _ => Err(TaskFailure::from(format!(
-            "{shown} is neither toml nor json: no rule can be read from it"
-        ))),
-    }
+    Ok(found)
 }
 
 #[cfg(test)]
@@ -398,14 +334,39 @@ mod tests {
     }
 
     #[test]
-    fn a_rule_on_a_marker_that_is_neither_toml_nor_json_fails_the_attempt() {
-        let (root, listed) = written("format", &[("buf.yaml", "version: v2\nmodules: []\n")]);
-        let ruled = vec![ecosystem("proto", "buf.yaml", Some((&["modules"], &[])))];
+    fn a_rule_on_a_marker_of_no_format_it_knows_fails_the_attempt() {
+        let (root, listed) = written("format", &[("setup.cfg", "[metadata]\nname = x\n")]);
+        let ruled = vec![ecosystem("legacy", "setup.cfg", Some((&["metadata"], &[])))];
         let failed = performed(&mut context(), &root, &listed, &ruled)
-            .expect_err("no rule can be read from yaml");
+            .expect_err("no rule can be read from an ini file");
         assert_eq!(
             failed,
-            "buf.yaml is neither toml nor json: no rule can be read from it"
+            "setup.cfg is neither toml, json nor yaml: no rule can be read from it"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_yaml_marker_is_read_by_its_keys_at_no_indent() {
+        let (root, listed) = written(
+            "yaml",
+            &[
+                ("a/buf.yaml", "version: v2\nmodules:\n  - path: proto\n"),
+                (
+                    "b/buf.yaml",
+                    "version: v2\n# modules: none\nlint:\n  use:\n    - modules\n",
+                ),
+            ],
+        );
+        let ruled = vec![ecosystem("proto", "buf.yaml", Some((&["modules"], &[])))];
+        let markers = performed(&mut context(), &root, &listed, &ruled).expect("both read");
+        assert_eq!(
+            markers,
+            [
+                marker("a/buf.yaml", "proto", true),
+                marker("b/buf.yaml", "proto", false),
+            ],
+            "a key at no indent counts; a comment or a nested key does not"
         );
         let _ = fs::remove_dir_all(&root);
     }

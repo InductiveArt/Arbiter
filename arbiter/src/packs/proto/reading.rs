@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::core::pack::Suppression;
+use crate::core::suppression::Suppression;
 
 // What the proto pack read from one contract: the types it refers to, the
 // contracts it imports, and the lint rules it quiets.

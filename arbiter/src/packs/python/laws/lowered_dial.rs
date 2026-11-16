@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use crate::core::pack::dial;
 use crate::domain::finding::Finding;
 use crate::packs::python::language::BAR;
 use crate::packs::python::language::MANIFEST;
@@ -26,7 +25,7 @@ fn refused(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
     let mut findings = Vec::new();
     for (path, reason) in refused {
         if lookup(parsed, path).is_some() {
-            findings.push(dial(
+            findings.push(Finding::dial(
                 home,
                 MANIFEST,
                 "lowered-dial",
@@ -51,7 +50,7 @@ fn checker(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
             if name == "typeCheckingMode" {
                 let mode = value.as_str().unwrap_or("");
                 if !MODES.contains(&mode) {
-                    findings.push(dial(
+                    findings.push(Finding::dial(
                         home,
                         MANIFEST,
                         "lowered-dial",
@@ -61,7 +60,7 @@ fn checker(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
                     ));
                 }
             } else if name.starts_with("report") && !is_error(value) {
-                findings.push(dial(
+                findings.push(Finding::dial(
                     home,
                     MANIFEST,
                     "lowered-dial",
@@ -73,7 +72,7 @@ fn checker(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
                 for entry in value.as_array().cloned().unwrap_or_default() {
                     let glob = entry.as_str().unwrap_or("");
                     if !glob.contains("_pb2") {
-                        findings.push(dial(
+                        findings.push(Finding::dial(
                             home,
                             MANIFEST,
                             "lowered-dial",

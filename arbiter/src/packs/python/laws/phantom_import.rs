@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::python::language::generated;
 use crate::packs::python::reading::Reading;

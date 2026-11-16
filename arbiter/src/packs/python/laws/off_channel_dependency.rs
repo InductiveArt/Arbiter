@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use crate::core::pack::dial;
 use crate::domain::finding::Finding;
 use crate::packs::python::language::MANIFEST;
 use crate::packs::python::laws::lookup;
@@ -27,7 +26,7 @@ pub fn instances(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
             let requirement = entry.as_str().unwrap_or("");
             if requirement.contains("://") || requirement.contains("git+") {
                 let name = requirement.split_whitespace().next().unwrap_or(requirement);
-                findings.push(dial(
+                findings.push(Finding::dial(
                     home,
                     MANIFEST,
                     "off-channel-dependency",
@@ -44,7 +43,7 @@ pub fn instances(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
     };
     for (name, source) in sources {
         if source.get("git").is_some() || source.get("url").is_some() {
-            findings.push(dial(
+            findings.push(Finding::dial(
                 home,
                 MANIFEST,
                 "off-channel-dependency",
@@ -58,7 +57,7 @@ pub fn instances(parsed: &toml::Value, home: &Path) -> Vec<Finding> {
             .and_then(toml::Value::as_str)
             .is_some_and(|path| Path::new(path).is_absolute())
         {
-            findings.push(dial(
+            findings.push(Finding::dial(
                 home,
                 MANIFEST,
                 "off-channel-dependency",

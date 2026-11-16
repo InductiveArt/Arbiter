@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::units::fits;
+use crate::core::declarations::fits;
 use crate::domain::finding::line_at;
 use crate::domain::finding::Finding;
 

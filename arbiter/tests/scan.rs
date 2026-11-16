@@ -15,11 +15,12 @@ fn a_git_ignored_folder_is_not_the_repository() {
 
     let bare = graphed(&path).expect("the folder exists");
     assert!(
-        bare.repo
+        !bare
+            .repo
             .files
             .iter()
             .any(|file| file.ends_with("scrap/ghost.py")),
-        "a folder with no git ignores nothing"
+        "a .gitignore speaks with or without git"
     );
 
     let init = Command::new("git")
@@ -89,12 +90,19 @@ fn a_folder_with_its_own_arbiter_is_another_repository() {
 
 #[test]
 fn a_workspace_manifest_with_no_entry_is_a_container() {
-    use arbiter::core::pack::Pack;
-    let pack = arbiter::packs::typescript::TypeScript::new();
-    assert!(pack.container(r#"{"name":"root","workspaces":["libs/a"]}"#));
-    assert!(!pack
-        .container(r#"{"name":"root","workspaces":["libs/a"],"exports":{".":"./src/index.ts"}}"#));
-    assert!(!pack.container(r#"{"name":"lib","main":"./src/index.ts"}"#));
+    let manifest = "package.json";
+    assert!(lists_members(
+        manifest,
+        r#"{"name":"root","workspaces":["libs/a"]}"#
+    ));
+    assert!(!lists_members(
+        manifest,
+        r#"{"name":"root","workspaces":["libs/a"],"exports":{".":"./src/index.ts"}}"#
+    ));
+    assert!(!lists_members(
+        manifest,
+        r#"{"name":"lib","main":"./src/index.ts"}"#
+    ));
 }
 
 #[test]
@@ -486,25 +494,31 @@ fn a_contracts_import_outside_its_module_needs_a_declared_dependency() {
 
 #[test]
 fn a_buf_workspace_bounds_its_modules_without_being_checked() {
-    let packs = arbiter::packs::all();
-    let pack = packs
-        .iter()
-        .find(|pack| pack.label() == "proto")
-        .expect("the proto pack exists");
-    assert!(pack.container("version: v2\nmodules:\n  - path: billing\n"));
-    assert!(!pack.container("version: v2\nlint:\n  use:\n    - STANDARD\n"));
+    assert!(lists_members(
+        "buf.yaml",
+        "version: v2\nmodules:\n  - path: billing\n"
+    ));
+    assert!(!lists_members(
+        "buf.yaml",
+        "version: v2\nlint:\n  use:\n    - STANDARD\n"
+    ));
 }
 
 #[test]
 fn a_cargo_workspace_without_a_package_is_a_container() {
-    let packs = arbiter::packs::all();
-    let pack = packs
-        .iter()
-        .find(|pack| pack.label() == "rust")
-        .expect("the rust pack exists");
-    assert!(pack.container("[workspace]\nmembers = [\"a\", \"b\"]\n"));
-    assert!(!pack.container("[package]\nname = \"solo\"\nversion = \"0.0.1\"\n"));
-    assert!(!pack.container("[workspace]\nmembers = [\"a\"]\n\n[package]\nname = \"rooted\"\n"));
+    let manifest = "Cargo.toml";
+    assert!(lists_members(
+        manifest,
+        "[workspace]\nmembers = [\"a\", \"b\"]\n"
+    ));
+    assert!(!lists_members(
+        manifest,
+        "[package]\nname = \"solo\"\nversion = \"0.0.1\"\n"
+    ));
+    assert!(!lists_members(
+        manifest,
+        "[workspace]\nmembers = [\"a\"]\n\n[package]\nname = \"rooted\"\n"
+    ));
 }
 
 #[test]
@@ -613,4 +627,28 @@ fn a_broken_reference_is_named_never_read_as_virgin() {
     fs::write(root.join(".arbiter/reference.json"), "{}").expect("the folder is writable");
     assert!(arbiter::ledger::broken_record(&root).is_empty());
     let _ = fs::remove_dir_all(&root);
+}
+
+// Whether the records read one manifest as only listing members, read from
+// disk the way a scan reads it: listed, then read as its ecosystem's marker.
+fn lists_members(marker: &str, content: &str) -> bool {
+    static CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let call = CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let root = std::env::temp_dir().join(format!("arbiter-members-{}-{call}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("the folder is writable");
+    fs::write(root.join(marker), content).expect("the folder is writable");
+    let root = fs::canonicalize(&root).expect("the folder resolves");
+    let listing =
+        arbiter::core::listing::list(&root, &[], &std::collections::BTreeSet::new(), &mut || {
+            Ok(())
+        })
+        .expect("the folder is listed");
+    let records =
+        arbiter::core::ecosystems::ecosystems(&arbiter::packs::all()).expect("the records read");
+    let markers =
+        arbiter::core::markers::read_markers(&root, &listing.files, &records, &mut || Ok(()))
+            .expect("the marker is read");
+    let _ = fs::remove_dir_all(&root);
+    markers.iter().any(|marker| marker.members_only)
 }

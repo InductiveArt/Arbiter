@@ -2,42 +2,8 @@ use task_runner::context::task_context::TaskContext;
 use task_runner::declaration::task::Task;
 use task_runner::record::task_failure::TaskFailure;
 
-use crate::domain::ecosystem::Config;
+use crate::core::ecosystems::ecosystems;
 use crate::domain::ecosystem::Ecosystem;
-
-// A record as this binary was built with it, beside the config files its
-// tools are pointed at.
-struct Record {
-    path: &'static str,
-    text: &'static str,
-    configs: &'static [(&'static str, &'static str)],
-}
-
-const RECORDS: [Record; 4] = [
-    Record {
-        path: "packs/proto/ecosystem.toml",
-        text: include_str!("../../packs/proto/ecosystem.toml"),
-        configs: &[],
-    },
-    Record {
-        path: "packs/python/ecosystem.toml",
-        text: include_str!("../../packs/python/ecosystem.toml"),
-        configs: &[("ruff.toml", include_str!("../../packs/python/ruff.toml"))],
-    },
-    Record {
-        path: "packs/rust/ecosystem.toml",
-        text: include_str!("../../packs/rust/ecosystem.toml"),
-        configs: &[],
-    },
-    Record {
-        path: "packs/typescript/ecosystem.toml",
-        text: include_str!("../../packs/typescript/ecosystem.toml"),
-        configs: &[(
-            "biome.jsonc",
-            include_str!("../../packs/typescript/biome.jsonc"),
-        )],
-    },
-];
 
 pub fn load_ecosystems_task() -> Task {
     Task::new("load_ecosystems", |context: &mut TaskContext, (): ()| {
@@ -60,29 +26,9 @@ fn load_and_count_ecosystems(context: &mut TaskContext) -> Result<Vec<Ecosystem>
     Ok(ecosystems)
 }
 
-// In the order of their names.
+// Every ecosystem this binary was built with, in the order of their names.
 pub fn load_ecosystems() -> Result<Vec<Ecosystem>, TaskFailure> {
-    let mut ecosystems = Vec::with_capacity(RECORDS.len());
-    for record in &RECORDS {
-        let mut ecosystem: Ecosystem = toml::from_str(record.text).map_err(|error| {
-            let message: Vec<&str> = error.message().lines().collect();
-            TaskFailure::from(format!(
-                "the built-in record {} does not read: {}",
-                record.path,
-                message.join(", ")
-            ))
-        })?;
-        ecosystem.configs = record
-            .configs
-            .iter()
-            .map(|(name, content)| Config {
-                name: name.to_string(),
-                content: content.to_string(),
-            })
-            .collect();
-        ecosystems.push(ecosystem);
-    }
-    Ok(ecosystems)
+    ecosystems(&crate::packs::all()).map_err(TaskFailure::from)
 }
 
 #[cfg(test)]
@@ -120,7 +66,7 @@ mod tests {
         assert_eq!(
             told,
             [
-                ("proto", "buf.yaml", "never".to_string()),
+                ("proto", "buf.yaml", "has modules; lacks ".to_string()),
                 (
                     "python",
                     "pyproject.toml",

@@ -2,8 +2,8 @@ use std::path::Path;
 
 use tree_sitter::Node;
 
-use crate::core::pack::marked_generated;
-use crate::core::pack::Repo;
+use crate::core::language::marked_generated;
+use crate::core::repository::Repo;
 use crate::core::trees;
 use crate::packs::rust::language::grammar;
 use crate::packs::rust::language::handles;

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::core::trees;
 use crate::packs::typescript::import_shape::import_shapes;
 use crate::packs::typescript::import_shape::ImportShape;

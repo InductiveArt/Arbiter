@@ -10,31 +10,23 @@ mod resolve;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Def;
-use crate::core::pack::Definition;
-use crate::core::pack::Edge;
-use crate::core::pack::Pack;
-use crate::core::pack::Repo;
-use crate::core::pack::Suppression;
+use crate::core::definition::Def;
+use crate::core::definition::Definition;
+use crate::core::edge::Edge;
+use crate::core::language::Language;
+use crate::core::reader::Reader;
+use crate::core::repository::Repo;
 use crate::core::stance::Stances;
+use crate::core::suppression::Suppression;
 use crate::core::trees;
 use crate::domain::finding::Finding;
 use crate::packs::python::reading::Reading;
 
-// The Python pack as the pack contract asks for it: what the language is,
-// and what it read from each file, one reading per file.
-#[derive(Default)]
-pub struct Python {
-    readings: Vec<Reading>,
-}
+// The Python language as the pack contracts ask for it: what it is, how it
+// reads one file, and what it makes of its readings.
+pub struct Python;
 
-impl Python {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl Pack for Python {
+impl Language for Python {
     fn stances(&self) -> &'static Stances {
         &language::STANCES
     }
@@ -59,10 +51,6 @@ impl Pack for Python {
         language::CONFIGS
     }
 
-    fn container(&self, manifest: &str) -> bool {
-        language::container(manifest)
-    }
-
     fn dials(&self, home: &Path, folder: &Path) -> Option<(Vec<Finding>, Vec<String>)> {
         Some((laws::dials(home, folder), Vec::new()))
     }
@@ -73,21 +61,6 @@ impl Pack for Python {
 
     fn roots(&self, root: &Path, repo: &Repo) -> Vec<PathBuf> {
         modules::roots(root, repo)
-    }
-
-    fn scan(&mut self, file: &Path, source: &str, surface: bool) -> Vec<Definition> {
-        let Some((reading, definitions)) = read::read(file, source, surface) else {
-            return Vec::new();
-        };
-        self.readings.push(reading);
-        definitions
-    }
-
-    fn suppressions(&self) -> Vec<Suppression> {
-        self.readings
-            .iter()
-            .flat_map(|reading| reading.suppressions.iter().cloned())
-            .collect()
     }
 
     fn outputs(&self) -> &'static [&'static str] {
@@ -109,12 +82,34 @@ impl Pack for Python {
     fn lockfiles(&self) -> &'static [&'static str] {
         language::LOCKFILES
     }
+}
 
-    fn integrity(&self, root: &Path, repo: &Repo) -> Vec<Finding> {
-        laws::instances(&self.readings, root, repo)
+impl Reader for Python {
+    type Reading = Reading;
+
+    fn read(&self, file: &Path, source: &str, surface: bool) -> Option<(Reading, Vec<Definition>)> {
+        read::read(file, source, surface)
     }
 
-    fn resolve(&self, mine: usize, defs: &[Def], _root: &Path, repo: &Repo) -> Vec<Edge> {
-        resolve::edges(&self.readings, mine, defs, repo)
+    fn resolve(
+        &self,
+        readings: &[Reading],
+        mine: usize,
+        defs: &[Def],
+        _root: &Path,
+        repo: &Repo,
+    ) -> Vec<Edge> {
+        resolve::edges(readings, mine, defs, repo)
+    }
+
+    fn laws(&self, readings: &[Reading], root: &Path, repo: &Repo) -> Vec<Finding> {
+        laws::instances(readings, root, repo)
+    }
+
+    fn suppressions(&self, readings: &[Reading]) -> Vec<Suppression> {
+        readings
+            .iter()
+            .flat_map(|reading| reading.suppressions.iter().cloned())
+            .collect()
     }
 }

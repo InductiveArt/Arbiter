@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
-use crate::core::pack::Def;
-use crate::core::pack::Edge;
-use crate::core::pack::Repo;
+use crate::core::definition::Def;
+use crate::core::edge::Edge;
+use crate::core::repository::Repo;
 use crate::packs::python::modules::is_module_file;
 use crate::packs::python::reading::Reading;
 

@@ -182,7 +182,8 @@ fn snapshot(run: &Run) -> serde_json::Value {
 
 // The written unit declarations, so the panel shows intent beside the real.
 fn declared_units(run: &Run) -> Vec<serde_json::Value> {
-    let Ok(text) = fs::read_to_string(run.root.join(crate::core::units::DECLARATIONS)) else {
+    let Ok(text) = fs::read_to_string(run.root.join(crate::core::declarations::DECLARATIONS))
+    else {
         return Vec::new();
     };
     let Ok(parsed) = text.parse::<toml::Value>() else {

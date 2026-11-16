@@ -5,7 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::core::graph::Graph;
-use crate::core::pack::Suppression;
+use crate::core::suppression::Suppression;
 use crate::domain::finding::line_at;
 use crate::domain::finding::Finding;
 
@@ -198,7 +198,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::added;
-    use crate::core::pack::Suppression;
+    use crate::core::suppression::Suppression;
 
     fn one(line: usize) -> Suppression {
         Suppression {

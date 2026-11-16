@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::core::pack::pinned;
-use crate::core::pack::Repo;
+use crate::core::language::pinned;
+use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::typescript::language::generated;
 use crate::packs::typescript::language::ADAPTER;

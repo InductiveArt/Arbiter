@@ -3,9 +3,9 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Def;
-use crate::core::pack::Edge;
-use crate::core::pack::Repo;
+use crate::core::definition::Def;
+use crate::core::edge::Edge;
+use crate::core::repository::Repo;
 use crate::packs::typescript::paths::existing;
 use crate::packs::typescript::paths::normalized;
 use crate::packs::typescript::reading::Reading;

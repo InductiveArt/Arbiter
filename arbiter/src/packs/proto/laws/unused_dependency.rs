@@ -4,8 +4,8 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Repo;
 use crate::core::record;
+use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 
 // Each dependency a manifest declares in a unit no external import leans on.

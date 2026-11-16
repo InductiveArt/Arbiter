@@ -3,9 +3,9 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Def;
-use crate::core::pack::Edge;
-use crate::core::pack::Repo;
+use crate::core::definition::Def;
+use crate::core::edge::Edge;
+use crate::core::repository::Repo;
 use crate::packs::rust::manifest::declared_crates;
 use crate::packs::rust::module_files::module_files;
 use crate::packs::rust::reading::Reading;

@@ -1,6 +1,6 @@
-use crate::core::pack::Def;
-use crate::core::pack::Edge;
-use crate::core::pack::Repo;
+use crate::core::definition::Def;
+use crate::core::edge::Edge;
+use crate::core::repository::Repo;
 use crate::packs::cpp::reading::Reading;
 
 // A call reaches a definition in a header the file includes.

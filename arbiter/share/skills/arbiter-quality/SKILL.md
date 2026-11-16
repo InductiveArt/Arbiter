@@ -110,7 +110,6 @@ Each finding has one expected fix. A suppression is never one of them.
 | `undeclared-protocol` | Name the door: the python class subclasses its Protocol, the TypeScript class writes `implements`. Conformance stays structural; the edge becomes one the graph resolves. |
 | `phantom-import` | Point the import at the module its contract generates, or regenerate - and a resolver gap is reported with evidence, never fixed by deleting. |
 | `split-version` | Converge the lockfiles on one version of each epoch; two epochs the ecosystem builds side by side are no split. |
-| `cycle` | Move what both sides need into a module each imports. |
 | `uninvited-unit-use`, `undeclared-unit-use` | Invert the dependency or ask the user to amend the declaration - `units.toml` is theirs. |
 | `stale-unit-grant`, `stale-unit-declaration` | Delete the stale `units.toml` entry, or ask the user - the file is theirs. |
 | `uninvited-folder-use`, `undeclared-folder-use` | Route the edge through the folder's declared doors, or ask the user to amend the inner declaration - a child only tightens what the unit allows. |
@@ -125,6 +124,7 @@ Each finding has one expected fix. A suppression is never one of them.
 | `unset-dial` | Set the dial the bar names, in the unit's own config. Earn it: annotate exports, guard index access - never a non-null assertion, never a cast. |
 | `lowered-dial` | Raise the dial back to the pack's floor; wanting it lower is the user's ask, not an edit. |
 | `off-channel-dependency` | Point the dependency at the locked registry or a path inside the repository; git, url and absolute sources slip the lock. |
+| `untested-branch` | Test the behavior the branch carries. A branch no test can reach is dead, or needs a seam a test can drive. |
 | tool failures (lint, types, test) | Read the unit's section in the report - it holds the whole output - and fix the code. Complexity findings take named extractions, not reshuffling. |
 | `tautology` | Assert the system's output against an expectation, never a value against itself. |
 | A unit with no tests | Real behavior tests. An entry running `main()` at import time gets its pure seams extracted first - and that refactor is reported. |

@@ -148,8 +148,8 @@ fn the_ecosystems_are_loaded_and_the_units_of_a_folder_found_each_task_in_a_proc
     );
     let listing = &found.substeps[0];
     assert_eq!(listing.measures.get("files"), Some(&8.0));
-    assert_eq!(listing.measures.get("ignored"), Some(&1.0));
-    assert_eq!(listing.measures.get("skipped"), Some(&1.0));
+    assert_eq!(listing.measures.get("ignored"), Some(&0.0));
+    assert_eq!(listing.measures.get("skipped"), Some(&2.0));
     assert_eq!(listing.measures.get("foreign"), Some(&1.0));
     assert_eq!(listing.evidence, ["foreign: apps/other"]);
     let reading = &found.substeps[1];
@@ -186,9 +186,9 @@ fn the_tasks_view_tells_what_each_task_leaves_reads_and_is_bounded_by() {
          \n\
          find_units\n  \
          each unit under one folder with its markers and its own files: the folder itself and \
-         any folder under it holding an ecosystem's marker; what a .gitignore leaves out, \
-         third_party, dot-folders, links and any folder below holding its own .arbiter are \
-         never read\n  \
+         any folder under it holding an ecosystem's marker; what a .gitignore leaves out unless \
+         git carries it, the ecosystems' build output, third_party, dot-folders, links and \
+         any folder below holding its own .arbiter are never read\n  \
          reads   Folder, Vec<Ecosystem>\n  \
          leaves  Vec<Unit>\n  \
          limits  no time limit, one attempt, computed every run\n\
@@ -288,7 +288,7 @@ fn the_languages_view_tells_each_language_s_marker_rule_checks_needs_locks_and_o
             vec![
                 "proto",
                 "buf.yaml",
-                "never",
+                "has modules",
                 "format, lint",
                 "npx",
                 "none",

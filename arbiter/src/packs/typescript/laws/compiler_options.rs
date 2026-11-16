@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use crate::core::pack::dial;
 use crate::domain::finding::Finding;
 use crate::packs::typescript::language::BAR;
 
@@ -21,7 +20,7 @@ pub fn instances(options: &serde_json::Value, home: &Path) -> Vec<Finding> {
             None => ("unset-dial", "unset".to_string()),
             Some(value) => ("lowered-dial", value.to_string()),
         };
-        findings.push(dial(
+        findings.push(Finding::dial(
             home,
             "tsconfig.json",
             kind,

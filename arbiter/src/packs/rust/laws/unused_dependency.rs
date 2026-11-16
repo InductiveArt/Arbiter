@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
 
-use crate::core::pack::Repo;
 use crate::core::record;
+use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::rust::language::handles;
 use crate::packs::rust::manifest::Crates;

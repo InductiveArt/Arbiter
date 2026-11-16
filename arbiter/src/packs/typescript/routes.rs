@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::packs::typescript::language::MANIFEST;
 use crate::packs::typescript::paths::existing;
 use crate::packs::typescript::paths::normalized;

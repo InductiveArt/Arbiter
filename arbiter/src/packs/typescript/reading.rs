@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use crate::core::pack::Suppression;
+use crate::core::suppression::Suppression;
 
 // What the TypeScript pack read from one file: what it imports and
 // re-exports, what the laws read in it, and the shapes interfaces are

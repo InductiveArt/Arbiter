@@ -59,18 +59,6 @@ pub fn handles(name: &str) -> bool {
     name.ends_with(".py")
 }
 
-// A manifest naming a uv workspace and no project of its own bounds its members.
-pub fn container(manifest: &str) -> bool {
-    let Ok(parsed) = manifest.parse::<toml::Value>() else {
-        return false;
-    };
-    let workspace = parsed
-        .get("tool")
-        .and_then(|tool| tool.get("uv"))
-        .and_then(|uv| uv.get("workspace"));
-    parsed.get("project").is_none() && workspace.is_some()
-}
-
 // What protobuf's generators write for Python, by file name.
 pub fn generated(name: &str) -> bool {
     name.ends_with("_pb2.py") || name.ends_with("_pb2_grpc.py") || name.ends_with("_pb2.pyi")

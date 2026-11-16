@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::core::pack::Suppression;
+use crate::core::suppression::Suppression;
 
 // What the Python pack read from one file: what it imports and how, what the
 // laws read in it, and the shapes protocols are satisfied through.

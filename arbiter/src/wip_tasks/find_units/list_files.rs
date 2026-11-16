@@ -1,208 +1,35 @@
-use std::fs;
-use std::io;
-use std::io::Read;
-use std::os::unix::ffi::OsStrExt;
-use std::path::Path;
-use std::path::PathBuf;
-
 use task_runner::context::task_context::TaskContext;
 use task_runner::record::task_failure::TaskFailure;
 
-use crate::core::digest::Digest;
+use crate::core::listing::committed::committed;
+use crate::core::listing::list;
 use crate::domain::file::File;
 use crate::domain::folder::Folder;
-use crate::wip_tasks::find_units::gitignore::Gitignore;
 
-// Every file under the folder that no rule keeps out, sorted by path. Paths
-// run from the folder, and a digest stands for a file's content, so two
-// listings differ exactly when the files do.
+// Every file under the folder that no rule keeps out, sorted by path, as the
+// listing reads it, each folder holding a repository of its own noted and
+// the walk's counts measured.
 pub fn list_files(context: &mut TaskContext, folder: &Folder) -> Result<Vec<File>, TaskFailure> {
-    if !folder.path.is_absolute() {
-        return Err(TaskFailure::from(format!(
-            "the folder {} is not an absolute path",
-            folder.path.display()
-        )));
+    let languages = crate::packs::all();
+    let outputs: Vec<&str> = languages
+        .iter()
+        .flat_map(|language| language.outputs().iter().copied())
+        .collect();
+    let carried = committed(&folder.path);
+    let listing = list(&folder.path, &outputs, &carried, &mut || {
+        context.checkpoint().map_err(|failure| failure.reason)
+    })
+    .map_err(TaskFailure::from)?;
+    for foreign in &listing.foreign {
+        context.note(format!("foreign: {}", foreign.display()));
     }
-    if !folder.path.is_dir() {
-        return Err(TaskFailure::from(format!(
-            "no folder at {}",
-            folder.path.display()
-        )));
-    }
-    let mut reading = Reading {
-        root: &folder.path,
-        rules: Vec::new(),
-        buffer: vec![0; 64 * 1024],
-        files: Vec::new(),
-        bytes: 0,
-        ignored: 0,
-        skipped: 0,
-        foreign: Vec::new(),
-        links: 0,
-    };
-    reading.folder(context, &folder.path, 0)?;
-    let Reading {
-        mut files,
-        bytes,
-        ignored,
-        skipped,
-        mut foreign,
-        links,
-        ..
-    } = reading;
-    files.sort_by(|one, other| one.path.cmp(&other.path));
-    foreign.sort();
-    for folder in &foreign {
-        context.note(format!("foreign: {}", folder.display()));
-    }
-    context.measure("files", files.len() as f64);
-    context.measure("bytes", bytes as f64);
-    context.measure("ignored", ignored as f64);
-    context.measure("skipped", skipped as f64);
-    context.measure("foreign", foreign.len() as f64);
-    context.measure("links", links as f64);
-    Ok(files)
-}
-
-struct Reading<'root> {
-    root: &'root Path,
-    // Each `.gitignore` met on the way down to the folder being read, with
-    // how many names deep its own folder is.
-    rules: Vec<(usize, Gitignore)>,
-    buffer: Vec<u8>,
-    files: Vec<File>,
-    bytes: u64,
-    ignored: u64,
-    skipped: u64,
-    foreign: Vec<PathBuf>,
-    links: u64,
-}
-
-impl Reading<'_> {
-    // A link is never followed, so nothing outside the folder is read through
-    // one and nothing inside it twice. A folder named `third_party` or by a
-    // leading dot is never read, nor one holding a `.arbiter` of its own,
-    // whatever a rule says. Anything that is not a plain file is never
-    // opened: reading a pipe would wait for ever.
-    fn folder(
-        &mut self,
-        context: &mut TaskContext,
-        at: &Path,
-        depth: usize,
-    ) -> Result<(), TaskFailure> {
-        context.checkpoint()?;
-        let ruled = self.ruled(at, depth)?;
-        let entries = fs::read_dir(at).map_err(|error| unread(at, &error))?;
-        for entry in entries {
-            let entry = entry.map_err(|error| unread(at, &error))?;
-            let path = entry.path();
-            let kind = entry.file_type().map_err(|error| unread(&path, &error))?;
-            if kind.is_symlink() {
-                self.links += 1;
-                continue;
-            }
-            let name = entry.file_name();
-            if kind.is_dir() && (name == "third_party" || name.as_bytes().starts_with(b".")) {
-                self.skipped += 1;
-                continue;
-            }
-            let relative = path
-                .strip_prefix(self.root)
-                .map_err(|_| {
-                    TaskFailure::from(format!("{} is not under the folder", path.display()))
-                })?
-                .to_path_buf();
-            if kind.is_dir() && own_repository(&path)? {
-                self.foreign.push(relative);
-                continue;
-            }
-            if self.ignores(&relative, kind.is_dir()) {
-                self.ignored += 1;
-                continue;
-            }
-            if kind.is_dir() {
-                self.folder(context, &path, depth + 1)?;
-            } else if kind.is_file() {
-                self.file(&path, relative)?;
-            }
-        }
-        if ruled {
-            self.rules.pop();
-        }
-        Ok(())
-    }
-
-    // The folder's own `.gitignore`, when it holds one as a plain file, joins
-    // the rules for as long as the folder is being read.
-    fn ruled(&mut self, at: &Path, depth: usize) -> Result<bool, TaskFailure> {
-        let own = at.join(".gitignore");
-        match fs::symlink_metadata(&own) {
-            Ok(found) if found.is_file() => {
-                let text = fs::read(&own).map_err(|error| unread(&own, &error))?;
-                self.rules.push((depth, Gitignore::parsed(&text)));
-                Ok(true)
-            }
-            Ok(_) => Ok(false),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
-            Err(error) => Err(unread(&own, &error)),
-        }
-    }
-
-    // The deepest `.gitignore` with a rule matching the path decides, and one
-    // above it is asked only when it has none. Each is asked by the path from
-    // its own folder.
-    fn ignores(&self, relative: &Path, folder: bool) -> bool {
-        let names: Vec<&[u8]> = relative
-            .components()
-            .map(|part| part.as_os_str().as_bytes())
-            .collect();
-        self.rules
-            .iter()
-            .rev()
-            .find_map(|(depth, rules)| rules.ignores(&names[*depth..], folder))
-            .unwrap_or(false)
-    }
-
-    // Read through one buffer, so a file larger than memory is still read.
-    fn file(&mut self, path: &Path, relative: PathBuf) -> Result<(), TaskFailure> {
-        let mut source = fs::File::open(path).map_err(|error| unread(path, &error))?;
-        let mut digest = Digest::new();
-        let mut bytes = 0u64;
-        loop {
-            match source.read(&mut self.buffer) {
-                Ok(0) => break,
-                Ok(read) => {
-                    digest.eat(&self.buffer[..read]);
-                    bytes += read as u64;
-                }
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-                Err(error) => return Err(unread(path, &error)),
-            }
-        }
-        self.bytes += bytes;
-        self.files.push(File {
-            path: relative,
-            bytes,
-            digest: digest.hex(),
-        });
-        Ok(())
-    }
-}
-
-// A folder holding a `.arbiter` folder of its own is a repository of its
-// own, gated from its own root: this run names it and reads nothing under it. A link of that name
-// counts for nothing, as any link does.
-fn own_repository(folder: &Path) -> Result<bool, TaskFailure> {
-    let own = folder.join(".arbiter");
-    match fs::symlink_metadata(&own) {
-        Ok(found) => Ok(found.is_dir()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(unread(&own, &error)),
-    }
-}
-
-fn unread(path: &Path, error: &io::Error) -> TaskFailure {
-    TaskFailure::from(format!("{} could not be read: {error}", path.display()))
+    context.measure("files", listing.files.len() as f64);
+    context.measure("bytes", listing.bytes as f64);
+    context.measure("ignored", listing.ignored as f64);
+    context.measure("skipped", listing.skipped as f64);
+    context.measure("foreign", listing.foreign.len() as f64);
+    context.measure("links", listing.links as f64);
+    Ok(listing.files)
 }
 
 #[cfg(test)]

@@ -44,10 +44,3 @@ pub fn grammar() -> Language {
 pub fn handles(name: &str) -> bool {
     name.ends_with(".proto")
 }
-
-// A v2 buf.yaml listing modules is a workspace: it bounds, and each module is checked.
-pub fn container(manifest: &str) -> bool {
-    manifest
-        .lines()
-        .any(|line| !line.starts_with([' ', '\t']) && line.trim_end() == "modules:")
-}

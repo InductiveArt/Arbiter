@@ -2,7 +2,7 @@ use std::path::Path;
 
 use tree_sitter::Tree;
 
-use crate::core::pack::Suppression;
+use crate::core::suppression::Suppression;
 use crate::core::trees;
 use crate::packs::rust::language::grammar;
 

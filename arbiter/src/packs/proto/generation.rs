@@ -2,8 +2,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use crate::core::pack::marked_generated;
-use crate::core::pack::Drift;
+use crate::core::drift::Drift;
+use crate::core::language::marked_generated;
 use crate::packs::proto::buf::run_buf;
 
 // What protobuf code generators name their output, in every language a pack reads.

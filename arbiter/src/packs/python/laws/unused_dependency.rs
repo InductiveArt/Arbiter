@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
 
-use crate::core::pack::pinned;
-use crate::core::pack::Repo;
+use crate::core::language::pinned;
 use crate::core::record;
+use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::python::distributions::distribution_map;
 use crate::packs::python::distributions::normalized;

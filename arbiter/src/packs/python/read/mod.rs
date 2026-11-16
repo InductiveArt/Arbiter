@@ -8,7 +8,7 @@ use std::path::Path;
 
 use tree_sitter::Tree;
 
-use crate::core::pack::Definition;
+use crate::core::definition::Definition;
 use crate::core::prose;
 use crate::core::trees;
 use crate::packs::python::language::grammar;

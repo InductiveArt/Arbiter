@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::packs::typescript::language::MANIFEST;
 
 // Each third party's license as its package installed it under the unit's

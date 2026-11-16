@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Repo;
+use crate::core::repository::Repo;
 use crate::packs::python::distributions::normalized_name;
 use crate::packs::python::language::MANIFEST;
 

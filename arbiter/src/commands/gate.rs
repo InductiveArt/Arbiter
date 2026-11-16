@@ -23,9 +23,12 @@ pub fn run(arguments: &[String]) -> ExitCode {
             );
             return ExitCode::from(2);
         }
-        let Some(run) = gate::run(&asked, fixing, cold) else {
-            eprintln!("{command}: no folder at {asked}");
-            return ExitCode::from(2);
+        let run = match gate::run(&asked, fixing, cold) {
+            Ok(run) => run,
+            Err(reason) => {
+                eprintln!("{command}: {reason}");
+                return ExitCode::from(2);
+            }
         };
         println!("{command}: {} units, {} files{}", run.units, run.files, {
             let foreign = &run.graph.repo.foreign;

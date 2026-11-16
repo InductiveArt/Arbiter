@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use crate::core::pack::dial;
 use crate::domain::finding::Finding;
 use crate::packs::typescript::language::MANIFEST;
 
@@ -29,7 +28,7 @@ pub fn instances(parsed: &serde_json::Value, home: &Path) -> Vec<Finding> {
                 .iter()
                 .any(|channel| spec.starts_with(channel))
             {
-                findings.push(dial(
+                findings.push(Finding::dial(
                     home,
                     MANIFEST,
                     "off-channel-dependency",

@@ -1,7 +1,7 @@
 use std::process::ExitCode;
 
-use crate::core::pack::Def;
-use crate::core::pack::Edge;
+use crate::core::definition::Def;
+use crate::core::edge::Edge;
 use crate::core::task::Task;
 use crate::packs::graphed;
 

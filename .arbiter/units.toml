@@ -51,6 +51,7 @@ deps = []
 deps = [
   "src/core",
   "src/domain",
+  "src/packs",
   "//task_runner/proto",
   "//task_runner/src/record",
   "//task_runner/src/context",
