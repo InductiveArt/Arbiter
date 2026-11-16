@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::core::stance::Stances;
 use crate::domain::finding::Finding;
 
 pub struct Unit {
@@ -156,11 +157,8 @@ pub trait Pack {
         false
     }
 
-    // This pack's answer to each named rule: "held", or "never: <why>". A rule
-    // left unanswered prints as open, never as a pass.
-    fn rules(&self) -> &'static [(&'static str, &'static str)] {
-        &[]
-    }
+    // This pack's stance on every rule a pack holds or declines.
+    fn stances(&self) -> &'static Stances;
 
     // Repairs the pack's own findings in place before the tools run; each note
     // names one file rewritten. Only a fixing run calls it.
@@ -220,8 +218,8 @@ pub trait Pack {
     }
 
     // Every suppression the pack's language can write, seen while scanning.
-    fn suppressions(&self) -> &[Suppression] {
-        &[]
+    fn suppressions(&self) -> Vec<Suppression> {
+        Vec::new()
     }
 
     // Folders holding only the ecosystem's build output, which are never read.

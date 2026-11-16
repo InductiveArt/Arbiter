@@ -28,3 +28,23 @@ pub fn all() -> Vec<Box<dyn Pack>> {
         Box::new(TypeScript::new()),
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::all;
+    use crate::core::rule::PER_LANGUAGE;
+
+    #[test]
+    fn every_pack_states_its_stance_on_every_rule_a_pack_answers() {
+        for pack in all() {
+            for rule in PER_LANGUAGE {
+                assert!(
+                    pack.stances().of(rule.name).is_some(),
+                    "{} gives no stance on {}",
+                    pack.label(),
+                    rule.name
+                );
+            }
+        }
+    }
+}

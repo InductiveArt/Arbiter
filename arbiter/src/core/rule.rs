@@ -83,8 +83,8 @@ pub const fn record(
 }
 
 // The rules a pack may hold or decline, the same vocabulary for every language:
-// a pack teaches the core to read its ecosystem and says, per rule, whether it
-// holds. The per-language stance lives in each pack's rules(); the law is here.
+// a pack teaches the core to read its ecosystem, and its stances say, per rule,
+// whether it holds. The law is here.
 pub const PER_LANGUAGE: &[Rule] = &[
     facts("reexport", "imports", "a module offers only its own names; a surface names each symbol it offers and defines none"),
     facts("self-entry", "imports", "a unit's own code imports from the defining file"),

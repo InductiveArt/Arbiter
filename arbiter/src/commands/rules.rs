@@ -1,6 +1,7 @@
 use std::process::ExitCode;
 
 use crate::core::rule::Power;
+use crate::core::stance::Stance;
 use crate::tasks::laws;
 
 pub fn run(arguments: &[String]) -> ExitCode {
@@ -42,15 +43,10 @@ fn matrix() {
             }
             print!("  {:width$}  {:14}", rule.name, tagged(rule.name));
             for pack in &packs {
-                let answer = pack
-                    .rules()
-                    .iter()
-                    .find(|(name, _)| *name == rule.name)
-                    .map(|(_, answer)| *answer);
-                let cell = match answer {
-                    Some("held") => "held",
-                    Some(_) => "never",
-                    None => "open",
+                let cell = match pack.stances().of(rule.name) {
+                    Some(Stance::Held) => "held",
+                    Some(Stance::Never(_)) => "never",
+                    Some(Stance::Open) | None => "open",
                 };
                 print!("  {cell:10}");
             }
@@ -99,19 +95,10 @@ fn ruled(asked: &str) -> ExitCode {
             labeled("found", "by each language's pack, stance by stance");
             println!();
             for pack in crate::packs::all() {
-                let answer = pack
-                    .rules()
-                    .iter()
-                    .find(|(name, _)| *name == asked)
-                    .map(|(_, answer)| *answer);
-                match answer {
-                    Some("held") => println!("  {:10} held", pack.label()),
-                    Some(told) => println!(
-                        "  {:10} never — {}",
-                        pack.label(),
-                        told.strip_prefix("never: ").unwrap_or(told)
-                    ),
-                    None => println!("  {:10} open", pack.label()),
+                match pack.stances().of(asked) {
+                    Some(Stance::Held) => println!("  {:10} held", pack.label()),
+                    Some(Stance::Never(why)) => println!("  {:10} never — {why}", pack.label()),
+                    Some(Stance::Open) | None => println!("  {:10} open", pack.label()),
                 }
             }
         } else {

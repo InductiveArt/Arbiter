@@ -17,7 +17,6 @@ pub fn counted(found: &Graph) -> Vec<Suppression> {
     let mut all: Vec<Suppression> = kept(found)
         .into_iter()
         .filter(|suppression| !suppression.blanket)
-        .cloned()
         .collect();
     for subject in crate::core::record::read(&found.root).0 {
         all.push(Suppression {
@@ -31,15 +30,15 @@ pub fn counted(found: &Graph) -> Vec<Suppression> {
     all
 }
 
-pub fn blankets(found: &Graph) -> Vec<&Suppression> {
+pub fn blankets(found: &Graph) -> Vec<Suppression> {
     kept(found)
         .into_iter()
         .filter(|suppression| suppression.blanket)
         .collect()
 }
 
-fn kept(found: &Graph) -> Vec<&Suppression> {
-    let mut all: Vec<&Suppression> = Vec::new();
+fn kept(found: &Graph) -> Vec<Suppression> {
+    let mut all: Vec<Suppression> = Vec::new();
     for pack in &found.packs {
         for suppression in pack.suppressions() {
             let unit = found.repo.unit_of(&suppression.file);

@@ -11,6 +11,7 @@ pub mod pack;
 pub mod prose;
 pub mod record;
 pub mod rule;
+pub mod stance;
 pub mod task;
 pub mod tools;
 pub mod trees;
