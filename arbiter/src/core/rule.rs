@@ -1,5 +1,5 @@
 // A rule is a finding-type with its law: the self-describing vocabulary the
-// matrix is built from. A judgment task declares the rules it fires, so the
+// matrix is built from. A law declares the rules it fires, so the
 // grid derives from the tasks instead of a hand-kept list beside them.
 pub struct Rule {
     pub name: &'static str,
@@ -19,13 +19,13 @@ pub enum Power {
     Record(&'static str),
 }
 
-// A judgment task: the rules it can fire, and the run that fires them over the
-// resolved graph. The gate runs each law under its judge task; the matrix reads
+// A law: the rules it can fire, and the run that finds their instances over
+// the resolved graph. The gate runs each law in its laws step; the matrix reads
 // every law's rules to build the grid.
 pub struct Law {
     pub task: &'static str,
     pub rules: &'static [Rule],
-    pub run: fn(&crate::core::graph::Graph) -> Vec<crate::core::pack::Finding>,
+    pub run: fn(&crate::core::graph::Graph) -> Vec<crate::domain::finding::Finding>,
 }
 
 // The matrix prints its groups in this order; a rule declares which group it

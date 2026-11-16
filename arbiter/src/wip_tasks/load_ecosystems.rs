@@ -1,9 +1,9 @@
-use task_runner::scope::Scope;
-use task_runner::task::Task;
-use task_runner::trace::outcome::Failure;
+use task_runner::context::task_context::TaskContext;
+use task_runner::declaration::task::Task;
+use task_runner::record::task_failure::TaskFailure;
 
-use crate::wip_domain::ecosystem::Config;
-use crate::wip_domain::ecosystem::Ecosystem;
+use crate::domain::ecosystem::Config;
+use crate::domain::ecosystem::Ecosystem;
 
 // A record as this binary was built with it, beside the config files its
 // tools are pointed at.
@@ -40,15 +40,8 @@ const RECORDS: [Record; 4] = [
 ];
 
 pub fn load_ecosystems_task() -> Task {
-    Task::new("load_ecosystems", |scope: &mut Scope, (): ()| {
-        let ecosystems = load_ecosystems()?;
-        let tools: usize = ecosystems
-            .iter()
-            .map(|ecosystem| ecosystem.tools.len())
-            .sum();
-        scope.measure("ecosystems", ecosystems.len() as f64);
-        scope.measure("tools", tools as f64);
-        Ok(ecosystems)
+    Task::new("load_ecosystems", |context: &mut TaskContext, (): ()| {
+        load_and_count_ecosystems(context)
     })
     .line(
         "every ecosystem this binary was built with, as its record declares it: its unit \
@@ -56,13 +49,24 @@ pub fn load_ecosystems_task() -> Task {
     )
 }
 
+fn load_and_count_ecosystems(context: &mut TaskContext) -> Result<Vec<Ecosystem>, TaskFailure> {
+    let ecosystems = load_ecosystems()?;
+    let tools: usize = ecosystems
+        .iter()
+        .map(|ecosystem| ecosystem.tools.len())
+        .sum();
+    context.measure("ecosystems", ecosystems.len() as f64);
+    context.measure("tools", tools as f64);
+    Ok(ecosystems)
+}
+
 // In the order of their names.
-pub fn load_ecosystems() -> Result<Vec<Ecosystem>, Failure> {
+pub fn load_ecosystems() -> Result<Vec<Ecosystem>, TaskFailure> {
     let mut ecosystems = Vec::with_capacity(RECORDS.len());
     for record in &RECORDS {
         let mut ecosystem: Ecosystem = toml::from_str(record.text).map_err(|error| {
             let message: Vec<&str> = error.message().lines().collect();
-            Failure::from(format!(
+            TaskFailure::from(format!(
                 "the built-in record {} does not read: {}",
                 record.path,
                 message.join(", ")
@@ -85,17 +89,16 @@ pub fn load_ecosystems() -> Result<Vec<Ecosystem>, Failure> {
 mod tests {
     use std::env;
 
-    use task_runner::job::cancel::Cancel;
-    use task_runner::job::id::JobId;
-    use task_runner::job::id::RunId;
-    use task_runner::layout::Site;
-    use task_runner::scope::Scope;
-    use task_runner::trace::outcome::Outcome;
+    use task_runner::context::stop_token::StopToken;
+    use task_runner::context::task_context::TaskContext;
+    use task_runner::contract::RunId;
+    use task_runner::contract::RunRecord;
+    use task_runner::contract::TaskAttemptId;
 
+    use super::load_and_count_ecosystems;
     use super::load_ecosystems;
     use super::load_ecosystems_task;
-    use crate::wip_domain::ecosystem::Ecosystem;
-    use crate::wip_domain::ecosystem::Reader;
+    use crate::domain::ecosystem::Reader;
 
     #[test]
     fn every_record_built_in_loads_its_name_marker_and_rule_as_written() {
@@ -241,7 +244,8 @@ mod tests {
             [(
                 "lint_rust",
                 Reader::CargoJson,
-                "cargo clippy --all-targets --quiet --message-format=json -- -D warnings"
+                "cargo clippy --all-targets --quiet --message-format=json -- -D warnings \
+                 -D clippy::wildcard_imports"
                     .to_string(),
                 Some("cargo locate-project --workspace --message-format json".to_string())
             )]
@@ -252,22 +256,15 @@ mod tests {
     fn the_task_reads_nothing_leaves_the_ecosystems_and_counts_them() {
         let task = load_ecosystems_task();
         assert!(task.reads.is_empty());
-        let site = Site {
-            dir: env::temp_dir(),
-            store: env::temp_dir(),
-        };
-        let mut scope = Scope::new(
-            JobId::new(RunId::next(), "load_ecosystems", 1),
-            Cancel::new(),
-            site,
+        let mut context = TaskContext::new(
+            TaskAttemptId::new(RunId::next(), "load_ecosystems", 1),
+            StopToken::new(),
+            env::temp_dir(),
         );
-        let bytes = task
-            .perform(&mut scope, Vec::new())
-            .expect("the records are read");
-        let left: Vec<Ecosystem> = serde_json::from_slice(&bytes).expect("the product decodes");
+        let left = load_and_count_ecosystems(&mut context).expect("the records are read");
         assert_eq!(left, load_ecosystems().expect("the records are read"));
-        let step = scope.finished("load_ecosystems", Outcome::Ok);
-        assert_eq!(step.measures.get("ecosystems"), Some(&4.0));
-        assert_eq!(step.measures.get("tools"), Some(&12.0));
+        let attempt = context.finished(RunRecord::passed());
+        assert_eq!(attempt.measures.get("ecosystems"), Some(&4.0));
+        assert_eq!(attempt.measures.get("tools"), Some(&12.0));
     }
 }

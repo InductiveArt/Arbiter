@@ -1,9 +1,10 @@
 use crate::core::graph::Graph;
 use crate::core::pack::Edge;
-use crate::core::pack::Finding;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;
+use crate::domain::finding::line_at;
+use crate::domain::finding::Finding;
 
 pub const RULES: &[Rule] = &[
     rule::facts(
@@ -58,10 +59,10 @@ pub fn winnow(found: &Graph) -> Vec<Finding> {
             )
         };
         findings.push(Finding {
-            check: "winnow",
+            check: "winnow".to_string(),
             file: def.file.clone(),
-            line: def.line,
-            name: name.to_string(),
+            line: line_at(def.line),
+            rule: Some(name.to_string()),
             reason,
         });
     }

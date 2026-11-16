@@ -93,8 +93,8 @@ struct Found {
     foreign: Vec<PathBuf>,
 }
 
-// What git ignores is not the repository: a judged file is one git would carry.
-// A committed file stays judged whatever an ignore pattern says, and a folder
+// What git ignores is not the repository: a file in it is one git would carry.
+// A committed file stays in it whatever an ignore pattern says, and a folder
 // with no git at all ignores nothing.
 fn ignored(root: &Path) -> HashSet<PathBuf> {
     let listed = Command::new("git")
@@ -147,7 +147,7 @@ fn walk(
             continue;
         }
         if kind.is_dir() {
-            // A third_party folder holds vendored bytes: read by builds, never judged.
+            // A third_party folder holds vendored bytes: read by builds, never by the laws.
             if name.starts_with('.')
                 || name.starts_with("bazel-")
                 || name == "third_party"
@@ -157,7 +157,7 @@ fn walk(
             {
                 continue;
             }
-            // A folder with its own .arbiter is another repository: judged
+            // A folder with its own .arbiter is another repository: gated
             // from its own root, named by this run, never crossed.
             if path.join(".arbiter").is_dir() {
                 found.foreign.push(relative);

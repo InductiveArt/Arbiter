@@ -7,11 +7,11 @@ use crate::core::graph::Graph;
 use crate::core::measures::listed;
 use crate::core::measures::sanctioned;
 use crate::core::measures::shown;
-use crate::core::pack::Finding;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;
 use crate::core::units::DECLARATIONS;
+use crate::domain::finding::Finding;
 
 pub const RULES: &[Rule] = &[
     rule::record(
@@ -44,13 +44,13 @@ pub fn boundaries_law() -> Law {
     Law {
         task: "boundaries",
         rules: RULES,
-        run: judge,
+        run: instances,
     }
 }
 
 // The declared unit graph, held against the resolved one. A unit declaring nothing is
 // unchecked: the file is adopted one unit at a time, the way a baseline is.
-fn judge(found: &Graph) -> Vec<Finding> {
+fn instances(found: &Graph) -> Vec<Finding> {
     let Ok(text) = fs::read_to_string(found.root.join(DECLARATIONS)) else {
         return Vec::new();
     };

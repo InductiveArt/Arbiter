@@ -95,7 +95,7 @@ fn snapshot(run: &Run) -> serde_json::Value {
             // The id hashes what the finding is, never where its line drifted:
             // the same offense yields the same id run after run.
             let mut digest = crate::core::digest::Digest::new();
-            digest.eat(finding.name.as_bytes());
+            digest.eat(finding.rule.as_deref().unwrap_or("").as_bytes());
             digest.eat(&[0]);
             digest.eat(finding.file.to_string_lossy().as_bytes());
             digest.eat(&[0]);
@@ -104,8 +104,8 @@ fn snapshot(run: &Run) -> serde_json::Value {
                 "id": digest.hex()[..12].to_string(),
                 "check": finding.check,
                 "file": finding.file.to_string_lossy(),
-                "line": finding.line,
-                "rule": finding.name,
+                "line": finding.line.unwrap_or(0),
+                "rule": finding.rule,
                 "reason": finding.reason,
             })
         })

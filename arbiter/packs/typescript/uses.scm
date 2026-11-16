@@ -30,7 +30,7 @@
   function: (import)
   arguments: (arguments (string (string_fragment) @dynamic)))
 
-; A dynamic import of a computed value, which no reader or judge can resolve.
+; A dynamic import of a computed value, which no reader can resolve.
 (call_expression
   function: (import)
   arguments: (arguments [(identifier) (member_expression) (template_string) (binary_expression) (call_expression) (subscript_expression)] @computed))

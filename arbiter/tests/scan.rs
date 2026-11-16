@@ -33,7 +33,7 @@ fn a_git_ignored_folder_is_not_the_repository() {
     let repo = graphed(&path).expect("the folder exists");
     assert!(
         repo.repo.files.iter().any(|file| file.ends_with("kept.py")),
-        "a file git would carry is judged"
+        "a file git would carry is read"
     );
     assert!(
         !repo
@@ -61,9 +61,9 @@ fn a_folder_with_its_own_arbiter_is_another_repository() {
     fs::write(root.join("exhibit/app.py"), "app = 1\n").expect("the folder is writable");
     let path = root.to_string_lossy();
 
-    let judged = graphed(&path).expect("the folder exists");
+    let graph = graphed(&path).expect("the folder exists");
     assert!(
-        !judged
+        !graph
             .repo
             .files
             .iter()
@@ -71,7 +71,7 @@ fn a_folder_with_its_own_arbiter_is_another_repository() {
         "the border is never crossed"
     );
     assert!(
-        !judged
+        !graph
             .repo
             .manifests
             .iter()
@@ -79,7 +79,7 @@ fn a_folder_with_its_own_arbiter_is_another_repository() {
         "a foreign manifest declares no unit here"
     );
     assert_eq!(
-        judged.repo.foreign,
+        graph.repo.foreign,
         [std::path::PathBuf::from("exhibit")],
         "the run names the jurisdiction it passed by"
     );
@@ -105,14 +105,14 @@ fn a_published_unit_keeps_its_unused_surface() {
     fs::write(root.join("ghost.py"), "ghost = 1\n").expect("the folder is writable");
     let path = root.to_string_lossy();
 
-    let judged = graphed(&path).expect("the folder exists");
-    let flagged = arbiter::tasks::laws::economy::winnow(&judged);
+    let graph = graphed(&path).expect("the folder exists");
+    let flagged = arbiter::tasks::laws::economy::winnow(&graph);
     assert_eq!(flagged.len(), 1, "an unused symbol is a finding");
 
     fs::write(root.join("PUBLISHED"), "").expect("the folder is writable");
     let declared = graphed(&path).expect("the folder exists");
     let kept = arbiter::tasks::laws::economy::winnow(&declared);
-    assert!(kept.is_empty(), "a published surface rests unjudged");
+    assert!(kept.is_empty(), "a published surface holds no finding");
 
     let _ = fs::remove_dir_all(&root);
 }
@@ -138,13 +138,13 @@ fn fix_splits_an_import_to_one_per_line() {
     )
     .expect("the folder is writable");
 
-    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let pack = judged
+    let graph = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let pack = graph
         .packs
         .iter()
         .find(|pack| pack.label() == "typescript")
         .expect("the typescript pack exists");
-    let notes = pack.mend(&judged.root, &judged.repo);
+    let notes = pack.mend(&graph.root, &graph.repo);
     assert_eq!(notes.len(), 1, "one file is rewritten");
 
     let mended = fs::read_to_string(root.join("user.ts")).expect("the file stays readable");
@@ -317,13 +317,13 @@ fn fix_splits_a_use_to_one_per_line() {
     )
     .expect("the folder is writable");
 
-    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let pack = judged
+    let graph = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let pack = graph
         .packs
         .iter()
         .find(|pack| pack.label() == "rust")
         .expect("the rust pack exists");
-    let notes = pack.mend(&judged.root, &judged.repo);
+    let notes = pack.mend(&graph.root, &graph.repo);
     assert_eq!(notes.len(), 1, "one file is rewritten");
 
     let mended = fs::read_to_string(root.join("src/lib.rs")).expect("the file stays readable");
@@ -340,10 +340,70 @@ fn fix_splits_a_use_to_one_per_line() {
         .expect("the rust pack exists")
         .integrity(&again.root, &again.repo);
     assert!(
-        quiet.iter().all(|finding| finding.name != "crowded-import"),
+        quiet
+            .iter()
+            .all(|finding| finding.rule.as_deref() != Some("crowded-import")),
         "the split leaves no crowded use"
     );
 
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_fixing_run_reads_what_its_repairs_leave() {
+    let root = std::env::temp_dir().join(format!("arbiter-fixing-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src")).expect("the folder is writable");
+    for (file, content) in [
+        (
+            "Cargo.toml",
+            "[package]\nname = \"fixing\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
+        ),
+        ("src/lib.rs", "pub mod deps;\npub mod user;\n"),
+        (
+            "src/deps.rs",
+            "pub fn used() -> u8 {\n    1\n}\n\npub fn other() -> u8 {\n    2\n}\n",
+        ),
+        (
+            "src/user.rs",
+            "use crate::deps::*;\n\npub fn run() -> u8 {\n    used() + other()\n}\n",
+        ),
+    ] {
+        fs::write(root.join(file), content).expect("the folder is writable");
+    }
+    let asked = root.to_string_lossy().to_string();
+
+    let fixed = arbiter::gate::run(&asked, true, true).expect("the gate runs");
+    let user = fs::read_to_string(root.join("src/user.rs")).expect("the file stays readable");
+    assert!(
+        !user.contains("::*"),
+        "the lint's repair names each symbol the glob brought: {user}"
+    );
+    assert!(
+        fixed
+            .findings
+            .iter()
+            .any(|finding| finding.rule.as_deref() == Some("crowded-import")
+                && finding.file.ends_with("src/user.rs")),
+        "the run reads the file as the repairs left it"
+    );
+
+    let again = arbiter::gate::run(&asked, true, true).expect("the gate runs");
+    assert!(
+        again
+            .findings
+            .iter()
+            .all(|finding| finding.rule.as_deref() != Some("crowded-import")),
+        "a second repair splits what the first wrote"
+    );
+    let user = fs::read_to_string(root.join("src/user.rs")).expect("the file stays readable");
+    assert_eq!(
+        user.lines()
+            .filter(|line| line.starts_with("use crate::deps::"))
+            .count(),
+        2,
+        "one use for each symbol the file takes: {user}"
+    );
     let _ = fs::remove_dir_all(&root);
 }
 
@@ -363,13 +423,13 @@ fn a_computed_python_import_is_named_and_a_literal_reaches() {
     )
     .expect("the folder is writable");
 
-    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let shown: Vec<String> = judged
+    let graph = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let shown: Vec<String> = graph
         .packs
         .iter()
         .find(|pack| pack.label() == "python")
         .expect("the python pack exists")
-        .integrity(&judged.root, &judged.repo)
+        .integrity(&graph.root, &graph.repo)
         .iter()
         .map(|finding| finding.reason.clone())
         .collect();
@@ -405,13 +465,13 @@ fn a_contracts_import_outside_its_module_needs_a_declared_dependency() {
     )
     .expect("the folder is writable");
 
-    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let shown: Vec<String> = judged
+    let graph = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let shown: Vec<String> = graph
         .packs
         .iter()
         .find(|pack| pack.label() == "proto")
         .expect("the proto pack exists")
-        .integrity(&judged.root, &judged.repo)
+        .integrity(&graph.root, &graph.repo)
         .iter()
         .map(|finding| finding.reason.clone())
         .collect();
@@ -425,7 +485,7 @@ fn a_contracts_import_outside_its_module_needs_a_declared_dependency() {
 }
 
 #[test]
-fn a_buf_workspace_bounds_its_modules_without_being_judged() {
+fn a_buf_workspace_bounds_its_modules_without_being_checked() {
     let packs = arbiter::packs::all();
     let pack = packs
         .iter()
@@ -463,15 +523,15 @@ fn a_class_standing_where_a_protocol_is_asked_names_it() {
     )
     .expect("the folder is writable");
 
-    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let shown: Vec<String> = judged
+    let graph = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let shown: Vec<String> = graph
         .packs
         .iter()
         .find(|pack| pack.label() == "python")
         .expect("the python pack exists")
-        .integrity(&judged.root, &judged.repo)
+        .integrity(&graph.root, &graph.repo)
         .iter()
-        .filter(|finding| finding.name == "undeclared-protocol")
+        .filter(|finding| finding.rule.as_deref() == Some("undeclared-protocol"))
         .map(|finding| finding.reason.clone())
         .collect();
     assert_eq!(
@@ -501,15 +561,15 @@ fn a_class_standing_where_an_interface_is_asked_names_it() {
     )
     .expect("the folder is writable");
 
-    let judged = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let shown: Vec<String> = judged
+    let graph = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let shown: Vec<String> = graph
         .packs
         .iter()
         .find(|pack| pack.label() == "typescript")
         .expect("the typescript pack exists")
-        .integrity(&judged.root, &judged.repo)
+        .integrity(&graph.root, &graph.repo)
         .iter()
-        .filter(|finding| finding.name == "undeclared-protocol")
+        .filter(|finding| finding.rule.as_deref() == Some("undeclared-protocol"))
         .map(|finding| finding.reason.clone())
         .collect();
     assert_eq!(
@@ -531,9 +591,9 @@ fn a_broken_unit_declaration_is_named_never_read_as_virgin() {
     fs::write(root.join(".arbiter/units.toml"), "[units. not toml")
         .expect("the folder is writable");
     let found = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let findings = arbiter::tasks::laws::judged(&found);
+    let findings = arbiter::tasks::laws::findings(&found);
     assert_eq!(findings.len(), 1);
-    assert_eq!(findings[0].name, "unparsable-user-record");
+    assert_eq!(findings[0].rule.as_deref(), Some("unparsable-user-record"));
     assert!(findings[0]
         .reason
         .contains("the declared boundaries cannot be read"));
@@ -548,7 +608,7 @@ fn a_broken_reference_is_named_never_read_as_virgin() {
     fs::write(root.join(".arbiter/reference.json"), "{ not json").expect("the folder is writable");
     let broken = arbiter::ledger::broken_record(&root);
     assert_eq!(broken.len(), 1);
-    assert_eq!(broken[0].name, "unparsable-user-record");
+    assert_eq!(broken[0].rule.as_deref(), Some("unparsable-user-record"));
     assert!(broken[0].reason.contains("the signature cannot be read"));
     fs::write(root.join(".arbiter/reference.json"), "{}").expect("the folder is writable");
     assert!(arbiter::ledger::broken_record(&root).is_empty());

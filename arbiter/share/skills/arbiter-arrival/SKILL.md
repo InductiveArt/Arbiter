@@ -14,7 +14,7 @@ campaigns land in the user's order.
 1. `arbiter adopt .` then `arbiter gate .`. Commit the agent layer and the
    seeded `.arbiter/` files first, so every later session shares one gate.
 2. A preflight gap ("X is not on this machine") is a broken machine, never
-   a finding: the machine is fixed before anything is judged.
+   a finding: the machine is fixed before anything runs.
 3. Report the dashboard whole: each failing check, the finding counts by
    rule, the suppression count. The detail lives in
    `.arbiter/last/report.md`, one section per failure. Then ask the user

@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::wip_domain::file::File;
-use crate::wip_domain::marker::Marker;
-use crate::wip_domain::unit::Unit;
+use crate::domain::file::File;
+use crate::domain::marker::Marker;
+use crate::domain::unit::Unit;
 
 // Every unit, sorted by path, the listed folder itself first. A unit is the
 // listed folder or any folder under it holding a marker, and a file goes to
@@ -50,9 +50,9 @@ mod tests {
     use std::path::PathBuf;
 
     use super::group_files_by_unit;
-    use crate::wip_domain::file::File;
-    use crate::wip_domain::marker::Marker;
-    use crate::wip_domain::unit::Unit;
+    use crate::domain::file::File;
+    use crate::domain::marker::Marker;
+    use crate::domain::unit::Unit;
 
     fn list(paths: &[&str]) -> Vec<File> {
         paths

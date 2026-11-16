@@ -2,13 +2,13 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use crate::core::graph;
-use crate::core::pack::Finding;
 use crate::core::tools::Outcome;
 use crate::core::units;
+use crate::domain::finding::Finding;
 use crate::ledger;
 use crate::packs;
 
-// One whole judgment of a repository, with the ledger's footer.
+// One whole gate run over a repository, with the ledger's footer.
 pub struct Run {
     pub root: PathBuf,
     pub graph: crate::core::graph::Graph,
@@ -27,8 +27,8 @@ pub struct Run {
     pub steps: Vec<crate::core::task::Node>,
 }
 
-// Judges everything: the units' tools, then the graph. A fixing run repairs first,
-// so the graph is read only after the repairs have settled.
+// Runs everything: the units' tools, then the graph's laws. A fixing run repairs first,
+// so the graph is read only after the repairs have settled, the tools' included.
 pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
     let (outcomes, notes, dialed, found) = if fixing {
         let root = PathBuf::from(asked).canonicalize().ok()?;
@@ -42,7 +42,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
         }
         let found = graph::graph(asked, packs)?;
         let warmth = heated(&found, cold);
-        let (outcomes, mut notes, dialed) = crate::tasks::tools::judged(
+        let (outcomes, mut notes, dialed) = crate::tasks::tools::checked(
             &found.root,
             &found.repo,
             &found.packs,
@@ -51,11 +51,13 @@ pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
             warmth.as_ref(),
         );
         notes.extend(mended);
+        // A tool's repair rewrites files the graph was read from.
+        let found = crate::packs::graphed(asked)?;
         (outcomes, notes, dialed, found)
     } else {
         let found = crate::packs::graphed(asked)?;
         let warmth = heated(&found, cold);
-        let (outcomes, notes, dialed) = crate::tasks::tools::judged(
+        let (outcomes, notes, dialed) = crate::tasks::tools::checked(
             &found.root,
             &found.repo,
             &found.packs,
@@ -86,7 +88,7 @@ pub fn run(asked: &str, fixing: bool, cold: bool) -> Option<Run> {
         }
         crate::core::task::Done::ok(())
     });
-    let mut all = journal.run("judge", |j| {
+    let mut all = journal.run("laws", |j| {
         let mut all = dialed;
         for law in crate::tasks::laws::all() {
             all.extend(j.run(law.task, |_| crate::core::task::Done::ok((law.run)(&found))));
@@ -195,7 +197,9 @@ pub fn written(run: &Run) -> Option<PathBuf> {
         for finding in findings {
             report.push_str(&format!(
                 "{} {} {}\n",
-                finding.line, finding.name, finding.reason
+                finding.line.unwrap_or(0),
+                finding.rule.as_deref().unwrap_or(""),
+                finding.reason
             ));
         }
     }
@@ -207,8 +211,8 @@ pub fn written(run: &Run) -> Option<PathBuf> {
                 "kind": "finding",
                 "check": finding.check,
                 "file": finding.file.to_string_lossy(),
-                "line": finding.line,
-                "rule": finding.name,
+                "line": finding.line.unwrap_or(0),
+                "rule": finding.rule,
                 "reason": finding.reason,
             })
             .to_string(),

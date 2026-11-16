@@ -2,8 +2,8 @@ use std::process::ExitCode;
 
 use crate::core::pack::Pack;
 use crate::core::tools::checks;
+use crate::domain::ecosystem::Ecosystem;
 use crate::packs::all;
-use crate::wip_domain::ecosystem::Ecosystem;
 use crate::wip_tasks::load_ecosystems::load_ecosystems;
 
 const HEADS: [&str; 7] = [

@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::ExitCode;
 
-use crate::core::pack::Finding;
+use crate::domain::finding::Finding;
 use crate::packs::graphed;
 
 // The one query door: a task name names a report, a rule names one law's
@@ -17,7 +17,7 @@ pub fn run(rest: &[String]) -> ExitCode {
     bare(rest)
 }
 
-// No feature owns the first word: it is a rule to filter by, a folder to judge,
+// No feature owns the first word: it is a rule to filter by, a folder to read,
 // or nothing, in which case the registry lists what find can answer.
 fn bare(rest: &[String]) -> ExitCode {
     let folder = |at: usize| rest.get(at).cloned().unwrap_or_else(|| ".".to_string());
@@ -44,14 +44,14 @@ fn bare(rest: &[String]) -> ExitCode {
         eprintln!("find: no folder at {asked}");
         return ExitCode::from(2);
     };
-    let all = crate::tasks::laws::judged(&found);
+    let all = crate::tasks::laws::findings(&found);
     emit(&all, rule.as_deref());
     ExitCode::SUCCESS
 }
 
 fn emit(findings: &[Finding], rule: Option<&str>) {
     for finding in findings {
-        if rule.is_some_and(|rule| finding.name != rule) {
+        if rule.is_some_and(|rule| finding.rule.as_deref() != Some(rule)) {
             continue;
         }
         let shown = finding.file.to_string_lossy();
@@ -60,8 +60,8 @@ fn emit(findings: &[Finding], rule: Option<&str>) {
             serde_json::json!({
                 "check": finding.check,
                 "file": shown,
-                "line": finding.line,
-                "rule": finding.name,
+                "line": finding.line.unwrap_or(0),
+                "rule": finding.rule,
                 "reason": finding.reason,
             })
         );

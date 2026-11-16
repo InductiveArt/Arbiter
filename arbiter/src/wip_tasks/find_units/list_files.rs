@@ -5,26 +5,26 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::path::PathBuf;
 
-use task_runner::scope::Scope;
-use task_runner::trace::outcome::Failure;
+use task_runner::context::task_context::TaskContext;
+use task_runner::record::task_failure::TaskFailure;
 
 use crate::core::digest::Digest;
-use crate::wip_domain::file::File;
-use crate::wip_domain::folder::Folder;
+use crate::domain::file::File;
+use crate::domain::folder::Folder;
 use crate::wip_tasks::find_units::gitignore::Gitignore;
 
 // Every file under the folder that no rule keeps out, sorted by path. Paths
 // run from the folder, and a digest stands for a file's content, so two
 // listings differ exactly when the files do.
-pub fn list_files(scope: &mut Scope, folder: &Folder) -> Result<Vec<File>, Failure> {
+pub fn list_files(context: &mut TaskContext, folder: &Folder) -> Result<Vec<File>, TaskFailure> {
     if !folder.path.is_absolute() {
-        return Err(Failure::from(format!(
+        return Err(TaskFailure::from(format!(
             "the folder {} is not an absolute path",
             folder.path.display()
         )));
     }
     if !folder.path.is_dir() {
-        return Err(Failure::from(format!(
+        return Err(TaskFailure::from(format!(
             "no folder at {}",
             folder.path.display()
         )));
@@ -40,7 +40,7 @@ pub fn list_files(scope: &mut Scope, folder: &Folder) -> Result<Vec<File>, Failu
         foreign: Vec::new(),
         links: 0,
     };
-    reading.folder(scope, &folder.path, 0)?;
+    reading.folder(context, &folder.path, 0)?;
     let Reading {
         mut files,
         bytes,
@@ -53,14 +53,14 @@ pub fn list_files(scope: &mut Scope, folder: &Folder) -> Result<Vec<File>, Failu
     files.sort_by(|one, other| one.path.cmp(&other.path));
     foreign.sort();
     for folder in &foreign {
-        scope.note(format!("foreign: {}", folder.display()));
+        context.note(format!("foreign: {}", folder.display()));
     }
-    scope.measure("files", files.len() as f64);
-    scope.measure("bytes", bytes as f64);
-    scope.measure("ignored", ignored as f64);
-    scope.measure("skipped", skipped as f64);
-    scope.measure("foreign", foreign.len() as f64);
-    scope.measure("links", links as f64);
+    context.measure("files", files.len() as f64);
+    context.measure("bytes", bytes as f64);
+    context.measure("ignored", ignored as f64);
+    context.measure("skipped", skipped as f64);
+    context.measure("foreign", foreign.len() as f64);
+    context.measure("links", links as f64);
     Ok(files)
 }
 
@@ -84,8 +84,13 @@ impl Reading<'_> {
     // leading dot is never read, nor one holding a `.arbiter` of its own,
     // whatever a rule says. Anything that is not a plain file is never
     // opened: reading a pipe would wait for ever.
-    fn folder(&mut self, scope: &mut Scope, at: &Path, depth: usize) -> Result<(), Failure> {
-        scope.checkpoint()?;
+    fn folder(
+        &mut self,
+        context: &mut TaskContext,
+        at: &Path,
+        depth: usize,
+    ) -> Result<(), TaskFailure> {
+        context.checkpoint()?;
         let ruled = self.ruled(at, depth)?;
         let entries = fs::read_dir(at).map_err(|error| unread(at, &error))?;
         for entry in entries {
@@ -103,9 +108,11 @@ impl Reading<'_> {
             }
             let relative = path
                 .strip_prefix(self.root)
-                .map_err(|_| Failure::from(format!("{} is not under the folder", path.display())))?
+                .map_err(|_| {
+                    TaskFailure::from(format!("{} is not under the folder", path.display()))
+                })?
                 .to_path_buf();
-            if kind.is_dir() && judged_apart(&path)? {
+            if kind.is_dir() && own_repository(&path)? {
                 self.foreign.push(relative);
                 continue;
             }
@@ -114,7 +121,7 @@ impl Reading<'_> {
                 continue;
             }
             if kind.is_dir() {
-                self.folder(scope, &path, depth + 1)?;
+                self.folder(context, &path, depth + 1)?;
             } else if kind.is_file() {
                 self.file(&path, relative)?;
             }
@@ -127,7 +134,7 @@ impl Reading<'_> {
 
     // The folder's own `.gitignore`, when it holds one as a plain file, joins
     // the rules for as long as the folder is being read.
-    fn ruled(&mut self, at: &Path, depth: usize) -> Result<bool, Failure> {
+    fn ruled(&mut self, at: &Path, depth: usize) -> Result<bool, TaskFailure> {
         let own = at.join(".gitignore");
         match fs::symlink_metadata(&own) {
             Ok(found) if found.is_file() => {
@@ -157,7 +164,7 @@ impl Reading<'_> {
     }
 
     // Read through one buffer, so a file larger than memory is still read.
-    fn file(&mut self, path: &Path, relative: PathBuf) -> Result<(), Failure> {
+    fn file(&mut self, path: &Path, relative: PathBuf) -> Result<(), TaskFailure> {
         let mut source = fs::File::open(path).map_err(|error| unread(path, &error))?;
         let mut digest = Digest::new();
         let mut bytes = 0u64;
@@ -182,10 +189,10 @@ impl Reading<'_> {
     }
 }
 
-// A folder holding a `.arbiter` folder of its own is judged from its own
-// root: this run names it and reads nothing under it. A link of that name
+// A folder holding a `.arbiter` folder of its own is a repository of its
+// own, gated from its own root: this run names it and reads nothing under it. A link of that name
 // counts for nothing, as any link does.
-fn judged_apart(folder: &Path) -> Result<bool, Failure> {
+fn own_repository(folder: &Path) -> Result<bool, TaskFailure> {
     let own = folder.join(".arbiter");
     match fs::symlink_metadata(&own) {
         Ok(found) => Ok(found.is_dir()),
@@ -194,8 +201,8 @@ fn judged_apart(folder: &Path) -> Result<bool, Failure> {
     }
 }
 
-fn unread(path: &Path, error: &io::Error) -> Failure {
-    Failure::from(format!("{} could not be read: {error}", path.display()))
+fn unread(path: &Path, error: &io::Error) -> TaskFailure {
+    TaskFailure::from(format!("{} could not be read: {error}", path.display()))
 }
 
 #[cfg(test)]
@@ -208,17 +215,16 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use task_runner::job::cancel::Cancel;
-    use task_runner::job::id::JobId;
-    use task_runner::job::id::RunId;
-    use task_runner::layout::Site;
-    use task_runner::scope::Scope;
-    use task_runner::trace::outcome::Outcome;
+    use task_runner::context::stop_token::StopToken;
+    use task_runner::context::task_context::TaskContext;
+    use task_runner::contract::RunId;
+    use task_runner::contract::RunRecord;
+    use task_runner::contract::TaskAttemptId;
 
     use super::list_files;
     use crate::core::digest::Digest;
-    use crate::wip_domain::file::File;
-    use crate::wip_domain::folder::Folder;
+    use crate::domain::file::File;
+    use crate::domain::folder::Folder;
 
     // A folder of its own per test, holding the files written.
     fn folder(name: &str, written: &[(&str, &str)]) -> PathBuf {
@@ -237,24 +243,20 @@ mod tests {
         root
     }
 
-    fn scope() -> Scope {
-        let site = Site {
-            dir: env::temp_dir(),
-            store: env::temp_dir(),
-        };
-        Scope::new(
-            JobId::new(RunId::next(), "list_files", 1),
-            Cancel::new(),
-            site,
+    fn context() -> TaskContext {
+        TaskContext::new(
+            TaskAttemptId::new(RunId::next(), "list_files", 1),
+            StopToken::new(),
+            env::temp_dir(),
         )
     }
 
     // The folder listed, a failure told by its reason.
-    fn performed(scope: &mut Scope, root: &Path) -> Result<Vec<File>, String> {
+    fn performed(context: &mut TaskContext, root: &Path) -> Result<Vec<File>, String> {
         let folder = Folder {
             path: root.to_path_buf(),
         };
-        list_files(scope, &folder).map_err(|failure| failure.reason)
+        list_files(context, &folder).map_err(|failure| failure.reason)
     }
 
     fn paths(listed: &[File]) -> Vec<String> {
@@ -276,32 +278,32 @@ mod tests {
             "listed",
             &[("src/a.rs", "fn a() {}\n"), ("b.rs", "fn b() {}\n\n")],
         );
-        let mut scope = scope();
-        let listed = performed(&mut scope, &root).expect("the folder is read");
+        let mut context = context();
+        let listed = performed(&mut context, &root).expect("the folder is read");
         assert_eq!(paths(&listed), ["b.rs", "src/a.rs"]);
         assert_eq!(listed[0].bytes, 11);
         assert_eq!(listed[0].digest, digest("fn b() {}\n\n"));
         assert_eq!(listed[1].bytes, 10);
         assert_eq!(listed[1].digest, digest("fn a() {}\n"));
-        let step = scope.finished("list_files", Outcome::Ok);
-        assert_eq!(step.measures.get("files"), Some(&2.0));
-        assert_eq!(step.measures.get("bytes"), Some(&21.0));
-        assert_eq!(step.measures.get("ignored"), Some(&0.0));
-        assert_eq!(step.measures.get("skipped"), Some(&0.0));
-        assert_eq!(step.measures.get("foreign"), Some(&0.0));
-        assert_eq!(step.measures.get("links"), Some(&0.0));
+        let attempt = context.finished(RunRecord::passed());
+        assert_eq!(attempt.measures.get("files"), Some(&2.0));
+        assert_eq!(attempt.measures.get("bytes"), Some(&21.0));
+        assert_eq!(attempt.measures.get("ignored"), Some(&0.0));
+        assert_eq!(attempt.measures.get("skipped"), Some(&0.0));
+        assert_eq!(attempt.measures.get("foreign"), Some(&0.0));
+        assert_eq!(attempt.measures.get("links"), Some(&0.0));
         let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
     fn a_listing_changes_exactly_when_a_file_s_content_does() {
         let root = folder("changed", &[("a.rs", "one\n")]);
-        let first = performed(&mut scope(), &root).expect("the folder is read");
+        let first = performed(&mut context(), &root).expect("the folder is read");
         fs::write(root.join("a.rs"), "one\n").expect("the file is rewritten the same");
-        let same = performed(&mut scope(), &root).expect("the folder is read");
+        let same = performed(&mut context(), &root).expect("the folder is read");
         assert_eq!(same, first, "the same content lists the same");
         fs::write(root.join("a.rs"), "two\n").expect("the file is rewritten");
-        let other = performed(&mut scope(), &root).expect("the folder is read");
+        let other = performed(&mut context(), &root).expect("the folder is read");
         assert_eq!(other[0].bytes, first[0].bytes);
         assert_eq!(other[0].digest, digest("two\n"));
         assert_ne!(
@@ -316,11 +318,11 @@ mod tests {
         let root = folder("linked", &[("real/a.rs", "a\n")]);
         symlink(root.join("real"), root.join("alias")).expect("the folder is linked");
         symlink(root.join("real/a.rs"), root.join("a-link.rs")).expect("the file is linked");
-        let mut scope = scope();
-        let listed = performed(&mut scope, &root).expect("the folder is read");
+        let mut context = context();
+        let listed = performed(&mut context, &root).expect("the folder is read");
         assert_eq!(paths(&listed), ["real/a.rs"]);
-        let step = scope.finished("list_files", Outcome::Ok);
-        assert_eq!(step.measures.get("links"), Some(&2.0));
+        let attempt = context.finished(RunRecord::passed());
+        assert_eq!(attempt.measures.get("links"), Some(&2.0));
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -338,15 +340,15 @@ mod tests {
                 ("docs/third_party", "a file of that name\n"),
             ],
         );
-        let mut scope = scope();
-        let listed = performed(&mut scope, &root).expect("the folder is read");
+        let mut context = context();
+        let listed = performed(&mut context, &root).expect("the folder is read");
         assert_eq!(
             paths(&listed),
             [".env", "docs/third_party", "src/a.rs"],
             "the names are folders': a file named so stays"
         );
-        let step = scope.finished("list_files", Outcome::Ok);
-        assert_eq!(step.measures.get("skipped"), Some(&4.0));
+        let attempt = context.finished(RunRecord::passed());
+        assert_eq!(attempt.measures.get("skipped"), Some(&4.0));
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -366,22 +368,22 @@ mod tests {
                 ("tests/fixtures/plain/y.rs", "y\n"),
             ],
         );
-        let mut scope = scope();
-        let listed = performed(&mut scope, &root).expect("the folder is read");
+        let mut context = context();
+        let listed = performed(&mut context, &root).expect("the folder is read");
         assert_eq!(
             paths(&listed),
             ["src/a.rs", "tests/fixtures/plain/y.rs"],
             "the folder pointed at is read whatever it holds"
         );
-        let step = scope.finished("list_files", Outcome::Ok);
+        let attempt = context.finished(RunRecord::passed());
         assert_eq!(
-            step.measures.get("foreign"),
+            attempt.measures.get("foreign"),
             Some(&2.0),
             "one inside another is never reached"
         );
-        assert_eq!(step.measures.get("skipped"), Some(&1.0));
+        assert_eq!(attempt.measures.get("skipped"), Some(&1.0));
         assert_eq!(
-            step.evidence,
+            attempt.evidence,
             ["foreign: exhibits/cinema", "foreign: tests/fixtures/demo"]
         );
         let _ = fs::remove_dir_all(&root);
@@ -398,12 +400,12 @@ mod tests {
                 ("a.rs", "a\n"),
             ],
         );
-        let mut scope = scope();
-        let listed = performed(&mut scope, &root).expect("the folder is read");
+        let mut context = context();
+        let listed = performed(&mut context, &root).expect("the folder is read");
         assert_eq!(paths(&listed), [".gitignore", "a.rs"]);
-        let step = scope.finished("list_files", Outcome::Ok);
-        assert_eq!(step.measures.get("foreign"), Some(&1.0));
-        assert_eq!(step.measures.get("ignored"), Some(&0.0));
+        let attempt = context.finished(RunRecord::passed());
+        assert_eq!(attempt.measures.get("foreign"), Some(&1.0));
+        assert_eq!(attempt.measures.get("ignored"), Some(&0.0));
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -419,15 +421,15 @@ mod tests {
             ],
         );
         symlink(root.join("records"), root.join("two/.arbiter")).expect("the folder is linked");
-        let mut scope = scope();
-        let listed = performed(&mut scope, &root).expect("the folder is read");
+        let mut context = context();
+        let listed = performed(&mut context, &root).expect("the folder is read");
         assert_eq!(
             paths(&listed),
             ["one/.arbiter", "one/x.rs", "records/units.toml", "two/y.rs"]
         );
-        let step = scope.finished("list_files", Outcome::Ok);
-        assert_eq!(step.measures.get("foreign"), Some(&0.0));
-        assert_eq!(step.measures.get("links"), Some(&1.0));
+        let attempt = context.finished(RunRecord::passed());
+        assert_eq!(attempt.measures.get("foreign"), Some(&0.0));
+        assert_eq!(attempt.measures.get("links"), Some(&1.0));
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -444,16 +446,16 @@ mod tests {
                 ("sub/kept.txt", "t\n"),
             ],
         );
-        let mut scope = scope();
-        let listed = performed(&mut scope, &root).expect("the folder is read");
+        let mut context = context();
+        let listed = performed(&mut context, &root).expect("the folder is read");
         assert_eq!(paths(&listed), [".gitignore", "kept.rs", "sub/kept.txt"]);
-        let step = scope.finished("list_files", Outcome::Ok);
+        let attempt = context.finished(RunRecord::passed());
         assert_eq!(
-            step.measures.get("ignored"),
+            attempt.measures.get("ignored"),
             Some(&3.0),
             "a folder left out counts once"
         );
-        assert_eq!(step.measures.get("files"), Some(&3.0));
+        assert_eq!(attempt.measures.get("files"), Some(&3.0));
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -473,7 +475,7 @@ mod tests {
                 ("other/keep.log", "k\n"),
             ],
         );
-        let listed = performed(&mut scope(), &root).expect("the folder is read");
+        let listed = performed(&mut context(), &root).expect("the folder is read");
         assert_eq!(
             paths(&listed),
             [
@@ -498,7 +500,7 @@ mod tests {
                 ("build/z", "z"),
             ],
         );
-        let listed = performed(&mut scope(), &root).expect("the folder is read");
+        let listed = performed(&mut context(), &root).expect("the folder is read");
         assert_eq!(
             paths(&listed),
             ["build/z", "sub/.gitignore", "sub/deep/build/y"]
@@ -510,7 +512,7 @@ mod tests {
     fn a_gitignore_that_is_a_link_gives_no_rule() {
         let root = folder("linked-rules", &[("rules", "*.rs\n"), ("a.rs", "a\n")]);
         symlink(root.join("rules"), root.join(".gitignore")).expect("the file is linked");
-        let listed = performed(&mut scope(), &root).expect("the folder is read");
+        let listed = performed(&mut context(), &root).expect("the folder is read");
         assert_eq!(paths(&listed), ["a.rs", "rules"]);
         let _ = fs::remove_dir_all(&root);
     }
@@ -519,7 +521,7 @@ mod tests {
     fn an_entry_that_is_neither_a_file_nor_a_folder_is_not_listed() {
         let root = folder("kinds", &[("a.rs", "a\n")]);
         let _socket = UnixListener::bind(root.join("s")).expect("a socket is bound");
-        let listed = performed(&mut scope(), &root).expect("the folder is read");
+        let listed = performed(&mut context(), &root).expect("the folder is read");
         assert_eq!(paths(&listed), ["a.rs"]);
         let _ = fs::remove_dir_all(&root);
     }
@@ -532,7 +534,7 @@ mod tests {
             .expect("the file is locked");
         // An account no permission stops reads the file anyway: nothing to show.
         if fs::File::open(&locked).is_err() {
-            let failed = performed(&mut scope(), &root).expect_err("the listing is not whole");
+            let failed = performed(&mut context(), &root).expect_err("the listing is not whole");
             assert!(failed.contains("locked.rs could not be read"), "{failed}");
         }
         let _ = fs::remove_dir_all(&root);
@@ -541,12 +543,13 @@ mod tests {
     #[test]
     fn a_folder_that_is_not_absolute_or_not_there_is_refused_before_anything_is_read() {
         let root = folder("refused", &[("a.rs", "a\n")]);
-        let missing = performed(&mut scope(), &root.join("missing"))
+        let missing = performed(&mut context(), &root.join("missing"))
             .expect_err("a folder that is not there is refused");
         assert!(missing.starts_with("no folder at "), "{missing}");
-        let file = performed(&mut scope(), &root.join("a.rs")).expect_err("a file is not a folder");
+        let file =
+            performed(&mut context(), &root.join("a.rs")).expect_err("a file is not a folder");
         assert!(file.starts_with("no folder at "), "{file}");
-        let relative = performed(&mut scope(), Path::new("relative"))
+        let relative = performed(&mut context(), Path::new("relative"))
             .expect_err("a path that is not absolute is refused");
         assert!(relative.contains("is not an absolute path"), "{relative}");
         let _ = fs::remove_dir_all(&root);

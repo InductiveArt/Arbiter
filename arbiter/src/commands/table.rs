@@ -3,7 +3,7 @@
 pub const COMMANDS: &[(&str, &str)] = &[
     (
         "gate [--fix] [--cold]",
-        "judge everything; red names what stands between the code and clean",
+        "run every check and every law; red names what stands between the code and clean",
     ),
     (
         "find [rule]",
@@ -46,7 +46,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
 // The bare call teaches: the whole grammar, each command with its one line.
 pub fn taught() {
     println!(
-        "arbiter {} judges a repository: the resolved graph and each unit's pinned tools.",
+        "arbiter {} gates a repository: the resolved graph held to its laws, and each unit's pinned tools.",
         crate::core::VERSION
     );
     println!();
@@ -61,8 +61,8 @@ pub fn taught() {
     println!();
     println!("gate, adopt and ledger sign act; find, ledger and rules read and never write.");
     println!(
-        "A command takes the folder last; missing, it judges here. \
-         Exit: 0 clean, 1 findings, 2 no judgment — a broken machine, \
-         a bad ask, or nothing to judge."
+        "A command takes the folder last; missing, it runs here. \
+         Exit: 0 clean, 1 findings, 2 no result — a broken machine, \
+         a bad ask, or nothing to check."
     );
 }

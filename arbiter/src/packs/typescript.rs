@@ -11,13 +11,14 @@ use crate::core::pack::pinned;
 use crate::core::pack::Def;
 use crate::core::pack::Definition;
 use crate::core::pack::Edge;
-use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::pack::Repo;
 use crate::core::pack::Suppression;
 use crate::core::prose;
 use crate::core::record;
 use crate::core::trees;
+use crate::domain::finding::line_at;
+use crate::domain::finding::Finding;
 
 const DEFINITIONS: &str = include_str!("../../packs/typescript/definitions.scm");
 const USES: &str = include_str!("../../packs/typescript/uses.scm");
@@ -93,11 +94,11 @@ impl Pack for TypeScript {
             ("phantom-import", "held"),
             (
                 "stale-generated",
-                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+                "never: the proto pack checks every unit's buf.gen.yaml, whatever its language",
             ),
             (
                 "inter-language-break",
-                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+                "never: the proto pack checks every unit's buf.gen.yaml, whatever its language",
             ),
         ]
     }
@@ -278,7 +279,7 @@ impl Pack for TypeScript {
         let present: std::collections::HashSet<&PathBuf> = repo.files.iter().collect();
         let routes = manifest_routes(root, repo, &present);
         // A surface holding definitions is at once the offering file and the
-        // defining file, and every judgment telling the two roles apart misreads it.
+        // defining file, and every law telling the two roles apart misreads it.
         let defined = surface_definitions(root, &routes.surfaces);
         let mut findings: Vec<Finding> = Vec::new();
         for file in &routes.written {
@@ -321,23 +322,23 @@ impl Pack for TypeScript {
             findings.push(Finding::integrity(file, *line, "reexport", reason));
         }
         findings.extend(self.aliases.iter().map(|(file, alias, line)| Finding {
-            check: "integrity",
+            check: "integrity".to_string(),
             file: file.clone(),
-            line: *line,
-            name: "hidden-name".to_string(),
+            line: line_at(*line),
+            rule: Some("hidden-name".to_string()),
             reason: format!("imported as {alias}; a symbol keeps its own name"),
         }));
         findings.extend(self.computed.iter().map(|(file, line)| {
             Finding {
-                check: "integrity",
+                check: "integrity".to_string(),
                 file: file.clone(),
-                line: *line,
-                name: "hidden-name".to_string(),
+                line: line_at(*line),
+                rule: Some("hidden-name".to_string()),
                 reason: "imports a module through a computed value; a module is named by a literal"
                     .to_string(),
             }
         }));
-        // A fixture's tautologies are some test's data, never judged.
+        // A fixture's tautologies are some test's data, never findings.
         let fixture = |file: &PathBuf| {
             let unit = repo.unit_of(file);
             repo.is_test(unit, &repo.units[unit].path.clone())
@@ -347,29 +348,29 @@ impl Pack for TypeScript {
                 .iter()
                 .filter(|(file, _, _)| !fixture(file))
                 .map(|(file, line, text)| Finding {
-                    check: "integrity",
+                    check: "integrity".to_string(),
                     file: file.clone(),
-                    line: *line,
-                    name: "tautology".to_string(),
+                    line: line_at(*line),
+                    rule: Some("tautology".to_string()),
                     reason: format!(
                 "asserts {text} equals itself; an assertion compares the system to an expectation"
             ),
                 }),
         );
         findings.extend(self.crowded.iter().map(|(file, line, names)| Finding {
-            check: "integrity",
+            check: "integrity".to_string(),
             file: file.clone(),
-            line: *line,
-            name: "crowded-import".to_string(),
+            line: line_at(*line),
+            rule: Some("crowded-import".to_string()),
             reason: format!(
                 "names {names} symbols in one import; an import line names one symbol and the module it comes from"
             ),
         }));
         findings.extend(self.overreaches.iter().map(|(file, token, line)| Finding {
-            check: "integrity",
+            check: "integrity".to_string(),
             file: file.clone(),
-            line: *line,
-            name: "comment-overreach".to_string(),
+            line: line_at(*line),
+            rule: Some("comment-overreach".to_string()),
             reason: format!(
                 "a comment names {token}, which nothing in the file defines, uses or quotes"
             ),
@@ -384,7 +385,7 @@ impl Pack for TypeScript {
             if repo.is_test(unit, &home) {
                 continue;
             }
-            // Generated code is scanned, never judged: its imports only reach.
+            // Generated code is scanned and holds no finding: its imports only reach.
             let leaf = file
                 .file_name()
                 .map(|name| name.to_string_lossy().to_string())
@@ -423,10 +424,10 @@ impl Pack for TypeScript {
                     format!("{package} is imported, and the unit's manifest does not declare it")
                 };
                 findings.push(Finding {
-                    check: "integrity",
+                    check: "integrity".to_string(),
                     file: file.clone(),
-                    line: *line,
-                    name: "undeclared-dependency".to_string(),
+                    line: line_at(*line),
+                    rule: Some("undeclared-dependency".to_string()),
                     reason,
                 });
             }
@@ -464,10 +465,10 @@ impl Pack for TypeScript {
             }
             if phantom.insert((unit, from.clone())) {
                 findings.push(Finding {
-                    check: "integrity",
+                    check: "integrity".to_string(),
                     file: file.clone(),
-                    line: *line,
-                    name: "phantom-import".to_string(),
+                    line: line_at(*line),
+                    rule: Some("phantom-import".to_string()),
                     reason: format!(
                         "{from} names no contract; a generated import answers for \
                          the contract it was generated from"
@@ -552,10 +553,10 @@ impl Pack for TypeScript {
                     continue;
                 }
                 findings.push(Finding {
-                    check: "integrity",
+                    check: "integrity".to_string(),
                     file: entry.manifest.clone(),
-                    line: 0,
-                    name: "unused-dependency".to_string(),
+                    line: None,
+                    rule: Some("unused-dependency".to_string()),
                     reason: format!("{package} is declared, and nothing in the unit reaches it"),
                 });
             }
@@ -589,9 +590,9 @@ impl Pack for TypeScript {
             false
         };
         let mut unnamed = std::collections::BTreeSet::new();
-        let mut judge = |types: &Vec<String>,
-                         construction: &String,
-                         findings: &mut Vec<Finding>| {
+        let mut undeclared_door = |types: &Vec<String>,
+                                   construction: &String,
+                                   findings: &mut Vec<Finding>| {
             for asked in types {
                 if !doors.contains(asked) || asked == construction {
                     continue;
@@ -604,10 +605,10 @@ impl Pack for TypeScript {
                 }
                 if unnamed.insert((construction.clone(), asked.clone())) {
                     findings.push(Finding {
-                        check: "integrity",
+                        check: "integrity".to_string(),
                         file: (*place_file).clone(),
-                        line: *place_line,
-                        name: "undeclared-protocol".to_string(),
+                        line: line_at(*place_line),
+                        rule: Some("undeclared-protocol".to_string()),
                         reason: format!(
                             "{construction} stands where {asked} is asked and names no \
                                  such base; a protocol satisfied by shape is still named"
@@ -620,7 +621,7 @@ impl Pack for TypeScript {
             if fixture(file) || repo.is_test(repo.unit_of(file), file) {
                 continue;
             }
-            judge(types, construction, &mut findings);
+            undeclared_door(types, construction, &mut findings);
         }
         for (file, _, callee, place, construction) in &self.callargs {
             if fixture(file) || repo.is_test(repo.unit_of(file), file) {
@@ -628,7 +629,7 @@ impl Pack for TypeScript {
             }
             for (name, at, types) in &self.askings {
                 if name == callee && at == place {
-                    judge(types, construction, &mut findings);
+                    undeclared_door(types, construction, &mut findings);
                 }
             }
         }
@@ -642,12 +643,12 @@ impl Pack for TypeScript {
             {
                 continue;
             }
-            // One import statement carries many names and is judged once.
+            // One import statement carries many names and is read once.
             if !crossed.insert((file.clone(), *line, from.clone())) {
                 continue;
             }
             let unit = repo.unit_of(file);
-            // A unit on a test path is a fixture: data for some test, not code to judge.
+            // A unit on a test path is a fixture: data for some test, not code to check.
             let home = repo.units[unit].path.clone();
             if repo.is_test(unit, &home) {
                 continue;
@@ -1162,7 +1163,7 @@ fn packaged(from: &str) -> String {
     }
 }
 
-// Files the walk never judges whose imports still reach: scripts in .mjs,
+// Files the walk never checks whose imports still reach: scripts in .mjs,
 // .cjs and .js, and code under dot folders such as a storybook's.
 fn companions(root: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
@@ -1287,7 +1288,7 @@ struct Routes {
     // imports alias is inside routing and blesses nothing.
     surfaces: std::collections::HashSet<PathBuf>,
     // The surfaces a manifest wrote a route for, as opposed to the imputed
-    // src/index fallback: only a written route is the user's declaration to judge.
+    // src/index fallback: only a written route is the user's declaration to hold.
     written: std::collections::HashSet<PathBuf>,
 }
 
@@ -1660,7 +1661,7 @@ fn asserted_pair(call: tree_sitter::Node, source: &str) -> Option<(String, Strin
     Some((expected, compared))
 }
 
-// The sole argument when it is a bare literal or name; anything built is not judged.
+// The sole argument when it is a bare literal or name; anything built is not read.
 fn simple_argument(call: tree_sitter::Node, source: &str) -> Option<String> {
     let arguments = call.child_by_field_name("arguments")?;
     let mut walker = arguments.walk();

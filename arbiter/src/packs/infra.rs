@@ -4,12 +4,13 @@ use std::path::PathBuf;
 use crate::core::pack::Def;
 use crate::core::pack::Definition;
 use crate::core::pack::Edge;
-use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::pack::Repo;
 use crate::core::prose;
+use crate::domain::finding::line_at;
+use crate::domain::finding::Finding;
 
-// Deployment manifests as judged text: the pack defines no symbols and runs
+// Deployment manifests as checked text: the pack defines no symbols and runs
 // no tools; it holds the written state to the laws text alone can prove.
 #[derive(Default)]
 pub struct Infra {
@@ -34,15 +35,15 @@ impl Pack for Infra {
             ),
             (
                 "undeclared-dependency",
-                "never: a manifest's third parties are images, judged by digest",
+                "never: a manifest's third parties are images, pinned by digest",
             ),
             (
                 "unused-dependency",
-                "never: a manifest's third parties are images, judged by digest",
+                "never: a manifest's third parties are images, pinned by digest",
             ),
             (
                 "stale-suppression",
-                "never: a manifest's third parties are images, judged by digest",
+                "never: a manifest's third parties are images, pinned by digest",
             ),
             (
                 "undeclared-protocol",
@@ -82,11 +83,11 @@ impl Pack for Infra {
             ),
             (
                 "stale-generated",
-                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+                "never: the proto pack checks every unit's buf.gen.yaml, whatever its language",
             ),
             (
                 "inter-language-break",
-                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+                "never: the proto pack checks every unit's buf.gen.yaml, whatever its language",
             ),
         ]
     }
@@ -107,7 +108,7 @@ impl Pack for Infra {
         if !surface {
             return Vec::new();
         }
-        // A comment is judged in any YAML; everything outside comments is the
+        // A comment is read in any YAML; everything outside comments is the
         // body a named thing may stand in.
         let mut comments: Vec<(String, usize)> = Vec::new();
         let mut body = String::new();
@@ -155,20 +156,20 @@ impl Pack for Infra {
             .floating
             .iter()
             .map(|(file, line, image)| Finding {
-                check: "integrity",
+                check: "integrity".to_string(),
                 file: file.clone(),
-                line: *line,
-                name: "unpinned-image".to_string(),
+                line: line_at(*line),
+                rule: Some("unpinned-image".to_string()),
                 reason: format!(
                     "{image} is pulled by tag; an image is named by digest, never by a tag alone"
                 ),
             })
             .collect();
         findings.extend(self.overreaches.iter().map(|(file, token, line)| Finding {
-            check: "integrity",
+            check: "integrity".to_string(),
             file: file.clone(),
-            line: *line,
-            name: "comment-overreach".to_string(),
+            line: line_at(*line),
+            rule: Some("comment-overreach".to_string()),
             reason: format!(
                 "a comment names {token}, which nothing in the file defines, uses or quotes"
             ),

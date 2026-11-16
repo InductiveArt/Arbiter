@@ -13,13 +13,14 @@ use crate::core::pack::pinned;
 use crate::core::pack::Def;
 use crate::core::pack::Definition;
 use crate::core::pack::Edge;
-use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::pack::Repo;
 use crate::core::pack::Suppression;
 use crate::core::prose;
 use crate::core::record;
 use crate::core::trees;
+use crate::domain::finding::line_at;
+use crate::domain::finding::Finding;
 
 const DEFINITIONS: &str = include_str!("../../packs/python/definitions.scm");
 const USES: &str = include_str!("../../packs/python/uses.scm");
@@ -94,11 +95,11 @@ impl Pack for Python {
             ("phantom-import", "held"),
             (
                 "stale-generated",
-                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+                "never: the proto pack checks every unit's buf.gen.yaml, whatever its language",
             ),
             (
                 "inter-language-break",
-                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+                "never: the proto pack checks every unit's buf.gen.yaml, whatever its language",
             ),
         ]
     }
@@ -183,6 +184,24 @@ impl Pack for Python {
                     .push((file.to_path_buf(), name.clone(), line));
             }
             self.imports.push((file.to_path_buf(), module, name, line));
+        }
+        // A star import binds every name its module offers: the module is
+        // reached, and each name the file mentions is taken from it.
+        let starred = captured(&tree, source, "star");
+        if !starred.is_empty() {
+            let mut seen = HashSet::new();
+            let named: Vec<(String, usize)> = mentions(&tree, source)
+                .into_iter()
+                .filter(|(name, _)| seen.insert(name.clone()))
+                .collect();
+            for (module, line) in starred {
+                for (name, at) in &named {
+                    self.imports
+                        .push((file.to_path_buf(), module.clone(), name.clone(), *at));
+                }
+                self.imports
+                    .push((file.to_path_buf(), module, "*".to_string(), line));
+            }
         }
         for (name, line) in captured(&tree, source, "plain") {
             self.plains.push((file.to_path_buf(), name, line));
@@ -329,33 +348,33 @@ impl Pack for Python {
             .init_imports
             .iter()
             .map(|(file, name, line)| Finding {
-                check: "integrity",
+                check: "integrity".to_string(),
                 file: file.clone(),
-                line: *line,
-                name: "reexport".to_string(),
+                line: line_at(*line),
+                rule: Some("reexport".to_string()),
                 reason: format!(
                     "__init__.py imports {name}; a symbol is imported from the module defining it"
                 ),
             })
             .collect();
         findings.extend(self.aliases.iter().map(|(file, alias, line)| Finding {
-            check: "integrity",
+            check: "integrity".to_string(),
             file: file.clone(),
-            line: *line,
-            name: "hidden-name".to_string(),
+            line: line_at(*line),
+            rule: Some("hidden-name".to_string()),
             reason: format!("imported as {alias}; a symbol keeps its own name"),
         }));
         findings.extend(self.computed.iter().map(|(file, line)| {
             Finding {
-                check: "integrity",
+                check: "integrity".to_string(),
                 file: file.clone(),
-                line: *line,
-                name: "hidden-name".to_string(),
+                line: line_at(*line),
+                rule: Some("hidden-name".to_string()),
                 reason: "imports a module through a computed value; a module is named by a literal"
                     .to_string(),
             }
         }));
-        // A fixture's tautologies are some test's data, never judged.
+        // A fixture's tautologies are some test's data, never findings.
         let fixture = |file: &PathBuf| {
             let unit = repo.unit_of(file);
             repo.is_test(unit, &repo.units[unit].path.clone())
@@ -365,18 +384,18 @@ impl Pack for Python {
                 .iter()
                 .filter(|(file, _, _)| !fixture(file))
                 .map(|(file, line, text)| Finding {
-                    check: "integrity",
+                    check: "integrity".to_string(),
                     file: file.clone(),
-                    line: *line,
-                    name: "tautology".to_string(),
+                    line: line_at(*line),
+                    rule: Some("tautology".to_string()),
                     reason: format!("{text}; an assertion compares the system to an expectation"),
                 }),
         );
         findings.extend(self.overreaches.iter().map(|(file, token, line)| Finding {
-            check: "integrity",
+            check: "integrity".to_string(),
             file: file.clone(),
-            line: *line,
-            name: "comment-overreach".to_string(),
+            line: line_at(*line),
+            rule: Some("comment-overreach".to_string()),
             reason: format!(
                 "a comment names {token}, which nothing in the file defines, uses or quotes"
             ),
@@ -401,7 +420,7 @@ impl Pack for Python {
             if repo.is_test(unit, &home) {
                 continue;
             }
-            // Generated code is scanned, never judged: its imports reach, and
+            // Generated code is scanned and holds no finding: its imports reach, and
             // the contract answers for what they name.
             let name = file
                 .file_name()
@@ -434,10 +453,10 @@ impl Pack for Python {
                     format!("{top} is imported, and the unit's manifest does not declare it")
                 };
                 findings.push(Finding {
-                    check: "integrity",
+                    check: "integrity".to_string(),
                     file: file.clone(),
-                    line,
-                    name: "undeclared-dependency".to_string(),
+                    line: line_at(line),
+                    rule: Some("undeclared-dependency".to_string()),
                     reason,
                 });
             }
@@ -484,10 +503,10 @@ impl Pack for Python {
             }
             if phantom.insert((unit, module.clone())) {
                 findings.push(Finding {
-                    check: "integrity",
+                    check: "integrity".to_string(),
                     file: file.clone(),
-                    line,
-                    name: "phantom-import".to_string(),
+                    line: line_at(line),
+                    rule: Some("phantom-import".to_string()),
                     reason: format!(
                         "{module} names no contract; a generated import answers for \
                          the contract it was generated from"
@@ -552,10 +571,10 @@ impl Pack for Python {
                     continue;
                 }
                 findings.push(Finding {
-                    check: "integrity",
+                    check: "integrity".to_string(),
                     file: entry.manifest.clone(),
-                    line: 0,
-                    name: "unused-dependency".to_string(),
+                    line: None,
+                    rule: Some("unused-dependency".to_string()),
                     reason: format!(
                         "{distribution} is declared, and nothing in the unit reaches it"
                     ),
@@ -595,36 +614,37 @@ impl Pack for Python {
             let unit = repo.unit_of(file);
             repo.is_test(unit, &repo.units[unit].path.clone()) || repo.is_test(unit, file)
         };
-        let mut judge = |types: &Vec<String>, constructor: &String, findings: &mut Vec<Finding>| {
-            for asked in types {
-                if !doors.contains(asked) || asked == constructor {
-                    continue;
-                }
-                let Some((place_file, place_line, _)) = places.get(constructor.as_str()) else {
-                    continue;
-                };
-                if reaches(constructor, asked) {
-                    continue;
-                }
-                if unnamed.insert((constructor.clone(), asked.clone())) {
-                    findings.push(Finding {
-                        check: "integrity",
-                        file: (*place_file).clone(),
-                        line: *place_line,
-                        name: "undeclared-protocol".to_string(),
-                        reason: format!(
-                            "{constructor} stands where {asked} is asked and names no such \
+        let mut undeclared_door =
+            |types: &Vec<String>, constructor: &String, findings: &mut Vec<Finding>| {
+                for asked in types {
+                    if !doors.contains(asked) || asked == constructor {
+                        continue;
+                    }
+                    let Some((place_file, place_line, _)) = places.get(constructor.as_str()) else {
+                        continue;
+                    };
+                    if reaches(constructor, asked) {
+                        continue;
+                    }
+                    if unnamed.insert((constructor.clone(), asked.clone())) {
+                        findings.push(Finding {
+                            check: "integrity".to_string(),
+                            file: (*place_file).clone(),
+                            line: line_at(*place_line),
+                            rule: Some("undeclared-protocol".to_string()),
+                            reason: format!(
+                                "{constructor} stands where {asked} is asked and names no such \
                              base; a protocol satisfied by shape is still named"
-                        ),
-                    });
+                            ),
+                        });
+                    }
                 }
-            }
-        };
+            };
         for (file, _, types, constructor) in &self.assigns {
             if fixture(file) {
                 continue;
             }
-            judge(types, constructor, &mut findings);
+            undeclared_door(types, constructor, &mut findings);
         }
         for (file, _, callee, place, keyword, constructor) in &self.callargs {
             if fixture(file) {
@@ -639,7 +659,7 @@ impl Pack for Python {
                     None => at == place,
                 };
                 if fits {
-                    judge(types, constructor, &mut findings);
+                    undeclared_door(types, constructor, &mut findings);
                 }
             }
         }

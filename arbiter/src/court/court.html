@@ -662,7 +662,7 @@ function pipeline(view) {
     { name: "scan", sub: DATA.units + " units, " + DATA.files + " files"
         + ((DATA.foreign || []).length ? ", " + DATA.foreign.length + " foreign" : "") + timed("scan"), cls: "green" },
     { name: "resolve", sub: DATA.resolved + " edges" + timed("resolve"), cls: "green" },
-    { name: "judge", sub: DATA.findings.length + " findings" + timed("judge"),
+    { name: "laws", sub: DATA.findings.length + " findings" + timed("laws"),
       cls: DATA.findings.length ? "red" : "green", act: () => go("findings") },
     { name: "dials", sub: dials + " findings · with tools", cls: dials ? "red" : "green" },
     { name: "tools", sub: (checks.join(" ") || "—") + timed("tools"), cls: failed ? "red" : "green",
@@ -844,7 +844,7 @@ function overview(view) {
   const sets = DATA.adapters.filter(a => present.includes(a.pack))
     .map(a => a.pack + ": " + a.checks.join(", "));
   taught.textContent = "the stage set is each pack's pinned adapter — " + sets.join(" · ")
-    + ". rules are never stages: laws are judged on the graph, in process, and land as findings.";
+    + ". rules are never stages: laws are held over the graph, in process, and land as findings.";
   view.appendChild(taught);
 }
 

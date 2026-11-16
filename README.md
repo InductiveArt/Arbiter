@@ -1,16 +1,17 @@
 # Arbiter
 
-One binary that judges a repository: the symbol graph resolved across its
-languages, and each unit's tools pinned to one bar. Agents work inside the
-judgment; the user signs what it may not decide.
+One binary that gates a repository: the symbol graph resolved across its
+languages and held to its laws, and each unit's tools pinned to one bar.
+Agents work inside the gate; the user signs what it may not decide.
 
 ## Start
 
 ```
-cargo install --git https://github.com/InductiveArt/Arbiter --tag v0.21.2 arbiter
+git clone https://github.com/InductiveArt/Arbiter && cd Arbiter
+cargo install --path arbiter --frozen
 
 arbiter adopt .   # install the agent layer under .claude/
-arbiter gate .    # judge; the first run seeds .arbiter/'s decision files
+arbiter gate .    # run the gate; the first run seeds .arbiter/'s decision files
 arbiter           # the commands, one line each
 ```
 
@@ -22,20 +23,26 @@ and the same word drills it: `arbiter rules <rule>` for the law,
 
 The binary is self-contained; the machine still needs the toolchains the
 repository's languages demand, and the gate names a missing one. Updating is
-installing the next tag: the judge is pinned like everything it pins.
+installing the next tag: arbiter is pinned like everything it pins.
 
 ## The build
 
 ```
-cargo build --frozen --release
+cd arbiter && cargo build --frozen --release
 ```
 
+The repository holds two projects, each a workspace of its own with its own
+lock: `task_runner/`, which runs plans of tasks and is published for users
+outside this repository, and `arbiter/`, the gate, which builds on the
+runner at head, by path, as every project in the repository builds on
+another.
+
 The build is hermetic at the cargo grain: every third party's source lives
-in `third_party/rust`, `.cargo/config.toml` points the registry there, and
-`--frozen` makes a build that would re-resolve or fetch fail instead of
-reaching out. The registry is provenance, not a build-time dependency; a
-fresh clone builds with the network off. The walk never judges
-`third_party/` - vendored bytes are read by builds, not by the law.
+in the one `third_party/rust`, the root `.cargo/config.toml` that both
+projects inherit points the registry there, and `--frozen` makes a build
+that would re-resolve or fetch fail instead of reaching out. The registry is provenance, not a build-time dependency; a
+fresh clone builds with the network off. The walk never reads
+`third_party/` - vendored bytes are read by builds, not by the laws.
 
 What still runs at build time, declared: `serde_derive` on `proc-macro2`,
 and the grammar crates' build scripts, which compile each vendored
@@ -46,7 +53,7 @@ pinned sysroot is the cell's job, not this repository's.
 ## The shape
 
 - A language is a pack - typescript, python, rust, cpp, proto, infra. The
-  core resolves and judges one graph and knows no language.
+  core resolves one graph, holds it to the laws, and knows no language.
 - `arbiter rules` prints what holds where and each rule's one-line law;
   `arbiter rules <rule>` prints one rule's stance in every language, with
   each never's why.

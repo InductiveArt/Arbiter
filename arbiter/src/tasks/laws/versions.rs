@@ -3,34 +3,34 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::core::graph::Graph;
-use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::pack::Repo;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;
+use crate::domain::finding::Finding;
 
 pub const RULES: &[Rule] = &[rule::facts(
     "split-version",
     "third-parties",
-    "a third party resolves to one version across the repository's lockfiles; a copy nested inside another third party is that party's own",
+    "a third party resolves to one version of each epoch across the repository's lockfiles, an epoch being the versions its ecosystem holds compatible; a copy nested inside another third party is that party's own",
 )];
 
 pub fn versions_law() -> Law {
     Law {
         task: "versions",
         rules: RULES,
-        run: judge,
+        run: instances,
     }
 }
 
-// One third party at two versions across the lockfiles, as one law.
-fn judge(found: &Graph) -> Vec<Finding> {
+// One third party at two versions of one epoch across the lockfiles, as one law.
+fn instances(found: &Graph) -> Vec<Finding> {
     split_version(&found.root, &found.repo, &found.packs)
 }
 
-// A third party resolved at two versions across the repository's lockfiles
-// is named with every version and its place.
+// A third party resolved at two versions of one epoch across the
+// repository's lockfiles is named with each of them and its place.
 fn split_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Finding> {
     let mut findings = Vec::new();
     for pack in packs {
@@ -39,7 +39,7 @@ fn split_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Findi
             continue;
         }
         let mut versions: std::collections::BTreeMap<
-            String,
+            (String, String),
             std::collections::BTreeMap<String, PathBuf>,
         > = std::collections::BTreeMap::new();
         for path in &repo.lockfiles {
@@ -59,13 +59,13 @@ fn split_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Findi
             };
             for (locked, version) in pack.locked(&name, &text) {
                 versions
-                    .entry(locked)
+                    .entry((locked, pack.epoch(&version)))
                     .or_default()
                     .entry(version)
                     .or_insert_with(|| path.clone());
             }
         }
-        for (name, seen) in versions {
+        for ((name, _), seen) in versions {
             if seen.len() < 2 {
                 continue;
             }
@@ -77,10 +77,10 @@ fn split_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Findi
                 continue;
             };
             findings.push(Finding {
-                check: "integrity",
+                check: "integrity".to_string(),
                 file: anchor.clone(),
-                line: 0,
-                name: "split-version".to_string(),
+                line: None,
+                rule: Some("split-version".to_string()),
                 reason: format!("{name} is locked at {}", places.join(" and ")),
             });
         }

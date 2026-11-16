@@ -19,7 +19,7 @@ pub fn run(arguments: &[String]) -> ExitCode {
                 eprintln!("{command}: {gap}");
             }
             eprintln!(
-                "{command}: a machine gap is no finding; run the bootstrap, then judge again"
+                "{command}: a machine gap is no finding; run the bootstrap, then run the gate again"
             );
             return ExitCode::from(2);
         }
@@ -56,7 +56,7 @@ pub fn run(arguments: &[String]) -> ExitCode {
         }
         let mut counts: std::collections::BTreeMap<&str, usize> = Default::default();
         for finding in &run.findings {
-            *counts.entry(finding.check).or_insert(0) += 1;
+            *counts.entry(finding.check.as_str()).or_insert(0) += 1;
         }
         for (check, count) in &counts {
             println!("  {check:15} {count} findings");
@@ -85,7 +85,7 @@ pub fn run(arguments: &[String]) -> ExitCode {
             println!("{command}: {note}");
         }
         if run.outcomes.is_empty() && run.files == 0 {
-            println!("{command}: nothing to judge here");
+            println!("{command}: nothing to check here");
             return ExitCode::from(2);
         }
         let place = gate::written(&run);

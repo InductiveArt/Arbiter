@@ -1,0 +1,73 @@
+@prefix : <#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+:Plan a rdfs:Class ; :hasPart :Task, :FanOut .
+:Task a rdfs:Class ; :hasPart :Read, :TaskBody, :Limit ; :leaves :TaskOutput .
+:TaskBody a rdfs:Class .
+:Read a rdfs:Class ; :of :ValueType ; :firesOn :Passed, :Failed, :RunRecord .
+:ValueType a rdfs:Class .
+:Limit a rdfs:Class .
+:TimeLimit rdfs:subClassOf :Limit .
+:Retries rdfs:subClassOf :Limit .
+:Replay rdfs:subClassOf :Limit .
+:Seeds a rdfs:Class ; :hasPart :Seed .
+:FanOut a rdfs:Class ; :of :Task ; :item :ValueType ; :list :ValueType ; :output :ValueType ; :gathered :ValueType ; :keyedBy :ItemKey .
+:ItemKey a rdfs:Class .
+
+:RunReport a rdfs:Class ; :of :Plan ; :startsFrom :Seeds ; :identifiedBy :RunId ; :hasPart :TaskInvocation ; :outcome :RunRecord .
+:RunId a rdfs:Class .
+:TaskInvocation a rdfs:Class ; :identifiedBy :TaskInvocationId ; :invokes :Task ; :hasPart :TaskAttempt, :TaskInvocation ; :outcome :RunRecord .
+:TaskInvocationId a rdfs:Class ; :hasPart :RunId ; :names :Task, :ItemKey .
+:TaskAttempt a rdfs:Class ; :identifiedBy :TaskAttemptId ; :hasPart :TaskSubstep, :ProcessRecord ; :holds :Slot ; :names :TaskOutputHash, :TaskCacheKey ; :outcome :RunRecord .
+:TaskAttemptId a rdfs:Class ; :hasPart :TaskInvocationId .
+:TaskSubstep a rdfs:Class ; :hasPart :TaskSubstep, :ProcessRecord ; :outcome :RunRecord .
+:ProcessRecord a rdfs:Class .
+:RunRecord a rdfs:Class .
+:Passed rdfs:subClassOf :RunRecord .
+:Failed rdfs:subClassOf :RunRecord .
+:TimedOut rdfs:subClassOf :RunRecord .
+:Cancelled rdfs:subClassOf :RunRecord .
+:Skipped rdfs:subClassOf :RunRecord .
+:Unneeded rdfs:subClassOf :RunRecord .
+
+:EncodedValue a rdfs:Class ; :of :ValueType .
+:Seed rdfs:subClassOf :EncodedValue .
+:TaskOutput rdfs:subClassOf :EncodedValue ; :identifiedBy :TaskOutputHash .
+:TaskOutputHash a rdfs:Class ; :hashOf :TaskOutput .
+:RunStore a rdfs:Class ; :holds :EncodedValue ; :keyedBy :ValueType .
+:TaskOutputStore a rdfs:Class ; :holds :TaskOutput .
+:TaskCache a rdfs:Class ; :holds :TaskCacheEntry .
+:TaskCacheEntry a rdfs:Class ; :identifiedBy :TaskCacheKey ; :names :TaskOutputHash .
+:TaskCacheKey a rdfs:Class ; :hashOf :Identity, :Task, :EncodedValue, :RunRecord .
+:Identity a rdfs:Class ; :hashOf :TaskExecutable .
+
+:Runner a rdfs:Class ; :executes :Plan ; :produces :RunReport, :RunStore ; :computes :Identity ; :finds :Refusal ; :emits :Event ; :wires :RunScheduler, :TaskExecutor, :TaskRuntime .
+:slots rdfs:domain :Runner .
+:startup rdfs:domain :Runner .
+:grace rdfs:domain :Runner .
+:cap rdfs:domain :Runner .
+:keep rdfs:domain :Runner .
+:taskExecutable rdfs:domain :Runner ; rdfs:range :TaskExecutable .
+:RunScheduler a rdfs:Class ; :holds :RunStore ; :computes :TaskCacheKey ; :expands :FanOut .
+:TaskExecutor a rdfs:Class ; :looksUp :TaskCache, :TaskOutputStore ; :stores :TaskOutput, :TaskCacheEntry ; :gives :Slot ; :calls :TaskRuntime ; :keeps :TaskHandle ; :tells :RunScheduler .
+:Slot a rdfs:Class .
+:TaskRuntime a rdfs:Class ; :makes :TaskHandle .
+:ProcessRuntime rdfs:subClassOf :TaskRuntime ; :makes :ProcessHandle ; :starts :TaskProcess .
+:TaskHandle a rdfs:Class .
+:ProcessHandle rdfs:subClassOf :TaskHandle .
+:TaskExecutable a rdfs:Class ; :holds :TaskBody ; :speaks :AttemptFolder .
+:TaskProcess a rdfs:Class ; :processOf :TaskExecutable ; :runs :TaskBody ; :makes :TaskContext .
+:TaskContext a rdfs:Class ; :handedTo :TaskBody ; :records :TaskSubstep, :ProcessRecord ; :offers :StopToken .
+:StopToken a rdfs:Class .
+:Refusal a rdfs:Class .
+:Event a rdfs:Class .
+:Sweep a rdfs:Class ; :prunes :RunReport, :TaskOutputStore, :TaskCache .
+
+:Decision a rdfs:Class ; :from :RunScheduler ; :to :TaskExecutor ; :carries :TaskCacheKey .
+:TaskOrder a rdfs:Class ; :from :TaskExecutor ; :to :TaskProcess ; :names :TaskAttemptId, :Task, :Read, :InputFile .
+:InputFile a rdfs:Class ; :from :TaskExecutor ; :to :TaskProcess .
+:StartedFile a rdfs:Class ; :from :TaskProcess ; :to :TaskRuntime .
+:OutputFile a rdfs:Class ; :from :TaskProcess ; :to :TaskExecutor .
+:RecordFile a rdfs:Class ; :from :TaskProcess ; :to :TaskExecutor .
+:Ended a rdfs:Class ; :from :TaskRuntime ; :to :TaskExecutor ; :carries :ProcessRecord .
+:AttemptFolder a rdfs:Class ; :carries :TaskOrder, :InputFile, :StartedFile, :OutputFile, :RecordFile .

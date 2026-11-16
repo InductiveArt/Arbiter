@@ -3,14 +3,14 @@ mod group_files_by_unit;
 mod list_files;
 mod read_markers;
 
-use task_runner::pull::In;
-use task_runner::scope::Scope;
-use task_runner::task::Task;
-use task_runner::trace::outcome::Failure;
+use task_runner::context::task_context::TaskContext;
+use task_runner::declaration::pull::In;
+use task_runner::declaration::task::Task;
+use task_runner::record::task_failure::TaskFailure;
 
-use crate::wip_domain::ecosystem::Ecosystem;
-use crate::wip_domain::folder::Folder;
-use crate::wip_domain::unit::Unit;
+use crate::domain::ecosystem::Ecosystem;
+use crate::domain::folder::Folder;
+use crate::domain::unit::Unit;
 use crate::wip_tasks::find_units::group_files_by_unit::group_files_by_unit;
 use crate::wip_tasks::find_units::list_files::list_files;
 use crate::wip_tasks::find_units::read_markers::read_markers;
@@ -18,8 +18,8 @@ use crate::wip_tasks::find_units::read_markers::read_markers;
 pub fn find_units_task() -> Task {
     Task::new(
         "find_units",
-        |scope: &mut Scope, (folder, ecosystems): (In<Folder>, In<Vec<Ecosystem>>)| {
-            find_units(scope, &folder, &ecosystems)
+        |context: &mut TaskContext, (folder, ecosystems): (In<Folder>, In<Vec<Ecosystem>>)| {
+            find_units(context, &folder, &ecosystems)
         },
     )
     .line(
@@ -31,17 +31,17 @@ pub fn find_units_task() -> Task {
 }
 
 fn find_units(
-    scope: &mut Scope,
+    context: &mut TaskContext,
     folder: &Folder,
     ecosystems: &[Ecosystem],
-) -> Result<Vec<Unit>, Failure> {
-    let files = scope.step("list_files", |step| list_files(step, folder))?;
-    let markers = scope.step("read_markers", |step| {
-        read_markers(step, folder, &files, ecosystems)
+) -> Result<Vec<Unit>, TaskFailure> {
+    let files = context.substep("list_files", |substep| list_files(substep, folder))?;
+    let markers = context.substep("read_markers", |substep| {
+        read_markers(substep, folder, &files, ecosystems)
     })?;
-    scope.step("group_files_by_unit", |step| {
+    context.substep("group_files_by_unit", |substep| {
         let units = group_files_by_unit(&files, &markers);
-        step.measure("units", units.len() as f64);
+        substep.measure("units", units.len() as f64);
         Ok(units)
     })
 }
@@ -52,17 +52,16 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use task_runner::job::cancel::Cancel;
-    use task_runner::job::id::JobId;
-    use task_runner::job::id::RunId;
-    use task_runner::layout::Site;
-    use task_runner::scope::Scope;
-    use task_runner::trace::outcome::Outcome;
+    use task_runner::context::stop_token::StopToken;
+    use task_runner::context::task_context::TaskContext;
+    use task_runner::contract::RunId;
+    use task_runner::contract::RunRecord;
+    use task_runner::contract::TaskAttemptId;
 
     use super::find_units;
-    use crate::wip_domain::ecosystem::Ecosystem;
-    use crate::wip_domain::ecosystem::MembersOnly;
-    use crate::wip_domain::folder::Folder;
+    use crate::domain::ecosystem::Ecosystem;
+    use crate::domain::ecosystem::MembersOnly;
+    use crate::domain::folder::Folder;
 
     // A folder of its own per test, holding the files written.
     fn folder(name: &str, written: &[(&str, &str)]) -> PathBuf {
@@ -105,20 +104,16 @@ mod tests {
         ]
     }
 
-    fn scope() -> Scope {
-        let site = Site {
-            dir: env::temp_dir(),
-            store: env::temp_dir(),
-        };
-        Scope::new(
-            JobId::new(RunId::next(), "find_units", 1),
-            Cancel::new(),
-            site,
+    fn context() -> TaskContext {
+        TaskContext::new(
+            TaskAttemptId::new(RunId::next(), "find_units", 1),
+            StopToken::new(),
+            env::temp_dir(),
         )
     }
 
     #[test]
-    fn the_units_are_found_in_three_steps_each_leaving_its_own_record() {
+    fn the_units_are_found_in_three_substeps_each_leaving_its_own_record() {
         let root = folder(
             "found",
             &[
@@ -128,54 +123,54 @@ mod tests {
                 ("tools/probe/probe.py", "x = 1\n"),
             ],
         );
-        let mut scope = scope();
-        let units = find_units(&mut scope, &Folder { path: root.clone() }, &ecosystems())
+        let mut context = context();
+        let units = find_units(&mut context, &Folder { path: root.clone() }, &ecosystems())
             .expect("the units are found");
         let told: Vec<(String, usize)> = units
             .iter()
             .map(|unit| (unit.path.to_string_lossy().into_owned(), unit.files.len()))
             .collect();
         assert_eq!(told, [(String::new(), 2), ("tools/probe".to_string(), 2)]);
-        let step = scope.finished("find_units", Outcome::Ok);
-        let steps: Vec<(&str, &Outcome)> = step
-            .children
+        let attempt = context.finished(RunRecord::passed());
+        let substeps: Vec<(&str, &RunRecord)> = attempt
+            .substeps
             .iter()
-            .map(|inner| (inner.name.as_str(), &inner.outcome))
+            .map(|inner| (inner.name.as_str(), inner.outcome()))
             .collect();
         assert_eq!(
-            steps,
+            substeps,
             [
-                ("list_files", &Outcome::Ok),
-                ("read_markers", &Outcome::Ok),
-                ("group_files_by_unit", &Outcome::Ok)
+                ("list_files", &RunRecord::passed()),
+                ("read_markers", &RunRecord::passed()),
+                ("group_files_by_unit", &RunRecord::passed())
             ]
         );
-        assert_eq!(step.children[0].measures.get("files"), Some(&4.0));
-        assert_eq!(step.children[1].measures.get("markers"), Some(&2.0));
-        assert_eq!(step.children[2].measures.get("units"), Some(&2.0));
+        assert_eq!(attempt.substeps[0].measures.get("files"), Some(&4.0));
+        assert_eq!(attempt.substeps[1].measures.get("markers"), Some(&2.0));
+        assert_eq!(attempt.substeps[2].measures.get("units"), Some(&2.0));
         let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
-    fn a_step_that_fails_fails_the_whole_and_no_later_step_is_taken() {
+    fn a_substep_that_fails_fails_the_whole_and_no_later_substep_is_taken() {
         let root = folder("broken", &[("Cargo.toml", "[package\n")]);
-        let mut scope = scope();
-        let failed = find_units(&mut scope, &Folder { path: root.clone() }, &ecosystems())
+        let mut context = context();
+        let failed = find_units(&mut context, &Folder { path: root.clone() }, &ecosystems())
             .expect_err("a marker that does not read stops the search");
         assert!(
             failed
                 .reason
                 .contains("Cargo.toml could not be read as toml"),
-            "the reason is the step's own: {}",
+            "the reason is the substep's own: {}",
             failed.reason
         );
-        let step = scope.finished("find_units", Outcome::Failed(failed.reason.clone()));
-        let steps: Vec<(&str, bool)> = step
-            .children
+        let attempt = context.finished(RunRecord::failed(failed.reason.clone()));
+        let substeps: Vec<(&str, bool)> = attempt
+            .substeps
             .iter()
-            .map(|inner| (inner.name.as_str(), inner.outcome == Outcome::Ok))
+            .map(|inner| (inner.name.as_str(), *inner.outcome() == RunRecord::passed()))
             .collect();
-        assert_eq!(steps, [("list_files", true), ("read_markers", false)]);
+        assert_eq!(substeps, [("list_files", true), ("read_markers", false)]);
         let _ = fs::remove_dir_all(&root);
     }
 }

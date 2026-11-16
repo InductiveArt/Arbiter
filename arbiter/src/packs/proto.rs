@@ -5,16 +5,17 @@ use std::time::Instant;
 use tree_sitter::Language;
 use tree_sitter::Tree;
 
+use crate::core::pack::marked_generated;
 use crate::core::pack::Def;
 use crate::core::pack::Definition;
 use crate::core::pack::Drift;
 use crate::core::pack::Edge;
-use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::pack::Repo;
 use crate::core::pack::Suppression;
 use crate::core::record;
 use crate::core::trees;
+use crate::domain::finding::Finding;
 
 const BUF: [&str; 3] = ["npx", "--yes", "@bufbuild/buf@1.74.0"];
 
@@ -97,7 +98,7 @@ impl Pack for Proto {
         Some(include_str!("../../packs/proto/ecosystem.toml"))
     }
 
-    // A v2 buf.yaml listing modules is a workspace: it bounds, and each module judges.
+    // A v2 buf.yaml listing modules is a workspace: it bounds, and each module is checked.
     fn container(&self, manifest: &str) -> bool {
         manifest
             .lines()
@@ -228,10 +229,10 @@ impl Pack for Proto {
             for (file, path) in paths {
                 if named.insert((*unit, path.clone())) {
                     findings.push(Finding {
-                        check: "integrity",
+                        check: "integrity".to_string(),
                         file: file.clone(),
-                        line: 0,
-                        name: "undeclared-dependency".to_string(),
+                        line: None,
+                        rule: Some("undeclared-dependency".to_string()),
                         reason: format!(
                             "{path} is imported, and the unit's manifest does not declare it"
                         ),
@@ -256,10 +257,10 @@ impl Pack for Proto {
                     continue;
                 }
                 findings.push(Finding {
-                    check: "integrity",
+                    check: "integrity".to_string(),
                     file: manifest.clone(),
-                    line: 0,
-                    name: "unused-dependency".to_string(),
+                    line: None,
+                    rule: Some("unused-dependency".to_string()),
                     reason: format!("{dep} is declared, and nothing in the unit reaches it"),
                 });
             }
@@ -529,7 +530,8 @@ fn compared(generated: &Path, committed: &Path) -> Vec<String> {
     problems
 }
 
-// Committed files named like generated code that no contract generates any more.
+// Committed files named like generated code, or Rust marked as generated,
+// that no contract generates any more.
 fn orphans(generated: &Path, committed: &Path) -> Vec<PathBuf> {
     let fresh: std::collections::HashSet<PathBuf> =
         files_under(generated, generated).into_iter().collect();
@@ -540,7 +542,10 @@ fn orphans(generated: &Path, committed: &Path) -> Vec<PathBuf> {
                 .file_name()
                 .map(|name| name.to_string_lossy().to_string())
                 .unwrap_or_default();
-            GENERATED.iter().any(|suffix| name.ends_with(suffix)) && !fresh.contains(file)
+            let rust = name.ends_with(".rs")
+                && std::fs::read_to_string(committed.join(file))
+                    .is_ok_and(|source| marked_generated(&source));
+            (rust || GENERATED.iter().any(|suffix| name.ends_with(suffix))) && !fresh.contains(file)
         })
         .collect()
 }
@@ -617,6 +622,26 @@ mod tests {
                 "src/gen/ghost_pb.ts is orphaned; no contract generates it",
                 "src/gen/stale_pb.ts drifted from what the contracts generate",
             ]
+        );
+    }
+
+    #[test]
+    fn a_rust_file_marked_generated_that_no_contract_generates_is_orphaned() {
+        let base = std::env::temp_dir().join("arbiter-test-orphaned-rust");
+        let _ = fs::remove_dir_all(&base);
+        let generated = base.join("generated");
+        let committed = base.join("committed");
+        planted(&generated, "src/contract/app.v1.rs", "// @generated\nkept");
+        planted(&committed, "src/contract/app.v1.rs", "// @generated\nkept");
+        planted(&committed, "src/contract/old.v1.rs", "// @generated\nold");
+        planted(
+            &committed,
+            "src/contract/mod.rs",
+            "include!(\"app.v1.rs\");\n",
+        );
+        assert_eq!(
+            compared(&generated, &committed),
+            ["src/contract/old.v1.rs is orphaned; no contract generates it"]
         );
     }
 }

@@ -3,14 +3,15 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::core::pack::Finding;
 use crate::core::units::fits;
+use crate::domain::finding::line_at;
+use crate::domain::finding::Finding;
 
 pub const SUPPRESSIONS: &str = ".arbiter/suppressions.toml";
 
 // One signed exception: a package one rule may not name, or one exact cycle
 // the sibling law may not break. The grain is one subject per entry row, the
-// shape the ledger counts and staleness judges.
+// shape the ledger counts and the staleness law reads.
 pub enum Subject {
     Dependency {
         language: String,
@@ -63,10 +64,10 @@ pub fn read(root: &Path) -> (Vec<Subject>, Vec<Finding>) {
         return (
             Vec::new(),
             vec![Finding {
-                check: "ledger",
+                check: "ledger".to_string(),
                 file: place,
-                line: 0,
-                name: "unparsable-user-record".to_string(),
+                line: None,
+                rule: Some("unparsable-user-record".to_string()),
                 reason: format!("{SUPPRESSIONS} does not parse; the record quiets nothing"),
             }],
         );
@@ -84,10 +85,10 @@ pub fn read(root: &Path) -> (Vec<Subject>, Vec<Finding>) {
     let mut subjects = Vec::new();
     let mut findings = Vec::new();
     let blanket = |reason: String| Finding {
-        check: "ledger",
+        check: "ledger".to_string(),
         file: place.clone(),
-        line: 0,
-        name: "blanket-suppression".to_string(),
+        line: None,
+        rule: Some("blanket-suppression".to_string()),
         reason,
     };
     for entry in &entries {
@@ -221,10 +222,10 @@ pub fn stale(
                 line,
                 ..
             } if spoken == language && !live.contains(&at) => Some(Finding {
-                check: "integrity",
+                check: "integrity".to_string(),
                 file: PathBuf::from(SUPPRESSIONS),
-                line: *line,
-                name: "stale-suppression".to_string(),
+                line: line_at(*line),
+                rule: Some("stale-suppression".to_string()),
                 reason: format!("the suppression of unused-dependency on {package} quiets nothing"),
             }),
             _ => None,
@@ -239,10 +240,10 @@ pub fn stale_cycles(subjects: &[Subject], live: &std::collections::HashSet<usize
         .enumerate()
         .filter_map(|(at, subject)| match subject {
             Subject::Cycle { unit, line, .. } if !live.contains(&at) => Some(Finding {
-                check: "integrity",
+                check: "integrity".to_string(),
                 file: PathBuf::from(SUPPRESSIONS),
-                line: *line,
-                name: "stale-suppression".to_string(),
+                line: line_at(*line),
+                rule: Some("stale-suppression".to_string()),
                 reason: format!("the suppression of sibling-cycle in {unit} quiets nothing"),
             }),
             _ => None,

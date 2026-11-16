@@ -8,33 +8,35 @@ use std::time::Duration;
 
 use arbiter::commands::languages;
 use arbiter::commands::tasks;
+use arbiter::domain::file::File;
+use arbiter::domain::finding::Finding;
+use arbiter::domain::folder::Folder;
+use arbiter::domain::subprocess::Subprocess;
+use arbiter::domain::subprocess::SubprocessExit;
+use arbiter::domain::unit::Unit;
 use arbiter::packs::all;
-use arbiter::wip_domain::file::File;
-use arbiter::wip_domain::finding::Finding;
-use arbiter::wip_domain::folder::Folder;
-use arbiter::wip_domain::unit::Unit;
 use arbiter::wip_tasks::listed;
 use arbiter::wip_tasks::load_ecosystems::load_ecosystems;
 
-use task_runner::job::id::RunId;
-use task_runner::plan::Plan;
-use task_runner::pull::Done;
-use task_runner::pull::Failed;
-use task_runner::pull::In;
-use task_runner::run::report::Report;
-use task_runner::run::runner::Runner;
-use task_runner::scope::Scope;
-use task_runner::store::Store;
-use task_runner::task::Task;
-use task_runner::trace::outcome::Failure;
-use task_runner::trace::outcome::Outcome;
+use task_runner::context::task_context::TaskContext;
+use task_runner::contract::RunId;
+use task_runner::contract::RunRecord;
+use task_runner::declaration::fan_out::FanOut;
+use task_runner::declaration::plan::Plan;
+use task_runner::declaration::pull::Done;
+use task_runner::declaration::pull::Failed;
+use task_runner::declaration::pull::In;
+use task_runner::declaration::task::Task;
+use task_runner::execution::runner::Runner;
+use task_runner::record::task_failure::TaskFailure;
+use task_runner::value::run_store::RunStore;
 
 fn binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_arbiter"))
 }
 
-fn worker() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_arbiter-worker"))
+fn task_executable() -> PathBuf {
+    PathBuf::from(env!("CARGO_BIN_EXE_arbiter-tasks"))
 }
 
 fn folder(name: &str) -> PathBuf {
@@ -70,7 +72,7 @@ fn the_ecosystems_are_loaded_and_the_units_of_a_folder_found_each_task_in_a_proc
             .expect("a folder is made");
         fs::write(file, content).expect("a file is written");
     }
-    let mut seeds = Store::new();
+    let mut seeds = RunStore::new();
     seeds
         .put(&Folder {
             path: repository.clone(),
@@ -80,18 +82,18 @@ fn the_ecosystems_are_loaded_and_the_units_of_a_folder_found_each_task_in_a_proc
         .expect("the two tasks wire into a plan");
     let runs = folder("runs");
 
-    let report = Runner::new()
-        .worker(worker())
+    let (report, store) = Runner::new()
+        .task_executable(task_executable())
         .run(&plan, seeds, &runs)
         .expect("the plan is run");
 
-    assert_eq!(report.outcome, Outcome::Ok);
+    assert_eq!(*report.outcome(), RunRecord::passed());
     let loading = report
-        .step("load_ecosystems")
+        .attempt("load_ecosystems")
         .expect("the attempt left its record");
     assert_eq!(loading.measures.get("ecosystems"), Some(&4.0));
     assert_eq!(loading.measures.get("tools"), Some(&12.0));
-    let units = report.get::<Vec<Unit>>().expect("the units are kept");
+    let units = store.get::<Vec<Unit>>().expect("the units are kept");
     let told: Vec<(String, String, String)> = units
         .iter()
         .map(|unit| {
@@ -133,36 +135,39 @@ fn the_ecosystems_are_loaded_and_the_units_of_a_folder_found_each_task_in_a_proc
         ]
     );
     let found = report
-        .step("find_units")
+        .attempt("find_units")
         .expect("the attempt left its record");
-    let steps: Vec<&str> = found
-        .children
+    let substeps: Vec<&str> = found
+        .substeps
         .iter()
-        .map(|step| step.name.as_str())
+        .map(|substep| substep.name.as_str())
         .collect();
-    assert_eq!(steps, ["list_files", "read_markers", "group_files_by_unit"]);
-    let listing = &found.children[0];
+    assert_eq!(
+        substeps,
+        ["list_files", "read_markers", "group_files_by_unit"]
+    );
+    let listing = &found.substeps[0];
     assert_eq!(listing.measures.get("files"), Some(&8.0));
     assert_eq!(listing.measures.get("ignored"), Some(&1.0));
     assert_eq!(listing.measures.get("skipped"), Some(&1.0));
     assert_eq!(listing.measures.get("foreign"), Some(&1.0));
     assert_eq!(listing.evidence, ["foreign: apps/other"]);
-    let reading = &found.children[1];
+    let reading = &found.substeps[1];
     assert_eq!(reading.measures.get("markers"), Some(&4.0));
     assert_eq!(reading.measures.get("members_only"), Some(&1.0));
-    let grouping = &found.children[2];
+    let grouping = &found.substeps[2];
     assert_eq!(grouping.measures.get("units"), Some(&4.0));
     let _ = fs::remove_dir_all(&repository);
     let _ = fs::remove_dir_all(&runs);
 }
 
 #[test]
-fn no_two_tasks_the_worker_serves_share_a_name() {
+fn no_two_tasks_the_task_executable_serves_share_a_name() {
     let mut seen = HashSet::new();
     for task in listed() {
         assert!(
             seen.insert(task.name.clone()),
-            "two tasks are named {}: a worker finds a body by its name",
+            "two tasks are named {}: a task process finds a body by its name",
             task.name
         );
     }
@@ -188,21 +193,36 @@ fn the_tasks_view_tells_what_each_task_leaves_reads_and_is_bounded_by() {
          leaves  Vec<Unit>\n  \
          limits  no time limit, one attempt, computed every run\n\
          \n\
-         run_ecosystem_tools\n  \
+         plan_unit_checks\n  \
          each tool of each ecosystem once in every unit of that ecosystem, except a unit whose \
-         marker only lists members, run one after the other, each as a run_subprocess task; \
-         what a tool prints is read into findings when it has a reader, and a run that does \
-         not exit with 0 and leaves no finding is one finding\n  \
+         marker only lists members, as the program running it there, with the reader of what \
+         it prints and the program printing its root when it has them; it starts nothing, and \
+         writes the configs the programs point at in its own folder\n  \
          reads   Folder, Vec<Unit>, Vec<Ecosystem>\n  \
-         leaves  Vec<Finding>\n  \
+         leaves  Vec<UnitCheck>\n  \
+         limits  no time limit, one attempt, computed every run\n\
+         \n\
+         list_check_subprocesses\n  \
+         every program the checks run, in their order: each check's own, then the one printing \
+         its root when it has one\n  \
+         reads   Vec<UnitCheck>\n  \
+         leaves  Vec<Subprocess>\n  \
          limits  no time limit, one attempt, computed every run\n\
          \n\
          run_subprocess\n  \
          starts one program in its folder, keeps all it prints and tells how it ended; an \
          exit other than 0 is told, never failed\n  \
          reads   Subprocess\n  \
-         leaves  Exit\n  \
-         limits  1800s at most, one attempt, computed every run\n"
+         leaves  SubprocessExit\n  \
+         limits  1800s at most, one attempt, computed every run\n\
+         \n\
+         read_check_findings\n  \
+         what each check printed, read into findings when it has a reader, their files placed \
+         from the root printed for them; a check that did not exit with 0 and leaves no finding \
+         is one finding, and every check is read even after one could not be\n  \
+         reads   Folder, Vec<UnitCheck>, Vec<SubprocessExit>\n  \
+         leaves  Vec<Finding>\n  \
+         limits  no time limit, one attempt, computed every run\n"
     );
 }
 
@@ -210,15 +230,16 @@ fn the_tasks_view_tells_what_each_task_leaves_reads_and_is_bounded_by() {
 fn the_tasks_view_tells_when_a_read_fires_and_every_limit_a_task_sets() {
     let shaped = Task::new(
         "mend",
-        |_: &mut Scope, (_held, _broke, _ended): (In<Vec<File>>, Failed<Unit>, Done<Vec<Unit>>)| {
-            Ok::<u8, Failure>(0)
+        |_: &mut TaskContext,
+         (_held, _broke, _ended): (In<Vec<File>>, Failed<Unit>, Done<Vec<Unit>>)| {
+            Ok::<u8, TaskFailure>(0)
         },
     )
     .within(Duration::from_secs(30))
     .retries(2)
     .cached();
-    let alone = Task::new("seed", |_: &mut Scope, (): ()| {
-        Ok::<Unit, Failure>(Unit {
+    let alone = Task::new("seed", |_: &mut TaskContext, (): ()| {
+        Ok::<Unit, TaskFailure>(Unit {
             path: PathBuf::new(),
             markers: Vec::new(),
             files: Vec::new(),
@@ -331,8 +352,8 @@ fn repository(name: &str, written: &[(&str, &str)]) -> PathBuf {
     root
 }
 
-fn seeded(repository: &Path) -> Store {
-    let mut seeds = Store::new();
+fn seeded(repository: &Path) -> RunStore {
+    let mut seeds = RunStore::new();
     seeds
         .put(&Folder {
             path: repository.to_path_buf(),
@@ -341,35 +362,33 @@ fn seeded(repository: &Path) -> Store {
     seeds
 }
 
-// Each run a task made, by its name, and whether it could be carried out.
-fn ended(report: &Report, task: &str) -> Vec<(String, Outcome)> {
-    report
-        .step(task)
-        .expect("the attempt left its record")
-        .children
-        .iter()
-        .map(|run| (run.name.clone(), run.outcome.clone()))
-        .collect()
+// The tasks named, run_subprocess run once per program listed.
+fn fanned(name: &str, tasks: &[&str]) -> Plan {
+    Plan::fanned(
+        name,
+        &listed(),
+        tasks,
+        &[FanOut::of::<Subprocess, SubprocessExit>(
+            "run_subprocess",
+            |subprocess| subprocess.name.clone(),
+        )],
+    )
+    .expect("the tasks wire into a plan")
 }
 
-// What one run printed, read from the file the record of its task names.
-fn printed(report: &Report, task: &str, run: &str) -> String {
-    let named = report
-        .step(task)
-        .expect("the attempt left its record")
-        .children
-        .iter()
-        .find(|inner| inner.name == run)
-        .and_then(|inner| {
-            inner.children.iter().find_map(|attempt| {
-                attempt
-                    .evidence
-                    .iter()
-                    .find_map(|line| line.strip_prefix("stdout: "))
-            })
-        })
-        .expect("the record names the file");
-    fs::read_to_string(named).expect("the file is read")
+// Each program listed, by its name, beside how it ended and all it printed.
+fn ran(store: &RunStore) -> Vec<(String, SubprocessExit)> {
+    let listed = store
+        .get::<Vec<Subprocess>>()
+        .expect("the programs are listed");
+    let exits = store
+        .get::<Vec<SubprocessExit>>()
+        .expect("the exits are gathered");
+    listed
+        .into_iter()
+        .map(|subprocess| subprocess.name)
+        .zip(exits)
+        .collect()
 }
 
 // Each finding as its check, its path, its rule and its line.
@@ -379,7 +398,7 @@ fn found(findings: &[Finding]) -> Vec<(&str, &str, Option<&str>, Option<u32>)> {
         .map(|finding| {
             (
                 finding.check.as_str(),
-                finding.path.to_str().expect("a path in UTF-8"),
+                finding.file.to_str().expect("a path in UTF-8"),
                 finding.rule.as_deref(),
                 finding.line,
             )
@@ -388,7 +407,7 @@ fn found(findings: &[Finding]) -> Vec<(&str, &str, Option<&str>, Option<u32>)> {
 }
 
 #[test]
-fn the_tools_an_ecosystem_declares_are_run_in_order_in_every_unit_each_as_a_task_of_its_own() {
+fn the_tools_an_ecosystem_declares_are_run_in_every_unit_each_program_as_an_item_of_its_own() {
     let repository = repository(
         "tools",
         &[
@@ -398,84 +417,105 @@ fn the_tools_an_ecosystem_declares_are_run_in_order_in_every_unit_each_as_a_task
             ("libs/a/src/lib.rs", "pub fn a() {}\n"),
         ],
     );
-    let shared = folder("shared");
-    let mark = shared.join("ended");
     let mut ecosystems = load_ecosystems().expect("the records are read");
     for tool in ecosystems
         .iter_mut()
         .flat_map(|ecosystem| ecosystem.tools.iter_mut())
     {
-        let words = match tool.name.as_str() {
-            "format_rust" => vec![
-                "sh".to_string(),
-                "-c".to_string(),
-                format!("touch '{}'; exit 1", mark.display()),
-            ],
-            "lint_rust" => vec![
-                "sh".to_string(),
-                "-c".to_string(),
-                format!("test -f '{}'", mark.display()),
-            ],
-            "test_rust" => vec!["cat".to_string(), "Cargo.toml".to_string()],
+        let words: &[&str] = match tool.name.as_str() {
+            "format_rust" => &["sh", "-c", "echo unformatted; exit 1"],
+            "lint_rust" => &["true"],
+            "test_rust" => &["cat", "Cargo.toml"],
             _ => continue,
         };
-        tool.run = words;
+        tool.run = words.iter().map(|word| word.to_string()).collect();
         tool.findings = None;
     }
     let mut seeds = seeded(&repository);
     seeds.put(&ecosystems).expect("the ecosystems encode");
-    let plan = Plan::new("tools", &listed(), &["find_units", "run_ecosystem_tools"])
-        .expect("the two tasks wire into a plan");
+    let plan = fanned(
+        "tools",
+        &[
+            "find_units",
+            "plan_unit_checks",
+            "list_check_subprocesses",
+            "run_subprocess",
+            "read_check_findings",
+        ],
+    );
     let runs = folder("runs");
 
-    let report = Runner::new()
-        .worker(worker())
+    let (report, store) = Runner::new()
+        .task_executable(task_executable())
         .run(&plan, seeds, &runs)
         .expect("the plan is run");
 
+    assert_eq!(*report.outcome(), RunRecord::passed());
+    let ran = ran(&store);
     assert_eq!(
-        ended(&report, "run_ecosystem_tools"),
+        ran.iter()
+            .map(|(name, exit)| (name.as_str(), exit.code))
+            .collect::<Vec<_>>(),
         [
-            ("format_rust in .".to_string(), Outcome::Ok),
-            ("format_rust in libs/a".to_string(), Outcome::Ok),
-            ("lint_rust in .".to_string(), Outcome::Ok),
-            ("lint_rust in libs/a".to_string(), Outcome::Ok),
-            ("test_rust in .".to_string(), Outcome::Ok),
-            ("test_rust in libs/a".to_string(), Outcome::Ok),
+            ("format_rust in .", Some(1)),
+            ("format_rust in libs/a", Some(1)),
+            ("lint_rust in .", Some(0)),
+            ("lint_rust in libs/a", Some(0)),
+            ("test_rust in .", Some(0)),
+            ("test_rust in libs/a", Some(0)),
         ],
-        "every run is carried out, one after the other"
+        "every program is run, its exit gathered in the order listed"
     );
-    let tools = report
-        .step("run_ecosystem_tools")
-        .expect("the attempt left its record");
+    assert_eq!(
+        ran[5].1.stdout, "[package]\nname = \"a\"\n",
+        "all a program printed is in its exit"
+    );
+    let items = &report
+        .invocation("run_subprocess")
+        .expect("the programs ran")
+        .instances;
     assert!(
-        tools.children.iter().all(|run| run.children.len() == 1
-            && run.children[0].name == "run_subprocess"
-            && run.children[0].account.is_some()),
-        "each run was a run_subprocess task in a process of its own"
+        items.iter().all(|item| item
+            .attempts
+            .last()
+            .is_some_and(|attempt| attempt.process_record.is_some())),
+        "each program ran in a process of its own"
     );
-    let findings = report.get::<Vec<Finding>>().expect("the findings are kept");
+    let findings = store.get::<Vec<Finding>>().expect("the findings are kept");
     assert_eq!(
         found(&findings),
         [
             ("format_rust", "", None, None),
             ("format_rust", "libs/a", None, None)
         ],
-        "a run with no reader that does not exit with 0 is one finding on its unit, and the \
-         lint found its mark because the format ran before it"
-    );
-    assert!(
-        findings.iter().all(|finding| finding
-            .message
-            .starts_with("sh exited with 1; all it printed is kept in ")),
-        "{findings:?}"
+        "a program with no reader that does not exit with 0 is one finding on its unit"
     );
     assert_eq!(
-        printed(&report, "run_ecosystem_tools", "test_rust in libs/a"),
-        "[package]\nname = \"a\"\n"
+        findings
+            .iter()
+            .map(|finding| finding.reason.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "sh exited with 1; all it printed is kept in the record of format_rust in .",
+            "sh exited with 1; all it printed is kept in the record of format_rust in libs/a"
+        ]
+    );
+    assert_eq!(
+        items
+            .iter()
+            .map(|item| item.id().path.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "tools/run_subprocess@format_rust in .",
+            "tools/run_subprocess@format_rust in libs/a",
+            "tools/run_subprocess@lint_rust in .",
+            "tools/run_subprocess@lint_rust in libs/a",
+            "tools/run_subprocess@test_rust in .",
+            "tools/run_subprocess@test_rust in libs/a",
+        ],
+        "the record a finding points at goes by the name of its program"
     );
     let _ = fs::remove_dir_all(&repository);
-    let _ = fs::remove_dir_all(&shared);
     let _ = fs::remove_dir_all(&runs);
 }
 
@@ -501,6 +541,12 @@ fn the_rust_tools_as_the_built_in_record_writes_them_place_each_fault_in_its_fil
             ),
             ("clean/Cargo.toml", &alone("clean")),
             ("clean/src/lib.rs", "pub fn one() {}\n"),
+            ("globbed/Cargo.toml", &alone("globbed")),
+            (
+                "globbed/src/lib.rs",
+                "mod deps;\n\nuse deps::*;\n\npub fn run() -> u8 {\n    used()\n}\n",
+            ),
+            ("globbed/src/deps.rs", "pub fn used() -> u8 {\n    1\n}\n"),
             ("solo/Cargo.toml", &alone("solo")),
             (
                 "solo/src/lib.rs",
@@ -508,30 +554,43 @@ fn the_rust_tools_as_the_built_in_record_writes_them_place_each_fault_in_its_fil
             ),
         ],
     );
-    let plan = Plan::new(
+    let plan = fanned(
         "gate",
-        &listed(),
-        &["load_ecosystems", "find_units", "run_ecosystem_tools"],
-    )
-    .expect("the three tasks wire into a plan");
+        &[
+            "load_ecosystems",
+            "find_units",
+            "plan_unit_checks",
+            "list_check_subprocesses",
+            "run_subprocess",
+            "read_check_findings",
+        ],
+    );
     let runs = folder("runs");
 
-    let report = Runner::new()
-        .worker(worker())
+    let (report, store) = Runner::new()
+        .task_executable(task_executable())
         .run(&plan, seeded(&repository), &runs)
         .expect("the plan is run");
 
-    let carried = ended(&report, "run_ecosystem_tools");
-    assert_eq!(carried.len(), 9, "{carried:?}");
-    assert!(
-        carried.iter().all(|(_, outcome)| *outcome == Outcome::Ok),
-        "{carried:?}"
+    assert_eq!(*report.outcome(), RunRecord::passed());
+    let ran = ran(&store);
+    assert_eq!(
+        ran.len(),
+        16,
+        "three tools in each of four units, and a root for each lint: {:?}",
+        ran.iter().map(|(name, _)| name).collect::<Vec<_>>()
     );
-    let findings = report.get::<Vec<Finding>>().expect("the findings are kept");
+    let findings = store.get::<Vec<Finding>>().expect("the findings are kept");
     assert_eq!(
         found(&findings),
         [
             ("format_rust", "solo", None, None),
+            (
+                "lint_rust",
+                "globbed/src/lib.rs",
+                Some("clippy::wildcard_imports"),
+                Some(3)
+            ),
             (
                 "lint_rust",
                 "libs/a/src/lib.rs",
@@ -545,14 +604,19 @@ fn the_rust_tools_as_the_built_in_record_writes_them_place_each_fault_in_its_fil
                 Some(2)
             ),
         ],
-        "a member's file is placed from the root of the workspace cargo wrote it from"
+        "a member's file is placed from the root of the workspace cargo wrote it from, \
+         and a glob import is a fault like any other"
     );
     assert!(
-        findings[0].message.starts_with("cargo exited with 1; "),
+        findings[0].reason.starts_with("cargo exited with 1; "),
         "{}",
-        findings[0].message
+        findings[0].reason
     );
-    let told = printed(&report, "run_ecosystem_tools", "format_rust in solo");
+    let told = ran
+        .iter()
+        .find(|(name, _)| name == "format_rust in solo")
+        .map(|(_, exit)| exit.stdout.as_str())
+        .expect("the format ran in solo");
     assert!(
         told.contains("bool {"),
         "the tool's own output is kept: {told}"

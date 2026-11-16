@@ -5,23 +5,23 @@ use std::str;
 
 use serde_json::Value;
 
-use task_runner::scope::Scope;
-use task_runner::trace::outcome::Failure;
+use task_runner::context::task_context::TaskContext;
+use task_runner::record::task_failure::TaskFailure;
 
 use crate::core::digest::Digest;
-use crate::wip_domain::ecosystem::Ecosystem;
-use crate::wip_domain::file::File;
-use crate::wip_domain::folder::Folder;
-use crate::wip_domain::marker::Marker;
+use crate::domain::ecosystem::Ecosystem;
+use crate::domain::file::File;
+use crate::domain::folder::Folder;
+use crate::domain::marker::Marker;
 
 // Every marker among the listed files, sorted by path, then by ecosystem. A
 // marker is opened only when its ecosystem has a rule to read it by.
 pub fn read_markers(
-    scope: &mut Scope,
+    context: &mut TaskContext,
     folder: &Folder,
     files: &[File],
     ecosystems: &[Ecosystem],
-) -> Result<Vec<Marker>, Failure> {
+) -> Result<Vec<Marker>, TaskFailure> {
     let mut markers = Vec::new();
     for file in files {
         let Some(name) = file.path.file_name().and_then(OsStr::to_str) else {
@@ -31,7 +31,7 @@ pub fn read_markers(
             if ecosystem.marker != name {
                 continue;
             }
-            scope.checkpoint()?;
+            context.checkpoint()?;
             let members_only = match &ecosystem.members_only {
                 None => false,
                 Some(rule) => rule.fits(&document(&folder.path, file)?),
@@ -49,40 +49,41 @@ pub fn read_markers(
             .then_with(|| one.ecosystem.cmp(&other.ecosystem))
     });
     let only_list = markers.iter().filter(|marker| marker.members_only).count();
-    scope.measure("markers", markers.len() as f64);
-    scope.measure("members_only", only_list as f64);
+    context.measure("markers", markers.len() as f64);
+    context.measure("members_only", only_list as f64);
     Ok(markers)
 }
 
 // The marker's content as a tree of keys. It must still be the content that
 // was listed, or what is told of it would not belong to the list.
-fn document(root: &Path, file: &File) -> Result<Value, Failure> {
+fn document(root: &Path, file: &File) -> Result<Value, TaskFailure> {
     let shown = file.path.display();
     let content = fs::read(root.join(&file.path))
-        .map_err(|error| Failure::from(format!("{shown} could not be read: {error}")))?;
+        .map_err(|error| TaskFailure::from(format!("{shown} could not be read: {error}")))?;
     let mut digest = Digest::new();
     digest.eat(&content);
     if digest.hex() != file.digest {
-        return Err(Failure::from(format!(
+        return Err(TaskFailure::from(format!(
             "{shown} changed since it was listed"
         )));
     }
     match file.path.extension().and_then(OsStr::to_str) {
         Some("toml") => {
             let text = str::from_utf8(&content).map_err(|error| {
-                Failure::from(format!("{shown} could not be read as toml: {error}"))
+                TaskFailure::from(format!("{shown} could not be read as toml: {error}"))
             })?;
             toml::from_str(text).map_err(|error| {
                 let told: Vec<&str> = error.message().lines().map(str::trim).collect();
-                Failure::from(format!(
+                TaskFailure::from(format!(
                     "{shown} could not be read as toml: {}",
                     told.join(", ")
                 ))
             })
         }
-        Some("json") => serde_json::from_slice(&content)
-            .map_err(|error| Failure::from(format!("{shown} could not be read as json: {error}"))),
-        _ => Err(Failure::from(format!(
+        Some("json") => serde_json::from_slice(&content).map_err(|error| {
+            TaskFailure::from(format!("{shown} could not be read as json: {error}"))
+        }),
+        _ => Err(TaskFailure::from(format!(
             "{shown} is neither toml nor json: no rule can be read from it"
         ))),
     }
@@ -95,20 +96,19 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use task_runner::job::cancel::Cancel;
-    use task_runner::job::id::JobId;
-    use task_runner::job::id::RunId;
-    use task_runner::layout::Site;
-    use task_runner::scope::Scope;
-    use task_runner::trace::outcome::Outcome;
+    use task_runner::context::stop_token::StopToken;
+    use task_runner::context::task_context::TaskContext;
+    use task_runner::contract::RunId;
+    use task_runner::contract::RunRecord;
+    use task_runner::contract::TaskAttemptId;
 
     use super::read_markers;
     use crate::core::digest::Digest;
-    use crate::wip_domain::ecosystem::Ecosystem;
-    use crate::wip_domain::ecosystem::MembersOnly;
-    use crate::wip_domain::file::File;
-    use crate::wip_domain::folder::Folder;
-    use crate::wip_domain::marker::Marker;
+    use crate::domain::ecosystem::Ecosystem;
+    use crate::domain::ecosystem::MembersOnly;
+    use crate::domain::file::File;
+    use crate::domain::folder::Folder;
+    use crate::domain::marker::Marker;
 
     // A folder of its own per test holding the files written, with the list
     // a listing of it leaves.
@@ -166,21 +166,17 @@ mod tests {
         ]
     }
 
-    fn scope() -> Scope {
-        let site = Site {
-            dir: env::temp_dir(),
-            store: env::temp_dir(),
-        };
-        Scope::new(
-            JobId::new(RunId::next(), "read_markers", 1),
-            Cancel::new(),
-            site,
+    fn context() -> TaskContext {
+        TaskContext::new(
+            TaskAttemptId::new(RunId::next(), "read_markers", 1),
+            StopToken::new(),
+            env::temp_dir(),
         )
     }
 
     // The markers read, a failure told by its reason.
     fn performed(
-        scope: &mut Scope,
+        context: &mut TaskContext,
         root: &Path,
         files: &[File],
         ecosystems: &[Ecosystem],
@@ -188,7 +184,7 @@ mod tests {
         let folder = Folder {
             path: root.to_path_buf(),
         };
-        read_markers(scope, &folder, files, ecosystems).map_err(|failure| failure.reason)
+        read_markers(context, &folder, files, ecosystems).map_err(|failure| failure.reason)
     }
 
     fn marker(path: &str, ecosystem: &str, members_only: bool) -> Marker {
@@ -217,9 +213,9 @@ mod tests {
                 ),
             ],
         );
-        let mut scope = scope();
+        let mut context = context();
         let markers =
-            performed(&mut scope, &root, &listed, &ecosystems()).expect("the markers are read");
+            performed(&mut context, &root, &listed, &ecosystems()).expect("the markers are read");
         assert_eq!(
             markers,
             [
@@ -229,9 +225,9 @@ mod tests {
                 marker("web/package.json", "typescript", false),
             ]
         );
-        let step = scope.finished("read_markers", Outcome::Ok);
-        assert_eq!(step.measures.get("markers"), Some(&4.0));
-        assert_eq!(step.measures.get("members_only"), Some(&0.0));
+        let attempt = context.finished(RunRecord::passed());
+        assert_eq!(attempt.measures.get("markers"), Some(&4.0));
+        assert_eq!(attempt.measures.get("members_only"), Some(&0.0));
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -247,7 +243,7 @@ mod tests {
             ],
         );
         let markers =
-            performed(&mut scope(), &root, &listed, &ecosystems()).expect("the markers are read");
+            performed(&mut context(), &root, &listed, &ecosystems()).expect("the markers are read");
         assert_eq!(markers, [marker("d/Cargo.toml", "rust", false)]);
         let _ = fs::remove_dir_all(&root);
     }
@@ -286,9 +282,9 @@ mod tests {
                 ),
             ],
         );
-        let mut scope = scope();
+        let mut context = context();
         let markers =
-            performed(&mut scope, &root, &listed, &ecosystems()).expect("the markers are read");
+            performed(&mut context, &root, &listed, &ecosystems()).expect("the markers are read");
         assert_eq!(
             markers,
             [
@@ -303,9 +299,9 @@ mod tests {
                 marker("ws/a/Cargo.toml", "rust", false),
             ]
         );
-        let step = scope.finished("read_markers", Outcome::Ok);
-        assert_eq!(step.measures.get("markers"), Some(&9.0));
-        assert_eq!(step.measures.get("members_only"), Some(&3.0));
+        let attempt = context.finished(RunRecord::passed());
+        assert_eq!(attempt.measures.get("markers"), Some(&9.0));
+        assert_eq!(attempt.measures.get("members_only"), Some(&3.0));
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -319,7 +315,7 @@ mod tests {
             )],
         );
         let markers =
-            performed(&mut scope(), &root, &listed, &ecosystems()).expect("the markers are read");
+            performed(&mut context(), &root, &listed, &ecosystems()).expect("the markers are read");
         assert_eq!(markers, [marker("pyproject.toml", "python", true)]);
         let _ = fs::remove_dir_all(&root);
     }
@@ -331,7 +327,7 @@ mod tests {
             bytes: 0,
             digest: "of a file that is not there".to_string(),
         }];
-        let markers = performed(&mut scope(), &env::temp_dir(), &listed, &ecosystems())
+        let markers = performed(&mut context(), &env::temp_dir(), &listed, &ecosystems())
             .expect("nothing is opened");
         assert_eq!(markers, [marker("proto/buf.yaml", "proto", false)]);
     }
@@ -343,7 +339,8 @@ mod tests {
             ecosystem("typescript", "package.json", None),
             ecosystem("javascript", "package.json", None),
         ];
-        let markers = performed(&mut scope(), &root, &listed, &both).expect("the markers are read");
+        let markers =
+            performed(&mut context(), &root, &listed, &both).expect("the markers are read");
         assert_eq!(
             markers,
             [
@@ -358,11 +355,11 @@ mod tests {
     fn a_marker_changed_or_gone_since_it_was_listed_fails_the_attempt() {
         let (root, listed) = written("changed", &[("Cargo.toml", "[workspace]\n")]);
         fs::write(root.join("Cargo.toml"), "[package]\n").expect("the file is rewritten");
-        let changed = performed(&mut scope(), &root, &listed, &ecosystems())
+        let changed = performed(&mut context(), &root, &listed, &ecosystems())
             .expect_err("the list no longer tells this file");
         assert_eq!(changed, "Cargo.toml changed since it was listed");
         fs::remove_file(root.join("Cargo.toml")).expect("the file is removed");
-        let gone = performed(&mut scope(), &root, &listed, &ecosystems())
+        let gone = performed(&mut context(), &root, &listed, &ecosystems())
             .expect_err("the file is not there");
         assert!(gone.starts_with("Cargo.toml could not be read: "), "{gone}");
         let _ = fs::remove_dir_all(&root);
@@ -380,7 +377,7 @@ mod tests {
             Some((&["workspace"], &["package"])),
         )];
         let toml =
-            performed(&mut scope(), &root, &listed, &rust).expect_err("the marker is not toml");
+            performed(&mut context(), &root, &listed, &rust).expect_err("the marker is not toml");
         assert!(
             toml.starts_with("a/Cargo.toml could not be read as toml: "),
             "{toml}"
@@ -391,7 +388,7 @@ mod tests {
             "package.json",
             Some((&["workspaces"], &[])),
         )];
-        let json = performed(&mut scope(), &root, &listed, &typescript)
+        let json = performed(&mut context(), &root, &listed, &typescript)
             .expect_err("the marker is not json");
         assert!(
             json.starts_with("b/package.json could not be read as json: "),
@@ -404,7 +401,7 @@ mod tests {
     fn a_rule_on_a_marker_that_is_neither_toml_nor_json_fails_the_attempt() {
         let (root, listed) = written("format", &[("buf.yaml", "version: v2\nmodules: []\n")]);
         let ruled = vec![ecosystem("proto", "buf.yaml", Some((&["modules"], &[])))];
-        let failed = performed(&mut scope(), &root, &listed, &ruled)
+        let failed = performed(&mut context(), &root, &listed, &ruled)
             .expect_err("no rule can be read from yaml");
         assert_eq!(
             failed,

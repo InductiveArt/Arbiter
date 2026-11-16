@@ -1,8 +1,8 @@
 use std::process::ExitCode;
 
-use task_runner::store::Read;
-use task_runner::store::When;
-use task_runner::task::Task;
+use task_runner::declaration::read::Read;
+use task_runner::declaration::read::When;
+use task_runner::declaration::task::Task;
 
 use crate::wip_tasks::listed;
 
@@ -43,7 +43,7 @@ pub fn shown(tasks: &[Task]) -> String {
 }
 
 fn fired(read: &Read) -> String {
-    let name = short(read.need.name);
+    let name = short(read.value_type.name);
     match read.when {
         When::Passed => name,
         When::Failed => format!("{name} when its task failed"),

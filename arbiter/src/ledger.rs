@@ -5,8 +5,9 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::core::graph::Graph;
-use crate::core::pack::Finding;
 use crate::core::pack::Suppression;
+use crate::domain::finding::line_at;
+use crate::domain::finding::Finding;
 
 const REFERENCE: &str = ".arbiter/reference.json";
 
@@ -57,10 +58,10 @@ pub fn blanket_findings(found: &Graph) -> Vec<Finding> {
     blankets(found)
         .into_iter()
         .map(|suppression| Finding {
-            check: "ledger",
+            check: "ledger".to_string(),
             file: suppression.file.clone(),
-            line: suppression.line,
-            name: "blanket-suppression".to_string(),
+            line: line_at(suppression.line),
+            rule: Some("blanket-suppression".to_string()),
             reason: format!("{} quiets more than one named rule", suppression.text),
         })
         .collect()
@@ -120,10 +121,10 @@ pub fn broken_record(root: &Path) -> Vec<Finding> {
         return Vec::new();
     }
     vec![Finding {
-        check: "ledger",
+        check: "ledger".to_string(),
         file: std::path::PathBuf::from(REFERENCE),
-        line: 0,
-        name: "unparsable-user-record".to_string(),
+        line: None,
+        rule: Some("unparsable-user-record".to_string()),
         reason: format!("{REFERENCE} does not parse; the signature cannot be read"),
     }]
 }

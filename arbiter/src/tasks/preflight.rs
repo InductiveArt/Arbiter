@@ -2,7 +2,7 @@ use std::path::Path;
 use std::process::Command;
 
 // The machine's own gaps: every axiom a present pack stands on that does not
-// answer. A gap is a broken machine, so the caller stops before judging anything.
+// answer. A gap is a broken machine, so the caller stops before running anything.
 pub fn preflight(root: &Path) -> Vec<String> {
     let packs = crate::packs::all();
     let repo = crate::core::units::scan(root, &packs);

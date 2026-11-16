@@ -21,7 +21,7 @@ pub struct Check {
     pub fix: Option<Vec<String>>,
 }
 
-// The pack's configuration files, written outside the judged repository so a run
+// The pack's configuration files, written outside the repository a run reads, so a run
 // changes nothing in it, at a place {pack} in a command resolves to.
 pub fn materialized(pack: &dyn Pack) -> Option<std::path::PathBuf> {
     let configs = pack.configs();

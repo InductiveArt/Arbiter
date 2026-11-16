@@ -5,11 +5,11 @@ use crate::core::graph::strongly_connected;
 use crate::core::graph::Graph;
 use crate::core::pack::Def;
 use crate::core::pack::Edge;
-use crate::core::pack::Finding;
 use crate::core::pack::Repo;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;
+use crate::domain::finding::Finding;
 
 pub const RULES: &[Rule] = &[rule::facts(
     "unit-cycle",
@@ -21,12 +21,12 @@ pub fn cycles_law() -> Law {
     Law {
         task: "cycles",
         rules: RULES,
-        run: judge,
+        run: instances,
     }
 }
 
 // The unit cycles, as one law reads them from the resolved graph.
-fn judge(found: &Graph) -> Vec<Finding> {
+fn instances(found: &Graph) -> Vec<Finding> {
     cycles(&found.defs, &found.edges, &found.repo)
 }
 
@@ -49,10 +49,10 @@ fn cycles(defs: &[Def], edges: &[Edge], repo: &Repo) -> Vec<Finding> {
             .collect();
         names.sort();
         findings.push(Finding {
-            check: "integrity",
+            check: "integrity".to_string(),
             file: PathBuf::from(&names[0]),
-            line: 0,
-            name: "unit-cycle".to_string(),
+            line: None,
+            rule: Some("unit-cycle".to_string()),
             reason: format!("units import each other: {}", names.join(", ")),
         });
     }

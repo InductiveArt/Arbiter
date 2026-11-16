@@ -4,11 +4,11 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::core::graph::Graph;
-use crate::core::pack::Finding;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;
 use crate::core::units::DECLARATIONS;
+use crate::domain::finding::Finding;
 
 pub const RULES: &[Rule] = &[
     rule::record(
@@ -41,16 +41,16 @@ pub fn folders_law() -> Law {
     Law {
         task: "folders",
         rules: RULES,
-        run: judge,
+        run: instances,
     }
 }
 
-// The folder grain: inner nodes of a unit hold the same two consents, judged
+// The folder grain: inner nodes of a unit hold the same two consents, held
 // over every declared node an edge's end sits under - conjunctively, so a
 // child only tightens what the unit allows. A node governs its border, never
 // its interior. A relative pattern reads in the unit's frame; `//` reaches
 // from the repository root.
-fn judge(found: &Graph) -> Vec<Finding> {
+fn instances(found: &Graph) -> Vec<Finding> {
     let Ok(text) = fs::read_to_string(found.root.join(DECLARATIONS)) else {
         return Vec::new();
     };

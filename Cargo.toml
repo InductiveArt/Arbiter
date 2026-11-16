@@ -1,3 +1,0 @@
-[workspace]
-members = ["arbiter", "task_runner"]
-resolver = "2"

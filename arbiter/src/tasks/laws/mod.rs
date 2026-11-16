@@ -7,11 +7,11 @@ pub mod suppressions;
 pub mod versions;
 
 use crate::core::graph::Graph;
-use crate::core::pack::Finding;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Power;
 use crate::core::rule::Rule;
+use crate::domain::finding::Finding;
 use boundaries::boundaries_law;
 use cycles::cycles_law;
 use economy::economy_law;
@@ -25,10 +25,10 @@ use versions::versions_law;
 const SHARED: &[Rule] = &[rule::facts(
     "unparsable-user-record",
     "records",
-    "a record the user wrote parses, or the break itself is the finding; a store is rebuilt, never judged",
+    "a record the user wrote parses, or the break itself is the finding; a store is rebuilt, never a finding",
 )];
 
-// Every graph and record law the gate runs under its judge task, one entry
+// Every graph and record law the gate runs in its laws step, one entry
 // each; the per-language laws live with their packs and run beside these.
 pub fn all() -> Vec<Law> {
     vec![
@@ -45,7 +45,7 @@ pub fn all() -> Vec<Law> {
 // Every tool-free finding, flat: the graph and record laws and the per-language
 // laws, the form find and the tests read. The gate runs the same laws one task
 // each.
-pub fn judged(found: &Graph) -> Vec<Finding> {
+pub fn findings(found: &Graph) -> Vec<Finding> {
     let mut gathered = Vec::new();
     for law in all() {
         gathered.extend((law.run)(found));
@@ -95,7 +95,7 @@ pub fn findable(name: &str) -> bool {
 }
 
 // Whether the rule is one a pack holds or declines per language, rather than one
-// the core judges once over the graph.
+// the core holds once over the graph.
 pub fn per_language(name: &str) -> bool {
     rule::PER_LANGUAGE.iter().any(|rule| rule.name == name)
 }

@@ -47,7 +47,7 @@ impl Pack for Cpp {
             ),
             (
                 "drift",
-                "never: the proto pack judges any unit's buf.gen.yaml, whatever its language",
+                "never: the proto pack checks every unit's buf.gen.yaml, whatever its language",
             ),
         ]
     }

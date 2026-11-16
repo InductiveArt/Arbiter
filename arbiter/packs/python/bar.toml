@@ -1,5 +1,5 @@
 # Settings may add, never lower. Each entry names a manifest setting that lowers the
-# bar, with the reason it is refused. The type checker's own keys are judged in code:
+# bar, with the reason it is refused. The type checker's own keys are checked in code:
 # a typeCheckingMode below strict, or a report rule set under error, is a finding.
 [refused]
 "tool.ruff.ignore" = "a finding is fixed, never ignored"

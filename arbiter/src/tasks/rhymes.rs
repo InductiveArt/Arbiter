@@ -85,7 +85,7 @@ pub fn rhymes(found: &Graph) -> Vec<Group> {
         if found.packs[index].generated(&name) {
             continue;
         }
-        // A unit on a test path is a fixture: data for some test, not code to judge.
+        // A unit on a test path is a fixture: data for some test, not code to measure.
         let unit = found.repo.unit_of(file);
         let home = found.repo.units[unit].path.clone();
         if found.repo.is_test(unit, &home) {

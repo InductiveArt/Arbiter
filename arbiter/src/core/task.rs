@@ -136,7 +136,7 @@ mod tests {
     #[test]
     fn a_task_tree_nests_children_under_the_task_that_spawned_them() {
         let mut journal = Journal::new();
-        let sum = journal.run("judge", |j| {
+        let sum = journal.run("laws", |j| {
             let a = j.run("graph", |_| Done::ok(2));
             let b = j.run("plans", |_| Done::ok(3));
             Done::ok(a + b).noting("5 findings")
@@ -144,10 +144,10 @@ mod tests {
         assert_eq!(sum, 5);
         let tree = journal.tree();
         assert_eq!(tree.len(), 1, "one task ran at the root");
-        let judge = &tree[0];
-        assert_eq!(judge.op, "judge");
-        assert_eq!(judge.evidence, ["5 findings"]);
-        let names: Vec<&str> = judge.children.iter().map(|c| c.op.as_str()).collect();
+        let laws = &tree[0];
+        assert_eq!(laws.op, "laws");
+        assert_eq!(laws.evidence, ["5 findings"]);
+        let names: Vec<&str> = laws.children.iter().map(|c| c.op.as_str()).collect();
         assert_eq!(
             names,
             ["graph", "plans"],
@@ -159,7 +159,7 @@ mod tests {
     fn a_noted_leaf_sits_beside_the_tasks_that_run() {
         let mut journal = Journal::new();
         journal.noted("scan", 0.5, vec!["2 units".to_string()]);
-        journal.run("judge", |_| Done::ok(()));
+        journal.run("laws", |_| Done::ok(()));
         let tree = journal.tree();
         assert_eq!(tree.len(), 2);
         assert_eq!(tree[0].op, "scan");

@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use crate::core::pack::Finding;
 use crate::core::pack::Pack;
 use crate::core::pack::Repo;
 use crate::core::tools::checks;
@@ -8,8 +7,9 @@ use crate::core::tools::executed;
 use crate::core::tools::filled;
 use crate::core::tools::materialized;
 use crate::core::tools::Outcome;
+use crate::domain::finding::Finding;
 
-pub fn judged(
+pub fn checked(
     root: &Path,
     repo: &Repo,
     packs: &[Box<dyn Pack>],
@@ -21,7 +21,7 @@ pub fn judged(
     let mut notes = Vec::new();
     let mut dialed = Vec::new();
     for (index, unit) in repo.units.iter().enumerate() {
-        // A unit on a test path is a fixture: data for some test, not code to judge.
+        // A unit on a test path is a fixture: data for some test, not code to check.
         if repo.is_test(index, &unit.path) {
             continue;
         }
@@ -79,7 +79,7 @@ pub fn judged(
             };
             if pack.container(&declared) {
                 notes.push(format!(
-                    "{shown} is a {} workspace; its members are the units judged",
+                    "{shown} is a {} workspace; its members are the units checked",
                     pack.label()
                 ));
                 continue;

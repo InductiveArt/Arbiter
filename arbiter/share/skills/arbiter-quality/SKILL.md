@@ -1,6 +1,6 @@
 ---
 name: arbiter-quality
-description: How a repository judged by arbiter is read, changed and left clean - the entry protocol, the fix loop, each finding's expected fix, and what only the user may decide
+description: How a repository gated by arbiter is read, changed and left clean - the entry protocol, the fix loop, each finding's expected fix, and what only the user may decide
 ---
 
 # Arbiter quality
@@ -11,7 +11,7 @@ what they decide.
 
 | Command | Does | Changes files |
 |---|---|---|
-| `arbiter gate .` | judge everything; red names what stands between the code and clean. Warm by default: a unit green under an unchanged input cone skips its tools. `--cold` reads no store; `--fix` is the same judgment, repairs first: packs mend their own findings, tools apply safe fixes. | with `--fix` |
+| `arbiter gate .` | run every check and every law; red names what stands between the code and clean. Warm by default: a unit green under an unchanged input cone skips its tools. `--cold` reads no store; `--fix` is the same run, repairs first: packs mend their own findings, tools apply safe fixes. | with `--fix` |
 | `arbiter find [rule] .` | every tool-free finding, as JSON lines, in seconds; a rule names one law's instances. | no |
 | `arbiter find fallout <name> .` | every definition of a name and each resolved use. | no |
 | `arbiter find deps [unit|path]` | what one unit stands on, declared against resolved; a folder or file at its own grain; bare, the whole graph as mermaid. | no |
@@ -26,8 +26,8 @@ gate, adopt and ledger sign act; find, ledger and rules read and never write.
 A finding's rule name is the same word everywhere: `arbiter rules <rule>` for
 its law, `arbiter find <rule> .` for its instances, this skill for its fix.
 
-Exit codes: 0 clean, 1 findings or failures, 2 no judgment — a broken
-machine, a bad ask, or nothing to judge. A preflight gap ("X is not on this
+Exit codes: 0 clean, 1 findings or failures, 2 no result — a broken
+machine, a bad ask, or nothing to check. A preflight gap ("X is not on this
 machine") is a broken machine, never a finding: stop and tell the user.
 
 ## Entry
@@ -45,7 +45,7 @@ Before the first edit of a session, and when asked how the code stands:
 
 ## How a change is made
 
-The judgment the gate cannot check. The gate holds everything mechanical;
+The thinking the gate cannot check. The gate holds everything mechanical;
 these rules hold the thinking:
 
 - A change begins with the failing test: write it, see it fail for the
@@ -109,7 +109,7 @@ Each finding has one expected fix. A suppression is never one of them.
 | `stale-suppression` | Delete the record entry that quiets nothing - the package left, or is imported after all. The record is the user's. |
 | `undeclared-protocol` | Name the door: the python class subclasses its Protocol, the TypeScript class writes `implements`. Conformance stays structural; the edge becomes one the graph resolves. |
 | `phantom-import` | Point the import at the module its contract generates, or regenerate - and a resolver gap is reported with evidence, never fixed by deleting. |
-| `split-version` | Converge the lockfiles on one version. |
+| `split-version` | Converge the lockfiles on one version of each epoch; two epochs the ecosystem builds side by side are no split. |
 | `cycle` | Move what both sides need into a module each imports. |
 | `uninvited-unit-use`, `undeclared-unit-use` | Invert the dependency or ask the user to amend the declaration - `units.toml` is theirs. |
 | `stale-unit-grant`, `stale-unit-declaration` | Delete the stale `units.toml` entry, or ask the user - the file is theirs. |
@@ -141,7 +141,7 @@ Each finding has one expected fix. A suppression is never one of them.
 
 - A preflight gap or a check that did not finish: the result is unknown.
 - A finding you can prove wrong (`find fallout` + an independent search
-  disagree with the judge): report the resolver gap with the evidence. Never
+  disagree with the finding): report the resolver gap with the evidence. Never
   delete on a finding you have refuted.
 - A fix that would change behavior rather than structure.
 - Work outside the task: report it, never fix it unasked.

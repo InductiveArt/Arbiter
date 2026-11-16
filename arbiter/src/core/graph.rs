@@ -46,7 +46,7 @@ pub fn graph(asked: &str, mut packs: Vec<Box<dyn Pack>>) -> Option<Graph> {
             continue;
         };
         let unit = repo.unit_of(file);
-        // Tests, roots and generated files are leaves: nothing of theirs is judged.
+        // Tests, roots and generated files are leaves: they use, and offer nothing they define.
         let surface = !repo.is_test(unit, file)
             && !repo.units[unit].root_files.contains(file)
             && !packs[index].generated(&name);

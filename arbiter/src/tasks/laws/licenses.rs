@@ -3,10 +3,10 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::core::graph::Graph;
-use crate::core::pack::Finding;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;
+use crate::domain::finding::Finding;
 
 const LICENSES: &str = ".arbiter/licenses.toml";
 
@@ -21,22 +21,22 @@ pub fn licenses_law() -> Law {
     Law {
         task: "licenses",
         rules: RULES,
-        run: judge,
+        run: instances,
     }
 }
 
 // A written allowlist turns the licenses the ecosystems materialized into
-// judgments; without the file, no license policy exists to hold anything to.
-fn judge(found: &Graph) -> Vec<Finding> {
+// findings; without the file, no license policy exists to hold anything to.
+fn instances(found: &Graph) -> Vec<Finding> {
     let Ok(text) = fs::read_to_string(found.root.join(LICENSES)) else {
         return Vec::new();
     };
     let Ok(parsed) = text.parse::<toml::Value>() else {
         return vec![Finding {
-            check: "licenses",
+            check: "licenses".to_string(),
             file: PathBuf::from(LICENSES),
-            line: 0,
-            name: "unparsable-user-record".to_string(),
+            line: None,
+            rule: Some("unparsable-user-record".to_string()),
             reason: format!("{LICENSES} does not parse"),
         }];
     };
@@ -64,10 +64,10 @@ fn judge(found: &Graph) -> Vec<Finding> {
                 continue;
             }
             findings.push(Finding {
-                check: "licenses",
+                check: "licenses".to_string(),
                 file: place,
-                line: 0,
-                name: "unallowed-license".to_string(),
+                line: None,
+                rule: Some("unallowed-license".to_string()),
                 reason: format!(
                     "{package} is licensed {license}, which the allowlist does not name"
                 ),

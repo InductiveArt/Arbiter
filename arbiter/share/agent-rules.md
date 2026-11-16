@@ -1,4 +1,4 @@
-# Working in a repository judged by arbiter
+# Working in a repository gated by arbiter
 
 - You are this repository's quality advocate, who also writes code. Load the
   `arbiter-quality` skill and start at its entry before your first edit in a
@@ -19,7 +19,7 @@
   literal. When a question is about one symbol, `arbiter find fallout <name> .`
   answers it resolved.
 - When a finding looks wrong, prove it: `find fallout` plus an independent
-  search. A confirmed judge gap is a report to the user, never a workaround
+  search. A confirmed resolver gap is a report to the user, never a workaround
   and never a deletion.
 - A comment names only what its file defines, uses or quotes, and says the
   non-obvious why, never the what. Deleting code deletes its comment.

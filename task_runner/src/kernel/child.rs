@@ -4,7 +4,8 @@ use std::process::Command;
 use std::process::ExitStatus;
 use std::time::Duration;
 
-use crate::trace::account::Usage;
+use crate::contract::Usage;
+use crate::kernel::clock::nanos;
 
 // A child that ended: its status, the same decoded, and its account.
 pub struct Reaped {
@@ -142,8 +143,8 @@ pub fn alive(_pid: u32) -> bool {
 #[cfg(unix)]
 fn usage_of(rusage: &libc::rusage) -> Usage {
     Usage {
-        user: timeval(rusage.ru_utime),
-        system: timeval(rusage.ru_stime),
+        user_nanos: nanos(timeval(rusage.ru_utime)),
+        system_nanos: nanos(timeval(rusage.ru_stime)),
         max_rss_bytes: rss_bytes(rusage.ru_maxrss),
         minor_faults: count(rusage.ru_minflt),
         major_faults: count(rusage.ru_majflt),

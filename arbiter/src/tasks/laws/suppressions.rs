@@ -5,10 +5,11 @@ use std::path::PathBuf;
 use crate::core::graph::strongly_connected;
 use crate::core::graph::Graph;
 use crate::core::measures::sibling_graphs;
-use crate::core::pack::Finding;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;
+use crate::domain::finding::line_at;
+use crate::domain::finding::Finding;
 
 pub const RULES: &[Rule] = &[
     rule::record(
@@ -28,14 +29,14 @@ pub fn suppressions_law() -> Law {
     Law {
         task: "suppressions",
         rules: RULES,
-        run: judge,
+        run: instances,
     }
 }
 
 // Everything the suppression record governs: its guards, the sibling cycles it
-// quiets, the grants gone stale, a suppression naming a language no pack judges,
+// quiets, the grants gone stale, a suppression naming a language no pack reads,
 // the blanket forms, and a record that will not parse.
-fn judge(found: &Graph) -> Vec<Finding> {
+fn instances(found: &Graph) -> Vec<Finding> {
     let mut findings = Vec::new();
     let (subjects, guards) = crate::core::record::read(&found.root);
     findings.extend(guards);
@@ -54,11 +55,11 @@ fn judge(found: &Graph) -> Vec<Finding> {
         };
         if !found.packs.iter().any(|pack| pack.label() == language) {
             findings.push(Finding {
-                check: "integrity",
+                check: "integrity".to_string(),
                 file: PathBuf::from(crate::core::record::SUPPRESSIONS),
-                line: *line,
-                name: "stale-suppression".to_string(),
-                reason: format!("{package} is suppressed for {language}, which no pack judges"),
+                line: line_at(*line),
+                rule: Some("stale-suppression".to_string()),
+                reason: format!("{package} is suppressed for {language}, which no pack reads"),
             });
         }
     }

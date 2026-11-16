@@ -9,26 +9,26 @@
 # deps = ["libs/other"]
 
 [units."arbiter".inner."src/core"]
-deps = []
+deps = ["src/domain"]
 
 [units."arbiter".inner."src/packs"]
-deps = ["src/core"]
+deps = ["src/domain", "src/core"]
 
 [units."arbiter".inner."src/tasks/laws"]
-deps = ["src/core", "src/ledger.rs"]
+deps = ["src/domain", "src/core", "src/ledger.rs"]
 
 
 [units."arbiter".inner."src/ledger.rs"]
-deps = ["src/core"]
+deps = ["src/domain", "src/core"]
 
 [units."arbiter".inner."src/gate"]
-deps = ["src/core", "src/tasks", "src/tasks/laws", "src/ledger.rs", "src/packs"]
+deps = ["src/domain", "src/core", "src/tasks", "src/tasks/laws", "src/ledger.rs", "src/packs"]
 
 [units."arbiter".inner."src/court"]
 deps = ["src/core", "src/tasks/laws", "src/ledger.rs", "src/gate", "src/packs"]
 
 [units."arbiter".inner."src/tasks"]
-deps = ["src/core", "src/ledger.rs", "src/packs"]
+deps = ["src/domain", "src/core", "src/ledger.rs", "src/packs"]
 
 [units."arbiter".inner."src/commands"]
 deps = [
@@ -39,103 +39,70 @@ deps = [
   "src/court",
   "src/packs",
   "src/tasks",
-  "src/wip_domain",
+  "src/domain",
   "src/wip_tasks",
-  "//task_runner/src/store.rs",
-  "//task_runner/src/task.rs",
+  "//task_runner/src/declaration",
 ]
 
-[units."arbiter".inner."src/wip_domain"]
+[units."arbiter".inner."src/domain"]
 deps = []
 
 [units."arbiter".inner."src/wip_tasks"]
 deps = [
   "src/core",
-  "src/wip_domain",
-  "//task_runner/src/job",
-  "//task_runner/src/run",
-  "//task_runner/src/trace",
-  "//task_runner/src/layout.rs",
-  "//task_runner/src/plan.rs",
-  "//task_runner/src/pull.rs",
-  "//task_runner/src/scope.rs",
-  "//task_runner/src/store.rs",
-  "//task_runner/src/task.rs",
+  "src/domain",
+  "//task_runner/proto",
+  "//task_runner/src/record",
+  "//task_runner/src/context",
+  "//task_runner/src/declaration",
 ]
 
 [units."task_runner".inner."src"]
-deps = []
-
-[units."task_runner".inner."src/job"]
-deps = []
-
-[units."task_runner".inner."src/trace"]
-deps = ["src/job"]
+deps = ["proto"]
 
 [units."task_runner".inner."src/kernel"]
-deps = ["src/trace"]
+deps = ["proto"]
 
-[units."task_runner".inner."src/layout.rs"]
+[units."task_runner".inner."src/value"]
 deps = []
 
-[units."task_runner".inner."src/scope.rs"]
-deps = ["src/job", "src/kernel", "src/trace", "src/layout.rs"]
+[units."task_runner".inner."src/record"]
+deps = ["proto", "src/kernel", "src/value"]
 
-[units."task_runner".inner."src/store.rs"]
-deps = ["src/job", "src/trace"]
+[units."task_runner".inner."src/context"]
+deps = ["proto", "src/kernel", "src/record"]
 
-[units."task_runner".inner."src/pull.rs"]
-deps = ["src/job", "src/trace", "src/store.rs"]
+[units."task_runner".inner."src/declaration"]
+deps = ["proto", "src/value", "src/record", "src/context"]
 
-[units."task_runner".inner."src/task.rs"]
+[units."task_runner".inner."src/protocol"]
+deps = ["proto", "src/record", "src/declaration"]
+
+[units."task_runner".inner."src/runtime"]
+deps = ["proto", "src/kernel", "src/record", "src/protocol"]
+
+[units."task_runner".inner."src/attempt"]
 deps = [
-  "src/job",
-  "src/trace",
-  "src/layout.rs",
-  "src/pull.rs",
-  "src/scope.rs",
-  "src/store.rs",
-]
-
-[units."task_runner".inner."src/plan.rs"]
-deps = ["src/trace", "src/pull.rs", "src/scope.rs", "src/store.rs", "src/task.rs"]
-
-[units."task_runner".inner."src/worker.rs"]
-deps = [
-  "src/job",
+  "proto",
   "src/kernel",
-  "src/trace",
-  "src/layout.rs",
-  "src/pull.rs",
-  "src/scope.rs",
-  "src/store.rs",
-  "src/task.rs",
+  "src/value",
+  "src/record",
+  "src/context",
+  "src/declaration",
+  "src/protocol",
 ]
 
-[units."task_runner".inner."src/run"]
+[units."task_runner".inner."src/execution"]
 deps = [
-  "src/job",
+  "proto",
   "src/kernel",
-  "src/trace",
-  "src/layout.rs",
-  "src/plan.rs",
-  "src/pull.rs",
-  "src/scope.rs",
-  "src/store.rs",
-  "src/task.rs",
-  "src/worker.rs",
+  "src/value",
+  "src/record",
+  "src/context",
+  "src/declaration",
+  "src/protocol",
+  "src/runtime",
 ]
 
-[units."task_runner".inner."src/exhibit"]
-deps = [
-  "src/trace",
-  "src/run",
-  "src/plan.rs",
-  "src/pull.rs",
-  "src/scope.rs",
-  "src/store.rs",
-  "src/task.rs",
-]
-
-[units."task_runner".inner."src/registry.rs"]
-deps = ["src/exhibit", "src/task.rs"]
+[units."task_runner".inner."src/test_tasks"]
+deps = ["src/record", "src/context", "src/declaration"]

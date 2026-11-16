@@ -3,7 +3,12 @@
   module_name: (dotted_name) @module
   name: (dotted_name) @name)
 
-; An aliased name still reaches its module; the alias is judged apart.
+; A star import: every name its module offers, by whichever the file uses.
+(import_from_statement
+  module_name: (dotted_name) @star
+  (wildcard_import))
+
+; An aliased name still reaches its module; the alias is read apart.
 (import_from_statement
   module_name: (dotted_name) @module
   name: (aliased_import name: (dotted_name) @name))

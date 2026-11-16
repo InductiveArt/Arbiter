@@ -15,3 +15,6 @@ tree-sitter-proto = "0.6.0"
 tree-sitter-python = "0.23"
 tree-sitter-rust = "0.23"
 tree-sitter-typescript = "0.23"
+
+# A project of its own: its lock, its vendored crates, its build.
+[workspace]

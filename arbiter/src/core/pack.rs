@@ -2,6 +2,8 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::domain::finding::Finding;
+
 pub struct Unit {
     pub path: PathBuf,
     pub test_files: HashSet<PathBuf>,
@@ -16,7 +18,7 @@ pub struct Repo {
     // Folders holding a PUBLISHED marker: that unit's surface serves users
     // the repository cannot see.
     pub published: HashSet<PathBuf>,
-    // Folders holding their own .arbiter: other repositories, judged from
+    // Folders holding their own .arbiter: other repositories, gated from
     // their own root. The scan names each one and never crosses its border.
     pub foreign: Vec<PathBuf>,
 }
@@ -82,27 +84,6 @@ pub struct Edge {
     pub unit: usize,
 }
 
-pub struct Finding {
-    pub check: &'static str,
-    pub file: PathBuf,
-    // Zero where the finding has no single line, as a cycle between units has none.
-    pub line: usize,
-    pub name: String,
-    pub reason: String,
-}
-
-impl Finding {
-    pub fn integrity(file: &Path, line: usize, name: &str, reason: String) -> Self {
-        Finding {
-            check: "integrity",
-            file: file.to_path_buf(),
-            line,
-            name: name.to_string(),
-            reason,
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct Suppression {
     pub file: PathBuf,
@@ -120,20 +101,29 @@ pub struct Definition {
     pub self_used: bool,
 }
 
-// One tool-run judgment of a unit's generated code against its contracts.
+// One tool run comparing a unit's generated code with its contracts.
 pub struct Drift {
     pub check: String,
     pub problems: Vec<String>,
     pub seconds: f64,
 }
 
+// A source a generator wrote, marked as rustfmt reads the mark: @generated
+// in one of its first five lines.
+pub fn marked_generated(source: &str) -> bool {
+    source
+        .lines()
+        .take(5)
+        .any(|line| line.contains("@generated"))
+}
+
 // One dial finding, placed at the unit's config file.
 pub fn dial(home: &Path, config: &str, name: &str, reason: String) -> Finding {
     Finding {
-        check: "ecosystem-dials",
+        check: "ecosystem-dials".to_string(),
         file: home.join(config),
-        line: 0,
-        name: name.to_string(),
+        line: None,
+        rule: Some(name.to_string()),
         reason,
     }
 }
@@ -160,7 +150,7 @@ pub trait Pack {
         &[]
     }
 
-    // A manifest declaring members and no code of its own bounds a unit without being one to judge.
+    // A manifest declaring members and no code of its own bounds a unit without being one to check.
     fn container(&self, manifest: &str) -> bool {
         let _ = manifest;
         false
@@ -220,6 +210,15 @@ pub trait Pack {
         toml_locked(text)
     }
 
+    // The epoch a locked version belongs to: versions of one epoch are one
+    // third party and converge, and two epochs are two third parties the
+    // ecosystem builds side by side. One epoch holds every version unless the
+    // ecosystem says otherwise.
+    fn epoch(&self, version: &str) -> String {
+        let _ = version;
+        String::new()
+    }
+
     // Every suppression the pack's language can write, seen while scanning.
     fn suppressions(&self) -> &[Suppression] {
         &[]
@@ -230,16 +229,16 @@ pub trait Pack {
         &[]
     }
 
-    // Whether a file of this name is generated: scanned for its uses, never judged,
+    // Whether a file of this name is generated: scanned for its uses, holding no finding,
     // since its contract's surface is the file it was generated from.
     fn generated(&self, name: &str) -> bool {
         let _ = name;
         false
     }
 
-    // Judges the unit's generated code against its contracts with the unit's own
+    // Compares the unit's generated code with its contracts using the unit's own
     // tools; a fixing run repairs in place first. A unit the pack has nothing to
-    // judge returns nothing.
+    // compare returns nothing.
     fn drift(
         &self,
         root: &Path,

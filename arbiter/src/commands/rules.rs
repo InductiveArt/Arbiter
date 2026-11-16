@@ -19,7 +19,7 @@ pub fn run(arguments: &[String]) -> ExitCode {
 
 // The matrix of rule against language, printed group by group. A cell answers
 // held or never; an open cell is work the matrix keeps visible, never a pass.
-// The tag column answers origin and power at a glance: a core row is judged
+// The tag column answers origin and power at a glance: a core row holds
 // on one graph, a record row waits for the user's record.
 fn matrix() {
     let packs = crate::packs::all();
@@ -58,7 +58,7 @@ fn matrix() {
         }
     }
     println!();
-    println!("core is judged on one graph: every unit and import, all languages together.");
+    println!("core holds on one graph: every unit and import, all languages together.");
     println!(
         "facts rules are the bar from day one; a record rule waits for the user's \
          record, and the drill names its file."
@@ -78,7 +78,7 @@ fn tagged(rule: &str) -> String {
 }
 
 // One rule whole: its law, then each pack's stance - held, open, or never
-// with its why. A core judgment has no stances; its law is the answer. A
+// with its why. A core law has no stances; its law is the answer. A
 // group prints every law on its shelf.
 fn ruled(asked: &str) -> ExitCode {
     for (group, members) in laws::groups() {
@@ -96,7 +96,7 @@ fn ruled(asked: &str) -> ExitCode {
         labeled("law", law);
         labeled("power", &empowered(asked));
         if laws::per_language(asked) {
-            labeled("judged", "by each language's pack, stance by stance");
+            labeled("found", "by each language's pack, stance by stance");
             println!();
             for pack in crate::packs::all() {
                 let answer = pack
@@ -116,7 +116,7 @@ fn ruled(asked: &str) -> ExitCode {
             }
         } else {
             labeled(
-                "judged",
+                "found",
                 "on the one graph — every unit and import, all languages at once",
             );
         }

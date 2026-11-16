@@ -17,11 +17,16 @@ fix = ["cargo", "fmt"]
 [[check]]
 name = "clippy"
 tool = "lint_rust"
-run = ["cargo", "clippy", "--all-targets", "--quiet", "--", "-D", "warnings"]
-fix = ["cargo", "clippy", "--fix", "--allow-dirty", "--allow-staged", "--all-targets", "--quiet"]
+# A glob import names none of the symbols it brings, so a search for a symbol
+# never finds where it came from: clippy names each one, from the compiler's
+# own resolution, and its fix writes them out.
+run = ["cargo", "clippy", "--all-targets", "--quiet", "--", "-D", "warnings", "-D", "clippy::wildcard_imports"]
+# Asked to repair, cargo repairs whatever a version control system holds or
+# not, as every other fixer does.
+fix = ["cargo", "clippy", "--fix", "--allow-dirty", "--allow-staged", "--allow-no-vcs", "--all-targets", "--quiet", "--", "-W", "clippy::wildcard_imports"]
 # The same lint printing JSON lines, which the cargo_json reader reads into
 # findings, and cargo naming the root of the workspace their paths run from.
-findings = { reader = "cargo_json", run = ["cargo", "clippy", "--all-targets", "--quiet", "--message-format=json", "--", "-D", "warnings"], root = ["cargo", "locate-project", "--workspace", "--message-format", "json"] }
+findings = { reader = "cargo_json", run = ["cargo", "clippy", "--all-targets", "--quiet", "--message-format=json", "--", "-D", "warnings", "-D", "clippy::wildcard_imports"], root = ["cargo", "locate-project", "--workspace", "--message-format", "json"] }
 
 [[check]]
 name = "test"

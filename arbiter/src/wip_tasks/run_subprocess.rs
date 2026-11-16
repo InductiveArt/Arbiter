@@ -5,18 +5,20 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
-use task_runner::pull::In;
-use task_runner::scope::Scope;
-use task_runner::task::Task;
-use task_runner::trace::outcome::Failure;
+use task_runner::context::task_context::TaskContext;
+use task_runner::declaration::pull::In;
+use task_runner::declaration::task::Task;
+use task_runner::record::task_failure::TaskFailure;
 
-use crate::wip_domain::subprocess::Exit;
-use crate::wip_domain::subprocess::Subprocess;
+use crate::domain::subprocess::Subprocess;
+use crate::domain::subprocess::SubprocessExit;
 
 pub fn run_subprocess_task() -> Task {
     Task::new(
         "run_subprocess",
-        |scope: &mut Scope, subprocess: In<Subprocess>| run_subprocess(scope, &subprocess),
+        |context: &mut TaskContext, subprocess: In<Subprocess>| {
+            run_subprocess(context, &subprocess)
+        },
     )
     .within(Duration::from_secs(30 * 60))
     .line(
@@ -25,12 +27,15 @@ pub fn run_subprocess_task() -> Task {
     )
 }
 
-// How the program ended is told, never judged: only a program that could not
+// How the program ended is told as it ended: only a program that could not
 // be run fails the task.
-fn run_subprocess(scope: &mut Scope, subprocess: &Subprocess) -> Result<Exit, Failure> {
-    scope.note(format!("folder: {}", subprocess.folder.display()));
+fn run_subprocess(
+    context: &mut TaskContext,
+    subprocess: &Subprocess,
+) -> Result<SubprocessExit, TaskFailure> {
+    context.note(format!("folder: {}", subprocess.folder.display()));
     if !subprocess.folder.is_dir() {
-        return Err(Failure::from(format!(
+        return Err(TaskFailure::from(format!(
             "no folder at {}",
             subprocess.folder.display()
         )));
@@ -39,31 +44,36 @@ fn run_subprocess(scope: &mut Scope, subprocess: &Subprocess) -> Result<Exit, Fa
     command
         .args(&subprocess.arguments)
         .current_dir(&subprocess.folder);
-    let finished = scope.command(&mut command)?;
-    let output = scope.dir().join("output");
+    let finished = context.command(&mut command)?;
+    let output = context.dir().join("output");
     fs::create_dir_all(&output).map_err(|error| unwritten(&output, &error))?;
-    let exit = Exit {
+    keep(context, &output.join("stdout"), "stdout", &finished.stdout)?;
+    keep(context, &output.join("stderr"), "stderr", &finished.stderr)?;
+    let exit = SubprocessExit {
         code: finished.status.code(),
         signal: finished.status.signal(),
-        stdout: output.join("stdout"),
-        stderr: output.join("stderr"),
+        stdout: String::from_utf8_lossy(&finished.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&finished.stderr).into_owned(),
     };
-    keep(scope, &exit.stdout, "stdout", &finished.stdout)?;
-    keep(scope, &exit.stderr, "stderr", &finished.stderr)?;
-    scope.note(format!("ended: {}", exit.ended(&subprocess.program)));
+    context.note(format!("ended: {}", exit.ended(&subprocess.program)));
     Ok(exit)
 }
 
 // The whole of one stream, never a tail: a cut output hides everything
 // printed before the part kept.
-fn keep(scope: &mut Scope, file: &Path, stream: &str, printed: &[u8]) -> Result<(), Failure> {
+fn keep(
+    context: &mut TaskContext,
+    file: &Path,
+    stream: &str,
+    printed: &[u8],
+) -> Result<(), TaskFailure> {
     fs::write(file, printed).map_err(|error| unwritten(file, &error))?;
-    scope.note(format!("{stream}: {}", file.display()));
+    context.note(format!("{stream}: {}", file.display()));
     Ok(())
 }
 
-fn unwritten(path: &Path, error: &io::Error) -> Failure {
-    Failure::from(format!("{} could not be written: {error}", path.display()))
+fn unwritten(path: &Path, error: &io::Error) -> TaskFailure {
+    TaskFailure::from(format!("{} could not be written: {error}", path.display()))
 }
 
 #[cfg(test)]
@@ -73,16 +83,15 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use task_runner::job::cancel::Cancel;
-    use task_runner::job::id::JobId;
-    use task_runner::job::id::RunId;
-    use task_runner::layout::Site;
-    use task_runner::scope::Scope;
-    use task_runner::trace::outcome::Outcome;
+    use task_runner::context::stop_token::StopToken;
+    use task_runner::context::task_context::TaskContext;
+    use task_runner::contract::RunId;
+    use task_runner::contract::RunRecord;
+    use task_runner::contract::TaskAttemptId;
 
     use super::run_subprocess;
-    use crate::wip_domain::subprocess::Exit;
-    use crate::wip_domain::subprocess::Subprocess;
+    use crate::domain::subprocess::Subprocess;
+    use crate::domain::subprocess::SubprocessExit;
 
     // A place of its own per test: the files written under `work`, beside the
     // attempt's own folder.
@@ -103,12 +112,12 @@ mod tests {
         root
     }
 
-    fn scope(root: &Path, cancel: Cancel) -> Scope {
-        let site = Site {
-            dir: root.join("attempt"),
-            store: root.join("store"),
-        };
-        Scope::new(JobId::new(RunId::next(), "run_subprocess", 1), cancel, site)
+    fn context(root: &Path, cancel: StopToken) -> TaskContext {
+        TaskContext::new(
+            TaskAttemptId::new(RunId::next(), "run_subprocess", 1),
+            cancel,
+            root.join("attempt"),
+        )
     }
 
     // A program started in a folder under `work`, by its words.
@@ -122,26 +131,33 @@ mod tests {
     }
 
     #[test]
-    fn a_program_is_started_in_its_folder_and_all_it_prints_is_kept_each_stream_in_a_file() {
+    fn a_program_is_started_in_its_folder_and_all_it_prints_is_handed_back_and_kept_each_stream_in_a_file(
+    ) {
         let root = ground("printed", &[("a/name", "first\n")]);
-        let mut scope = scope(&root, Cancel::new());
+        let mut context = context(&root, StopToken::new());
         let told = subprocess(&root, "a", &["sh", "-c", "cat name; echo warned >&2"]);
-        let exit = run_subprocess(&mut scope, &told).expect("the program ran");
+        let exit = run_subprocess(&mut context, &told).expect("the program ran");
         let output = root.join("attempt").join("output");
         assert_eq!(
             exit,
-            Exit {
+            SubprocessExit {
                 code: Some(0),
                 signal: None,
-                stdout: output.join("stdout"),
-                stderr: output.join("stderr"),
+                stdout: "first\n".to_string(),
+                stderr: "warned\n".to_string(),
             }
         );
-        assert_eq!(fs::read_to_string(&exit.stdout).expect("kept"), "first\n");
-        assert_eq!(fs::read_to_string(&exit.stderr).expect("kept"), "warned\n");
-        let step = scope.finished("run_subprocess", Outcome::Ok);
         assert_eq!(
-            step.evidence,
+            fs::read_to_string(output.join("stdout")).expect("kept"),
+            "first\n"
+        );
+        assert_eq!(
+            fs::read_to_string(output.join("stderr")).expect("kept"),
+            "warned\n"
+        );
+        let attempt = context.finished(RunRecord::passed());
+        assert_eq!(
+            attempt.evidence,
             [
                 format!("folder: {}", root.join("work").join("a").display()),
                 format!("stdout: {}", output.join("stdout").display()),
@@ -150,7 +166,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            step.resources.children.len(),
+            attempt.resources().processes.len(),
             1,
             "the program's account is kept"
         );
@@ -160,13 +176,16 @@ mod tests {
     #[test]
     fn an_exit_other_than_0_is_told_and_never_fails_the_task() {
         let root = ground("non-zero", &[("a/x", "")]);
-        let mut scope = scope(&root, Cancel::new());
-        let exit = run_subprocess(&mut scope, &subprocess(&root, "a", &["sh", "-c", "exit 3"]))
-            .expect("the program ran");
+        let mut context = context(&root, StopToken::new());
+        let exit = run_subprocess(
+            &mut context,
+            &subprocess(&root, "a", &["sh", "-c", "exit 3"]),
+        )
+        .expect("the program ran");
         assert_eq!((exit.code, exit.signal), (Some(3), None));
-        let step = scope.finished("run_subprocess", Outcome::Ok);
+        let attempt = context.finished(RunRecord::passed());
         assert_eq!(
-            step.evidence.last().map(String::as_str),
+            attempt.evidence.last().map(String::as_str),
             Some("ended: sh exited with 3")
         );
         let _ = fs::remove_dir_all(&root);
@@ -175,9 +194,9 @@ mod tests {
     #[test]
     fn a_program_ended_by_a_signal_is_told_with_the_signal() {
         let root = ground("signal", &[("a/x", "")]);
-        let mut scope = scope(&root, Cancel::new());
+        let mut context = context(&root, StopToken::new());
         let exit = run_subprocess(
-            &mut scope,
+            &mut context,
             &subprocess(&root, "a", &["sh", "-c", "kill -9 $$"]),
         )
         .expect("the program ran");
@@ -190,7 +209,7 @@ mod tests {
     fn a_program_that_cannot_be_started_fails_naming_the_program() {
         let root = ground("absent", &[("a/x", "")]);
         let failed = run_subprocess(
-            &mut scope(&root, Cancel::new()),
+            &mut context(&root, StopToken::new()),
             &subprocess(&root, "a", &["arbiter-no-such-program"]),
         )
         .expect_err("nothing ran");
@@ -208,7 +227,7 @@ mod tests {
     fn a_folder_that_is_not_there_fails_naming_the_folder() {
         let root = ground("nowhere", &[("a/x", "")]);
         let failed = run_subprocess(
-            &mut scope(&root, Cancel::new()),
+            &mut context(&root, StopToken::new()),
             &subprocess(&root, "missing", &["cat", "x"]),
         )
         .expect_err("nothing ran");
@@ -223,16 +242,19 @@ mod tests {
     }
 
     #[test]
-    fn a_job_told_to_stop_kills_the_program_and_fails_as_cancelled() {
+    fn an_attempt_told_to_stop_kills_the_program_and_fails_as_cancelled() {
         let root = ground("stopped", &[("a/x", "")]);
-        let cancel = Cancel::new();
-        cancel.cancel();
-        let mut scope = scope(&root, cancel);
-        let failed = run_subprocess(&mut scope, &subprocess(&root, "a", &["sleep", "5"]))
-            .expect_err("the job was told to stop");
+        let token = StopToken::new();
+        token.stop();
+        let mut context = context(&root, token);
+        let failed = run_subprocess(&mut context, &subprocess(&root, "a", &["sleep", "5"]))
+            .expect_err("the attempt was told to stop");
         assert_eq!(failed.reason, "cancelled");
-        let step = scope.finished("run_subprocess", Outcome::Cancelled);
-        assert!(step.resources.children[0].killed, "the program was killed");
+        let attempt = context.finished(RunRecord::cancelled());
+        assert!(
+            attempt.resources().processes[0].killed,
+            "the program was killed"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 }

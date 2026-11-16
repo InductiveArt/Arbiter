@@ -24,7 +24,7 @@ pub fn run(arguments: &[String]) -> ExitCode {
     ExitCode::from(2)
 }
 
-// The agent layer, installed where agents will look. The judge's own files
+// The agent layer, installed where agents will look. arbiter's own files
 // (rules, skill, hook) follow the binary and are refreshed when they drift,
 // never backwards: a file stamped by a newer arbiter is left, and the caller
 // is told to update. settings.json is the repository's and is written once.

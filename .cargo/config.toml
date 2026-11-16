@@ -1,8 +1,13 @@
 # Builds read third parties from the tree, never the network: the registry
 # is provenance, not a build-time dependency. cargo build --frozen proves it.
+# Every project in the repository builds through this one file, so the one
+# third_party/rust and the one target folder are theirs alike.
 
 [source.crates-io]
 replace-with = "vendored-sources"
 
 [source.vendored-sources]
 directory = "third_party/rust"
+
+[build]
+target-dir = "target"
