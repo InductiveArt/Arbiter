@@ -1,0 +1,1148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>arbiter court</title>
+<script src="https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js"></script>
+<style>
+:root {
+  --paper: #10141a; --panel: #161b23; --line: #272f3b; --ink: #d9dfe7;
+  --dim: #8b95a3; --good: #7dc87d; --bad: #e07a7a; --warn: #d8b45f;
+  --accent: #7aa7d8; --sel: #2c3a4d;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body { background: var(--paper); color: var(--ink); font: 13.5px/1.5 var(--mono);
+       display: flex; flex-direction: column; overflow: hidden; }
+.good { color: var(--good); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+.dim { color: var(--dim); } .accent { color: var(--accent); }
+header { padding: .8rem 1.4rem .6rem; border-bottom: 1px solid var(--line);
+         display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap; }
+header h1 { font-size: 1.05rem; font-weight: 600; }
+header .meta { color: var(--dim); font-size: .8rem; }
+nav { display: flex; gap: .2rem; padding: 0 1rem; border-bottom: 1px solid var(--line); }
+nav a { color: var(--dim); text-decoration: none; padding: .45rem .8rem; border-bottom: 2px solid transparent; }
+nav a.on { color: var(--ink); border-bottom-color: var(--accent); }
+nav a b { font-weight: 600; } nav a span { color: var(--dim); font-size: .8rem; }
+nav a span.bad { color: var(--bad); }
+#stage { flex: 1; display: flex; min-height: 0; }
+#view { flex: 1; overflow: auto; padding: 1rem 1.3rem; min-width: 0; display: flex; flex-direction: column; }
+#panel { width: 360px; border-left: 1px solid var(--line); overflow: auto;
+         padding: 1rem 1.1rem; display: none; background: var(--panel); flex-shrink: 0; }
+#panel.open { display: block; }
+#reopen { display: none; position: absolute; right: 0; top: 40%; background: var(--panel);
+          border: 1px solid var(--line); border-right: none; border-radius: 6px 0 0 6px;
+          padding: .5rem .35rem; cursor: pointer; color: var(--dim); writing-mode: vertical-rl; }
+#reopen.show { display: block; }
+#stage { position: relative; }
+#panel h3 { font-size: .95rem; margin-bottom: .15rem; word-break: break-all; }
+#panel .kind { color: var(--dim); font-size: .78rem; margin-bottom: .7rem; }
+#panel h4 { color: var(--accent); font-size: .78rem; margin: .85rem 0 .25rem; text-transform: lowercase; }
+#panel .row { margin: .1rem 0; word-break: break-all; }
+#panel .row.link { cursor: pointer; }
+#panel .row.link:hover { color: var(--accent); }
+#panel .close { float: right; color: var(--dim); cursor: pointer; }
+#panel a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+.crumbs { margin-bottom: .6rem; color: var(--dim); flex: none; }
+.crumbs a { color: var(--accent); cursor: pointer; text-decoration: none; }
+#cy { flex: 1; min-height: 380px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+        padding: .75rem 1rem; margin-bottom: .7rem; overflow-x: auto; }
+.card h3 { font-size: .9rem; margin-bottom: .4rem; }
+table { border-collapse: collapse; width: 100%; }
+th { text-align: left; color: var(--dim); font-weight: 500; padding: .12rem .9rem .3rem 0; }
+td { padding: .12rem .9rem .12rem 0; vertical-align: top; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--sel); }
+.tag { display: inline-block; font-size: .7rem; padding: 0 .4rem; border-radius: 3px;
+       border: 1px solid var(--line); color: var(--dim); margin-left: .45rem; }
+.tag.core { color: var(--accent); border-color: var(--accent); }
+.tag.record { color: var(--warn); border-color: var(--warn); }
+.tag.id { color: var(--dim); cursor: copy; }
+.finding { border-left: 3px solid var(--bad); padding: .15rem .6rem .15rem .8rem; margin: .5rem 0;
+           cursor: pointer; border-radius: 0 4px 4px 0; }
+.finding:hover { background: var(--sel); }
+.finding .where { color: var(--dim); font-size: .8rem; }
+.finding .where .go { color: var(--accent); }
+.law { color: var(--dim); font-size: .8rem; }
+.empty { color: var(--dim); font-style: italic; }
+.chips { display: flex; gap: .8rem; flex-wrap: wrap; margin-bottom: .9rem; }
+.chip { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: .4rem .8rem; }
+.chip b { font-size: 1.05rem; } .chip.bad b { color: var(--bad); }
+.chip div { color: var(--dim); font-size: .75rem; }
+.mode { margin-bottom: .5rem; color: var(--dim); }
+.mode a { color: var(--dim); cursor: pointer; margin-right: .8rem; text-decoration: none; }
+.mode a.on { color: var(--ink); border-bottom: 2px solid var(--accent); }
+.grouprow { cursor: pointer; }
+.grouprow:hover { background: var(--sel); }
+.stage-ok { color: var(--good); } .stage-fail { color: var(--bad); } .stage-warm { color: var(--dim); }
+.detail td { color: var(--dim); }
+.outlink { color: var(--accent); cursor: pointer; text-decoration: underline; }
+#overlay { position: fixed; inset: 0; background: rgba(5,8,12,.82); display: none;
+           align-items: center; justify-content: center; z-index: 10; }
+#overlay.open { display: flex; }
+#overlay .box { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+                width: min(950px, 92vw); max-height: 86vh; display: flex; flex-direction: column; }
+#overlay .head { padding: .6rem 1rem; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+#overlay pre { overflow: auto; padding: 1rem; font-size: .8rem; white-space: pre-wrap; }
+#filterbar { position: sticky; top: 0; z-index: 3; background: var(--paper);
+             padding: .2rem 0 .6rem; }
+#filterbar .card { margin-bottom: 0; }
+details.group { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+                padding: .4rem .8rem; margin-bottom: .55rem; }
+details.group > summary { cursor: pointer; list-style: none; display: flex; gap: .8rem;
+                          align-items: baseline; flex-wrap: wrap; }
+details.group > summary::before { content: "▸ "; color: var(--dim); }
+details.group[open] > summary::before { content: "▾ "; }
+details.group .body { margin-top: .5rem; border-top: 1px solid var(--line); padding-top: .4rem; }
+.hint { display: inline-block; font-size: .72rem; padding: 0 .45rem; border-radius: 3px;
+        border: 1px solid var(--bad); color: var(--bad); }
+.stagechip { font-size: .78rem; margin-right: .35rem; }
+#pipe { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+        margin-bottom: .9rem; overflow-x: auto; }
+#pipe svg { display: block; }
+#pipe .step rect { fill: #1d242e; stroke: var(--line); rx: 6; cursor: pointer; }
+#pipe .step:hover rect { stroke: var(--accent); }
+#pipe .step text { fill: var(--ink); font: 12px var(--mono); pointer-events: none; }
+#pipe .step text.sub { fill: var(--dim); font-size: 10px; }
+#pipe .step.red rect { stroke: var(--bad); }
+#pipe .step.green rect { stroke: #4f7d4f; }
+#pipe .flow { stroke: var(--dim); fill: none; marker-end: url(#parrow); opacity: .7; }
+.legend { color: var(--dim); font-size: .78rem; margin: .4rem 0 .8rem; }
+svg.deps { display: block; width: 100%; height: 100%; cursor: grab; }
+svg.deps:active { cursor: grabbing; }
+.gnode rect { fill: #1d242e; stroke: #272f3b; stroke-width: 1.5; rx: 5; cursor: pointer; }
+.gnode text { fill: var(--ink); font: 12px var(--mono); pointer-events: none; }
+.gnode.enterable rect { stroke-dasharray: 5 3; }
+.gnode.alarmed rect { stroke: var(--bad); }
+.gnode.stageok rect { stroke: #4f7d4f; }
+.gnode.stageok.alarmed rect { stroke: var(--bad); }
+.gnode.stagefail rect, .gnode.tangled rect { stroke: var(--bad); stroke-width: 2.5; }
+.gnode.glow rect { fill: var(--sel) !important; stroke: var(--accent); }
+.gnode.selected rect { fill: var(--sel) !important; stroke-width: 3; }
+.gnode.selected:not(.alarmed):not(.stagefail):not(.stageok):not(.tangled) rect { stroke: var(--accent); }
+.gedge { stroke: #5c6673; stroke-width: 1.4; fill: none; }
+.gedge.breaks, .gedge.tangled { stroke: var(--bad); stroke-width: 2; }
+.gedge.glow { stroke: var(--accent); stroke-width: 2.2; }
+.gnode.focus rect { stroke: var(--warn); stroke-width: 2.8; }
+.gedge.focus { stroke: var(--warn); stroke-width: 2.8; opacity: 1; }
+.junction { fill: #5c6673; }
+.faded { opacity: .16; }
+</style>
+</head>
+<body>
+<header>
+  <h1>arbiter court</h1>
+  <div id="verdict"></div>
+  <div class="meta" id="meta"></div>
+</header>
+<nav id="nav"></nav>
+<div id="stage">
+  <div id="view"></div>
+  <aside id="panel"></aside>
+  <div id="reopen">scope ⟨</div>
+</div>
+<div id="overlay"><div class="box"><div class="head"><b id="overlaytitle"></b><span class="close dim" style="cursor:pointer" onclick="closeOverlay()">x</span></div><pre id="overlaybody"></pre></div></div>
+<script id="data" type="application/json">/*ARBITER_DATA*/</script>
+<script>
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const el = (tag, cls, text) => {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+};
+const ruleMeta = name => DATA.rules.find(r => r.name === name);
+let pending = null;
+
+// ---- the containment tree, derived once ----
+// Every known place in repo coordinates, with its owning unit; children are
+// derived from path chains so single-child corridors stay walkable.
+const UNITS = DATA.unitsList.filter(u => !u.test).map(u => u.name);
+const ownerOf = place => {
+  if (UNITS.includes(place)) return place;
+  let best = ".";
+  for (const u of UNITS) if (u !== "." && (place === u || place.startsWith(u + "/")) && u.length > best.length) best = u;
+  return best;
+};
+const fullOf = (unit, child) => unit === "." ? child : unit + "/" + child;
+const CHILDREN = { units: new Set() };
+const register = place => {
+  const unit = ownerOf(place);
+  CHILDREN.units.add(unit);
+  if (place === unit) return;
+  const rel = unit === "." ? place : place.slice(unit.length + 1);
+  const parts = rel.split("/");
+  let parent = unit;
+  for (const part of parts) {
+    const child = parent === "." ? part : parent + "/" + part;
+    (CHILDREN[parent] = CHILDREN[parent] || new Set()).add(child);
+    parent = child;
+  }
+};
+for (const u of UNITS) CHILDREN.units.add(u);
+for (const fam of DATA.families) {
+  register(fam.place);
+  for (const e of fam.edges) { register(fullOf(fam.unit, e.from)); register(fullOf(fam.unit, e.to)); }
+}
+for (const t of DATA.tangles) { register(t.place); for (const m of t.members) register(fullOf(ownerOf(t.place), m)); }
+for (const e of DATA.edges) { CHILDREN.units.add(e.user); CHILDREN.units.add(e.owner); }
+const childrenOf = scope => [...(CHILDREN[scope] || new Set())].sort();
+const within = (f, place) =>
+  !place || place === "." || f.file === place || f.file.startsWith(place + "/");
+const findingsUnder = place => DATA.findings.filter(f => within(f, place));
+const outcomesOf = unit => DATA.outcomes.filter(o => o.unit === unit);
+
+// ---- header ----
+{
+  const failed = DATA.outcomes.filter(o => !o.passed).length;
+  const verdict = document.getElementById("verdict");
+  verdict.appendChild(failed === 0 && DATA.findings.length === 0
+    ? el("span", "good", "clean — " + DATA.outcomes.length + " checks, no findings")
+    : el("span", "bad", failed + " checks failed, " + DATA.findings.length + " findings"));
+  document.getElementById("meta").textContent =
+    DATA.root + " · arbiter " + DATA.version + " · " + DATA.units + " units, " + DATA.files + " files"
+    + ((DATA.foreign || []).length ? " · foreign: " + DATA.foreign.join(", ") : "");
+}
+
+// ---- routing ----
+const TABS = [
+  ["overview", () => DATA.findings.length, () => DATA.findings.length > 0],
+  ["findings", () => DATA.findings.length, () => DATA.findings.length > 0],
+  ["graph", () => DATA.edges.length + DATA.families.length, () => DATA.tangles.length > 0],
+  ["ledger", () => DATA.suppressions.counted.length, () => false],
+  ["rules", () => DATA.rules.length, () => false],
+];
+function route() {
+  const hash = decodeURIComponent(location.hash.slice(1)) || "overview";
+  const [tab, ...rest] = hash.split("/");
+  const nav = document.getElementById("nav");
+  nav.textContent = "";
+  for (const [name, count, alarmed] of TABS) {
+    const a = el("a", name === tab ? "on" : null);
+    a.href = "#" + name;
+    a.appendChild(el("b", null, name));
+    a.appendChild(el("span", alarmed() ? "bad" : null, " " + count()));
+    nav.appendChild(a);
+  }
+  lastScope = null;
+  pinnedPlace = null;
+  closePanel();
+  const view = document.getElementById("view");
+  view.textContent = "";
+  ({ overview, findings, graph, ledger, rules }[tab] || overview)(view, rest.join("/"));
+}
+window.addEventListener("hashchange", route);
+function go(hash) {
+  if (location.hash === "#" + hash) route();
+  else location.hash = "#" + hash;
+}
+
+// ---- panel & overlay ----
+function openPanel(title, kind, build) {
+  const panel = document.getElementById("panel");
+  panel.textContent = "";
+  panel.className = "open";
+  const close = el("span", "close", "x");
+  close.onclick = closePanel;
+  panel.appendChild(close);
+  panel.appendChild(el("h3", null, title));
+  panel.appendChild(el("div", "kind", kind));
+  build(panel);
+}
+function closePanel() {
+  const panel = document.getElementById("panel");
+  panel.className = ""; panel.textContent = "";
+  unglow();
+  const reopen = document.getElementById("reopen");
+  reopen.className = lastScope === null ? "" : "show";
+}
+let lastScope = null;
+document.getElementById("reopen").onclick = () => { if (lastScope !== null) scopePanel(lastScope); };
+let scopeFacts = { nodes: 0, edges: 0, tangle: null };
+function scopePanel(scope) {
+  lastScope = scope;
+  document.getElementById("reopen").className = "";
+  const title = scope === "units" ? "units — the whole quotient" : scope;
+  openPanel(title, "scope — tap a node to drill, the void to come back", panel => {
+    panel.appendChild(el("div", "row dim", scopeFacts.nodes + " nodes, " + scopeFacts.edges + " edges"));
+    if (scope !== "units") {
+      const unit = ownerOf(scope);
+      const declared = DATA.declared.find(d => d.name === unit);
+      const rel = unit === "." ? scope : scope === unit ? "" : scope.slice(unit.length + 1);
+      const inner = declared && rel && declared.inner.find(i => i.path === rel);
+      const intent = scope === unit ? declared : inner;
+      if (intent) {
+        panelList(panel, "deps (intent)", intent.deps.length ? intent.deps : ["(undeclared)"]);
+        panelList(panel, "visibility (intent)", intent.visibility.length ? intent.visibility : ["(undeclared)"]);
+      } else {
+        panel.appendChild(el("h4", null, "intent"));
+        panel.appendChild(el("div", "row dim", "(nothing declared — binds nothing)"));
+      }
+    }
+    if (scopeFacts.tangles && scopeFacts.tangles.length) {
+      panel.appendChild(el("h4", null, "tangles " + scopeFacts.tangles.length));
+      const owner = ownerOf(scope === "units" ? "." : scope);
+      for (const tangle of scopeFacts.tangles) {
+        const line = el("div", "row bad link", tangle.members.join(" <-> "));
+        line.onmouseenter = () => glowMembers(tangle.members.map(m => fullOf(owner, m)));
+        line.onmouseleave = restoreGlow;
+        panel.appendChild(line);
+      }
+    }
+    const mine = scope === "units" ? DATA.findings : findingsUnder(scope);
+    panelFindings(panel, mine.slice(0, 12), scope === "units" ? "" : scope);
+    if (mine.length > 12) {
+      const more = el("a", null, mine.length - 12 + " more in findings ↗");
+      more.onclick = () => go("findings" + (scope === "units" ? "" : "/" + scope));
+      panel.appendChild(more);
+    }
+  });
+}
+function panelList(panel, title, items, each, hover) {
+  if (!items || !items.length) return;
+  panel.appendChild(el("h4", null, title));
+  for (const item of items) {
+    const row = el("div", "row" + (each ? " link" : ""), typeof item === "string" ? item : item.text);
+    if (each) {
+      const target = typeof item === "string" ? item : item.target;
+      row.onmouseenter = () => (hover || glow)(target);
+      row.onmouseleave = restoreGlow;
+      row.onclick = () => each(target);
+    }
+    panel.appendChild(row);
+  }
+}
+function panelFindings(panel, mine, place) {
+  panel.appendChild(el("h4", null, "findings " + mine.length));
+  if (!mine.length) { panel.appendChild(el("div", "row dim", "none")); return; }
+  if (place !== undefined) {
+    const all = el("a", null, "open in findings ↗");
+    all.onclick = () => go("findings" + (place ? "/" + place : ""));
+    panel.appendChild(all);
+  }
+  for (const f of mine.slice(0, 10)) panel.appendChild(findingRow(f, hoverFor(f)));
+  if (mine.length > 10) {
+    const more = el("a", null, mine.length - 10 + " more in findings ↗");
+    more.onclick = () => go("findings" + (place ? "/" + place : ""));
+    panel.appendChild(more);
+  }
+}
+// A finding that names a tangle isolates it on hover, wherever it is shown.
+function hoverFor(f) {
+  if (f.rule.endsWith("-cycle") && f.reason.includes(" <-> ")) {
+    const owner = ownerOf(f.file);
+    const members = f.reason.split(": ").pop().replace(/ form a cycle.*/, "")
+      .split(" <-> ").map(s => fullOf(owner, s.trim()));
+    return () => glowMembers(members);
+  }
+  if (f.rule.endsWith("-use")) {
+    const spoken = f.reason.match(/^(\S+) uses (\S+?),/);
+    if (spoken) {
+      const home = ownerOf(f.file);
+      return () => glowEdge(spoken[1], spoken[2], home);
+    }
+  }
+  return () => glowNode(f.file);
+}
+function showOverlay(title, body) {
+  document.getElementById("overlaytitle").textContent = title;
+  document.getElementById("overlaybody").textContent = body;
+  document.getElementById("overlay").className = "open";
+}
+function closeOverlay() { document.getElementById("overlay").className = ""; }
+document.getElementById("overlay").onclick = e => { if (e.target.id === "overlay") closeOverlay(); };
+
+// ---- the graph (cytoscape + dagre) ----
+let GRAPHSVG = null;
+// The deepest drawn node holding a place: itself, or its nearest ancestor.
+function visibleFor(place) {
+  if (!GRAPHSVG) return null;
+  let best = null;
+  for (const id of GRAPHSVG.nodes.keys()) {
+    if (id === place || place.startsWith(id === "." ? "" : id + "/")) {
+      if (!best || id.length > best.length) best = id;
+    }
+  }
+  return best;
+}
+function fadeAll() {
+  for (const g of GRAPHSVG.nodes.values()) g.classList.add("faded");
+  for (const e of GRAPHSVG.edges) e.el.classList.add("faded");
+}
+function glow(place) {
+  if (!GRAPHSVG) return;
+  const id = visibleFor(place);
+  if (!id) return;
+  fadeAll();
+  const node = GRAPHSVG.nodes.get(id);
+  node.classList.remove("faded"); node.classList.add("glow");
+  for (const e of GRAPHSVG.edges) {
+    if (e.from === id || e.to === id) {
+      e.el.classList.remove("faded"); e.el.classList.add("glow");
+      const other = GRAPHSVG.nodes.get(e.from === id ? e.to : e.from);
+      if (other) other.classList.remove("faded");
+    }
+  }
+}
+function glowMembers(places) {
+  if (!GRAPHSVG) return;
+  const ids = [...new Set(places.map(visibleFor).filter(Boolean))];
+  if (!ids.length) return;
+  fadeAll();
+  for (const id of ids) {
+    const g = GRAPHSVG.nodes.get(id);
+    g.classList.remove("faded"); g.classList.add("glow");
+  }
+  for (const e of GRAPHSVG.edges) {
+    if (ids.includes(e.from) && ids.includes(e.to)) {
+      e.el.classList.remove("faded"); e.el.classList.add("glow");
+    }
+  }
+}
+function unglow() {
+  if (!GRAPHSVG) return;
+  for (const g of GRAPHSVG.nodes.values()) g.classList.remove("faded", "glow");
+  for (const e of GRAPHSVG.edges) e.el.classList.remove("faded", "glow");
+}
+// The node alone, calm: no fading, no arrows - for findings about a place.
+function glowNode(place) {
+  if (!GRAPHSVG) return;
+  const id = visibleFor(place);
+  if (!id) return;
+  unglow();
+  GRAPHSVG.nodes.get(id).classList.add("glow");
+}
+// One edge and its two ends - for findings about a use.
+function glowEdge(user, owner, home) {
+  if (!GRAPHSVG) return;
+  const a = visibleFor(user) || visibleFor(fullOf(home, user));
+  const b = visibleFor(owner) || visibleFor(fullOf(home, owner));
+  if (!a || !b) return glowNode(user);
+  fadeAll();
+  for (const id of [a, b]) {
+    const g = GRAPHSVG.nodes.get(id);
+    g.classList.remove("faded"); g.classList.add("glow");
+  }
+  let lit = false;
+  for (const e of GRAPHSVG.edges) {
+    if (e.from === a && e.to === b) {
+      e.el.classList.remove("faded"); e.el.classList.add("glow");
+      lit = true;
+    }
+  }
+  if (!lit) unglow(), glowNode(user);
+}
+// A pinned highlight survives hovers until the void is clicked.
+let pinnedPlace = null;
+function restoreGlow() {
+  defocus();
+  if (pinnedPlace) { glow(pinnedPlace); }
+  else unglow();
+}
+// The second tier: inside a pinned node's context, one hovered relation
+// stands out without disturbing the context.
+function focusEdge(here, there) {
+  if (!GRAPHSVG) return;
+  const a = visibleFor(here);
+  const b = visibleFor(there);
+  if (!a || !b) return;
+  for (const id of [a, b]) {
+    const g = GRAPHSVG.nodes.get(id);
+    if (g) { g.classList.remove("faded"); g.classList.add("focus"); }
+  }
+  for (const e of GRAPHSVG.edges) {
+    if ((e.from === a && e.to === b) || (e.from === b && e.to === a)) {
+      e.el.classList.remove("faded");
+      e.el.classList.add("focus");
+    }
+  }
+}
+function defocus() {
+  if (!GRAPHSVG) return;
+  for (const g of GRAPHSVG.nodes.values()) g.classList.remove("focus");
+  for (const e of GRAPHSVG.edges) e.el.classList.remove("focus");
+}
+
+function graph(view, scope) {
+  scope = scope || "units";
+  const crumbs = el("div", "crumbs");
+  const link = (label, target) => {
+    const a = el("a", null, label);
+    a.onclick = () => go("graph/" + target);
+    crumbs.appendChild(a);
+  };
+  link("units", "units");
+  if (scope !== "units") {
+    const unit = ownerOf(scope);
+    crumbs.appendChild(el("span", null, "  /  "));
+    link(unit, unit);
+    if (scope !== unit) {
+      const rel = unit === "." ? scope : scope.slice(unit.length + 1);
+      let walked = unit;
+      rel.split("/").forEach(part => {
+        walked = walked === "." ? part : walked + "/" + part;
+        crumbs.appendChild(el("span", null, " / "));
+        link(part, walked);
+      });
+    }
+  }
+  view.appendChild(crumbs);
+
+  let nodes = [], edges = [], tangleMembers = new Set(), tangleSets = [];
+  if (scope === "units") {
+    nodes = childrenOf("units");
+    if (UNITS.length > 1) nodes = nodes.filter(n => n !== ".");
+    edges = DATA.edges.map(e => ({ from: e.user, to: e.owner, breaks: e.breaks }));
+  } else {
+    nodes = childrenOf(scope);
+    const unit = ownerOf(scope);
+    const fam = DATA.families.find(f => f.place === scope);
+    if (fam) edges = fam.edges.map(e => ({ from: fullOf(fam.unit, e.from), to: fullOf(fam.unit, e.to) }));
+    for (const tangle of DATA.tangles.filter(t => t.place === scope)) {
+      tangleSets.push(new Set(tangle.members.map(m => fullOf(unit, m))));
+    }
+    for (const set of tangleSets) for (const m of set) tangleMembers.add(m);
+  }
+  for (const e of edges) { if (!nodes.includes(e.from)) nodes.push(e.from); if (!nodes.includes(e.to)) nodes.push(e.to); }
+
+  const holder = el("div"); holder.id = "cy";
+  view.appendChild(holder);
+  if (!nodes.length) holder.replaceWith(el("div", "empty", "nothing resolved here"));
+  else if (!window.ELK) {
+    const card = el("div", "card");
+    card.appendChild(el("div", "warn", "graph library unreachable (offline?) — the edges, listed:"));
+    edges.forEach(e => card.appendChild(el("div", e.breaks ? "bad" : "dim", e.from + " -> " + e.to)));
+    holder.replaceWith(card);
+  }
+  const legend = el("div", "legend",
+    "blue = source, purple = sink · red border = findings or a failed stage · dashed = enterable · hover shows links, click pins · double-click descends · drag pans, wheel zooms");
+  view.appendChild(legend);
+  scopeFacts = {
+    nodes: nodes.length,
+    edges: edges.length,
+    tangles: DATA.tangles.filter(t => t.place === (scope === "units" ? "." : scope)),
+  };
+  const want = pending;
+  pending = null;
+  if (nodes.length && window.ELK) drawDeps(holder, scope, nodes, edges, tangleMembers, tangleSets, want);
+  else scopePanel(scope);
+}
+function unitPanel(name) {
+  const declared = DATA.declared.find(d => d.name === name);
+  openPanel(name, "unit", panel => {
+    const outs = outcomesOf(name);
+    if (outs.length) {
+      panel.appendChild(el("h4", null, "stages"));
+      for (const o of outs) {
+        const row = el("div", "row");
+        row.appendChild(el("span", o.passed ? "stage-ok" : "stage-fail", o.check + " "));
+        row.appendChild(el("span", "dim", o.warm ? " warm" : " " + o.seconds.toFixed(1) + "s"));
+        if (o.output && o.output.trim()) {
+          const out = el("span", "outlink", "  output");
+          out.onclick = () => showOverlay(name + " · " + o.check, o.output);
+          row.appendChild(out);
+        }
+        panel.appendChild(row);
+      }
+    }
+    if (declared) {
+      panelList(panel, "deps (intent)", declared.deps.length ? declared.deps : ["(undeclared — binds nothing)"]);
+      panelList(panel, "visibility (intent)", declared.visibility.length ? declared.visibility : ["(undeclared)"]);
+      panelList(panel, "inner declarations", declared.inner.map(i =>
+        i.path + (i.deps.length ? "  deps " + i.deps.join(", ") : "")
+        + (i.visibility.length ? "  visibility " + i.visibility.join(", ") : "")));
+    } else { panel.appendChild(el("h4", null, "intent")); panel.appendChild(el("div", "row dim", "(nothing declared — binds nothing)")); }
+    // Hovering a relation shows the hovered element whole, and the precise
+    // link back to the pinned one rides above it, twice as loud.
+    const related = target => {
+      glow(target);
+      if (pinnedPlace) focusEdge(pinnedPlace, target);
+    };
+    panelList(panel, "uses (real)",
+      DATA.edges.filter(e => e.user === name).map(e => ({ text: e.owner + (e.breaks ? "  (undeclared)" : ""), target: e.owner })),
+      target => { pending = { select: target }; go("graph/units"); },
+      related);
+    panelList(panel, "used by (real)",
+      DATA.edges.filter(e => e.owner === name).map(e => ({ text: e.user, target: e.user })),
+      target => { pending = { select: target }; go("graph/units"); },
+      related);
+    if (childrenOf(name).length) {
+      panel.appendChild(el("h4", null, "inside"));
+      const a = el("a", null, "enter " + name + " — its inner graph");
+      a.onclick = () => go("graph/" + name);
+      panel.appendChild(a);
+    }
+    panelFindings(panel, findingsUnder(name), name);
+  });
+}
+function placePanel(place) {
+  const unit = ownerOf(place);
+  openPanel(place, "inside unit " + unit, panel => {
+    const declared = DATA.declared.find(d => d.name === unit);
+    const rel = unit === "." ? place : place.slice(unit.length + 1);
+    const inner = declared && declared.inner.find(i => i.path === rel);
+    if (inner) {
+      panelList(panel, "deps (intent)", inner.deps.length ? inner.deps : ["(undeclared)"]);
+      panelList(panel, "visibility (intent)", inner.visibility.length ? inner.visibility : ["(undeclared)"]);
+    } else { panel.appendChild(el("h4", null, "intent")); panel.appendChild(el("div", "row dim", "(nothing declared — binds nothing)")); }
+    if (childrenOf(place).length || DATA.families.some(f => f.place === place)) {
+      panel.appendChild(el("h4", null, "inside"));
+      const a = el("a", null, "enter " + place);
+      a.onclick = () => go("graph/" + place);
+      panel.appendChild(a);
+    }
+    panelFindings(panel, findingsUnder(place), place);
+  });
+}
+
+// ---- jumping from a finding to its place ----
+function findingRow(f, hover) {
+  const node = el("div", "finding");
+  node.appendChild(el("div", "bad", f.rule));
+  node.appendChild(el("div", null, f.reason));
+  const where = el("div", "where");
+  where.appendChild(document.createTextNode(f.file + (f.line ? ":" + f.line : "") + "  "));
+  where.appendChild(el("span", "tag id", f.id));
+  where.appendChild(el("span", "go", "  ↗ see it"));
+  node.appendChild(where);
+  node.onclick = () => jump(f);
+  if (hover) { node.onmouseenter = hover; node.onmouseleave = restoreGlow; }
+  return node;
+}
+
+function jump(f) {
+  if (f.rule === "sibling-cycle") {
+    const tangle = DATA.tangles.find(t => t.place === f.file);
+    pending = { members: tangle ? tangle.members : [] };
+    go("graph/" + f.file);
+    return;
+  }
+  if (CHILDREN[f.file] || DATA.families.some(fam => fam.place === f.file)) { go("graph/" + f.file); return; }
+  const dir = f.file.includes("/") ? f.file.slice(0, f.file.lastIndexOf("/")) : ".";
+  if (CHILDREN[dir] || DATA.families.some(fam => fam.place === dir)) {
+    pending = { select: f.file };
+    go("graph/" + dir);
+    return;
+  }
+  pending = { select: ownerOf(f.file) };
+  go("graph/units");
+}
+
+// ---- the pipeline: how a run flows, told with this run's numbers ----
+const svgel = (tag, attrs) => {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const k in attrs) node.setAttribute(k, attrs[k]);
+  return node;
+};
+function pipeline(view) {
+  const box = el("div"); box.id = "pipe";
+  const failed = DATA.outcomes.filter(o => !o.passed).length;
+  const dials = DATA.findings.filter(f => f.check === "ecosystem-dials").length;
+  const contracts = DATA.outcomes.filter(o =>
+    o.check === "stale-generated" || o.check === "inter-language-break");
+  const checks = [...new Set(DATA.outcomes.map(o => o.check))].sort();
+  const findOp = (nodes, name) => {
+    for (const node of nodes || []) {
+      if (node.op === name) return node;
+      const deep = findOp(node.children, name);
+      if (deep) return deep;
+    }
+    return null;
+  };
+  const timed = name => {
+    const step = findOp(DATA.pipeline, name);
+    if (!step) return "";
+    return " · " + (step.seconds < 0.05 ? "<0.1s" : step.seconds.toFixed(1) + "s");
+  };
+  const contractSeconds = contracts.filter(o => !o.warm).reduce((sum, o) => sum + o.seconds, 0);
+  const steps = [
+    { name: "scan", sub: DATA.units + " units, " + DATA.files + " files"
+        + ((DATA.foreign || []).length ? ", " + DATA.foreign.length + " foreign" : "") + timed("scan"), cls: "green" },
+    { name: "resolve", sub: DATA.resolved + " edges" + timed("resolve"), cls: "green" },
+    { name: "laws", sub: DATA.findings.length + " findings" + timed("laws"),
+      cls: DATA.findings.length ? "red" : "green", act: () => go("findings") },
+    { name: "dials", sub: dials + " findings · with tools", cls: dials ? "red" : "green" },
+    { name: "tools", sub: (checks.join(" ") || "—") + timed("tools"), cls: failed ? "red" : "green",
+      act: () => scrollTo("outcomesbox") },
+    { name: "contracts", sub: contracts.length
+        ? contracts.length + " checked · " + contractSeconds.toFixed(1) + "s" : "none here",
+      cls: contracts.some(o => !o.passed) ? "red" : "green" },
+    { name: "ledger", sub: DATA.suppressions.counted.length + " counted" + timed("ledger"),
+      cls: "green", act: () => go("ledger") },
+  ];
+  const stepw = s => Math.max(96, s.name.length * 8 + 30, s.sub.length * 6.4 + 24);
+  const gap = 44, h = 46, pad = 14;
+  let x = pad;
+  const places = steps.map(s => { const at = x; x += stepw(s) + gap; return at; });
+  const svg = svgel("svg", { width: x + pad, height: h + 42 });
+  const defs = svgel("defs", {});
+  const marker = svgel("marker", { id: "parrow", viewBox: "0 0 10 10", refX: 9, refY: 5,
+    markerWidth: 6, markerHeight: 6, orient: "auto" });
+  marker.appendChild(svgel("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "#8b95a3" }));
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+  steps.forEach((s, i) => {
+    if (i) svg.appendChild(svgel("path", { class: "flow",
+      d: `M ${places[i - 1] + stepw(steps[i - 1])} ${pad + h / 2} L ${places[i] - 4} ${pad + h / 2}` }));
+    const g = svgel("g", { class: "step " + s.cls });
+    g.appendChild(svgel("rect", { x: places[i], y: pad, width: stepw(s), height: h }));
+    const label = svgel("text", { x: places[i] + 12, y: pad + 19 });
+    label.textContent = s.name;
+    g.appendChild(label);
+    const sub = svgel("text", { x: places[i] + 12, y: pad + 35, class: "sub" });
+    sub.textContent = s.sub;
+    g.appendChild(sub);
+    if (s.act) g.onclick = s.act;
+    svg.appendChild(g);
+  });
+  box.appendChild(svg);
+  view.appendChild(box);
+}
+function scrollTo(id) {
+  const target = document.getElementById(id);
+  if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ---- overview ----
+let runMode = "unit";
+function overview(view) {
+  const chips = el("div", "chips");
+  const chip = (value, label, bad) => {
+    const c = el("div", "chip" + (bad ? " bad" : ""));
+    c.appendChild(el("b", null, String(value)));
+    c.appendChild(el("div", null, label));
+    chips.appendChild(c);
+    return c;
+  };
+  const failed = DATA.outcomes.filter(o => !o.passed).length;
+  chip(failed, "failed checks", failed > 0);
+  const fchip = chip(DATA.findings.length, "findings", DATA.findings.length > 0);
+  fchip.style.cursor = "pointer";
+  fchip.onclick = () => go("findings");
+  chip(DATA.suppressions.counted.length, "suppressions"
+    + (DATA.suppressions.added === null ? "" : " (+" + DATA.suppressions.added + ")"), false);
+  chip(DATA.third.locked, "third parties", false);
+  view.appendChild(chips);
+  pipeline(view);
+
+  const mode = el("div", "mode");
+  for (const m of ["unit", "stage"]) {
+    const a = el("a", m === runMode ? "on" : null, "by " + m);
+    a.onclick = () => { runMode = m; route(); };
+    mode.appendChild(a);
+  }
+  mode.id = "outcomesbox";
+  view.appendChild(mode);
+  const groups = {};
+  const key = o => runMode === "unit" ? o.unit : o.check;
+  for (const o of DATA.outcomes) (groups[key(o)] = groups[key(o)] || []).push(o);
+  if (runMode === "stage" && DATA.findings.length) {
+    const box = el("details", "group");
+    box.open = true;
+    const summary = el("summary");
+    summary.appendChild(el("b", "bad", "rules"));
+    summary.appendChild(el("span", "dim", DATA.findings.length + " findings · graph laws, in process"));
+    const hint = el("span", "hint", "findings " + DATA.findings.length);
+    hint.style.cursor = "pointer";
+    hint.onclick = e => { e.stopPropagation(); e.preventDefault(); go("findings"); };
+    summary.appendChild(hint);
+    box.appendChild(summary);
+    const body = el("div", "body");
+    const table = el("table");
+    for (const unit of UNITS) {
+      const count = DATA.findings.filter(f => ownerOf(f.file) === unit).length;
+      if (!count) continue;
+      const r = el("tr");
+      r.appendChild(el("td", "stage-fail", unit));
+      const cell = el("td");
+      const link = el("span", "outlink", count + " findings");
+      link.onclick = () => go("findings/" + unit);
+      cell.appendChild(link);
+      r.appendChild(cell);
+      table.appendChild(r);
+    }
+    body.appendChild(table);
+    box.appendChild(body);
+    view.appendChild(box);
+  }
+  for (const name of Object.keys(groups).sort()) {
+    const mine = groups[name];
+    const anyFail = mine.some(o => !o.passed);
+    const seconds = mine.reduce((sum, o) => sum + (o.warm ? 0 : o.seconds), 0);
+    const alarms = runMode === "unit" ? findingsUnder(name).length : 0;
+    const box = el("details", "group");
+    if (anyFail) box.open = true;
+    const summary = el("summary");
+    summary.appendChild(el("b", anyFail || alarms ? "bad" : "good", name));
+    if (runMode === "unit") {
+      const stages = el("span");
+      stages.appendChild(el("span", "stagechip " + (alarms ? "stage-fail" : "stage-ok"), "rules"));
+      mine.forEach(o => {
+        stages.appendChild(el("span", "stagechip " + (o.passed ? "stage-ok" : "stage-fail"),
+          o.check + (o.warm ? "·" : "")));
+      });
+      summary.appendChild(stages);
+    } else {
+      summary.appendChild(el("span", "dim", mine.filter(o => o.passed).length + " ok" +
+        (anyFail ? ", " + mine.filter(o => !o.passed).length + " failed" : "") + " of " + mine.length));
+    }
+    summary.appendChild(el("span", "dim", seconds.toFixed(1) + "s" + (mine.every(o => o.warm) ? " (warm)" : "")));
+    if (alarms) {
+      const hint = el("span", "hint", "findings " + alarms);
+      hint.title = alarms + " findings under " + name + " — click for the scoped list";
+      hint.style.cursor = "pointer";
+      hint.onclick = e => { e.stopPropagation(); e.preventDefault(); go("findings/" + name); };
+      summary.appendChild(hint);
+    }
+    if (runMode === "unit") {
+      const open = el("a", "accent", "graph ↗");
+      open.style.cursor = "pointer";
+      open.onclick = e => { e.stopPropagation(); e.preventDefault(); pending = { select: name }; go("graph/units"); };
+      summary.appendChild(open);
+    }
+    box.appendChild(summary);
+    const body = el("div", "body");
+    const table = el("table");
+    if (runMode === "unit") {
+      const r = el("tr");
+      r.appendChild(el("td", alarms ? "stage-fail" : "stage-ok", "rules"));
+      r.appendChild(el("td", "dim", "graph laws, in process"));
+      const cell = el("td");
+      if (alarms) {
+        const link = el("span", "outlink", alarms + " findings");
+        link.onclick = () => go("findings/" + name);
+        cell.appendChild(link);
+      } else cell.appendChild(el("span", "dim", "clean"));
+      r.appendChild(cell);
+      r.appendChild(el("td", "dim", "—"));
+      table.appendChild(r);
+    }
+    for (const o of mine) {
+      const d = el("tr");
+      d.appendChild(el("td", o.passed ? "stage-ok" : "stage-fail",
+        runMode === "unit" ? o.check : o.unit));
+      d.appendChild(el("td", "dim", o.pack));
+      const cell = el("td");
+      if (o.output && o.output.trim()) {
+        const out = el("span", "outlink", "output");
+        out.onclick = () => showOverlay((runMode === "unit" ? name : o.unit) + " · " + o.check, o.output);
+        cell.appendChild(out);
+      } else cell.appendChild(el("span", "dim", "—"));
+      d.appendChild(cell);
+      d.appendChild(el("td", "dim", o.warm ? "warm" : o.seconds.toFixed(1) + "s"));
+      table.appendChild(d);
+    }
+    body.appendChild(table);
+    box.appendChild(body);
+    view.appendChild(box);
+  }
+  const taught = el("div", "legend");
+  const present = [...new Set(DATA.outcomes.map(o => o.pack))];
+  const sets = DATA.adapters.filter(a => present.includes(a.pack))
+    .map(a => a.pack + ": " + a.checks.join(", "));
+  taught.textContent = "the stage set is each pack's pinned adapter — " + sets.join(" · ")
+    + ". rules are never stages: laws are held over the graph, in process, and land as findings.";
+  view.appendChild(taught);
+}
+
+// ---- findings: the one home, filterable, scope-aware ----
+function findings(view, scope) {
+  const hold = el("div"); hold.id = "filterbar";
+  const bar = el("div", "card");
+  bar.style.display = "flex"; bar.style.gap = "1rem"; bar.style.flexWrap = "wrap";
+  const scopeIn = document.createElement("input");
+  scopeIn.placeholder = "scope — a unit, folder or file; empty is everything";
+  scopeIn.value = scope || "";
+  scopeIn.setAttribute("list", "scopelist");
+  const suggestions = document.createElement("datalist");
+  suggestions.id = "scopelist";
+  const places = [...new Set([
+    ...Object.keys(CHILDREN).filter(k => k !== "units"),
+    ...[].concat(...Object.values(CHILDREN).map(s => [...s])),
+  ])];
+  const depth = p => p.split("/").length;
+  const suggest = () => {
+    suggestions.textContent = "";
+    const typed = scopeIn.value.trim();
+    const pool = typed
+      ? places.filter(p => p.startsWith(typed) && p !== typed)
+      : UNITS.slice();
+    pool.sort((a, b) => depth(a) - depth(b) || a.localeCompare(b));
+    for (const p of pool.slice(0, 40)) {
+      const option = document.createElement("option");
+      option.value = p;
+      suggestions.appendChild(option);
+    }
+  };
+  suggest();
+  bar.appendChild(suggestions);
+  const ruleIn = document.createElement("select");
+  const opt = (v, label) => { const o = document.createElement("option"); o.value = v; o.textContent = label; ruleIn.appendChild(o); };
+  opt("", "every rule");
+  [...new Set(DATA.findings.map(f => f.rule))].sort().forEach(r =>
+    opt(r, r + " (" + DATA.findings.filter(f => f.rule === r).length + ")"));
+  const textIn = document.createElement("input");
+  textIn.placeholder = "search reasons and ids";
+  for (const input of [scopeIn, textIn]) {
+    input.style.cssText = "background:#10141a;border:1px solid #272f3b;border-radius:4px;color:#d9dfe7;font:inherit;padding:.25rem .5rem;flex:1;min-width:180px";
+  }
+  ruleIn.style.cssText = "background:#10141a;border:1px solid #272f3b;border-radius:4px;color:#d9dfe7;font:inherit;padding:.25rem .5rem";
+  bar.append(scopeIn, ruleIn, textIn);
+  hold.appendChild(bar);
+  view.appendChild(hold);
+  const count = el("div", "legend");
+  view.appendChild(count);
+  const box = el("div");
+  view.appendChild(box);
+  const render = () => {
+    box.textContent = "";
+    const at = scopeIn.value.trim();
+    const needle = textIn.value.trim().toLowerCase();
+    const mine = DATA.findings.filter(f =>
+      within(f, at)
+      && (!ruleIn.value || f.rule === ruleIn.value)
+      && (!needle || f.reason.toLowerCase().includes(needle) || f.id.includes(needle)));
+    count.textContent = mine.length + " of " + DATA.findings.length + " findings"
+      + (at ? " under " + at : "") + " — click one to see it in place";
+    findingsInto(box, mine, true);
+  };
+  ruleIn.onchange = textIn.oninput = render;
+  scopeIn.oninput = () => { suggest(); render(); };
+  render();
+}
+function findingsInto(box, list, openAll) {
+  if (!list.length) {
+    const card = el("div", "card");
+    card.appendChild(el("div", "empty", "nothing here at this scope"));
+    box.appendChild(card);
+    return;
+  }
+  const byRule = {};
+  for (const f of list) (byRule[f.rule] = byRule[f.rule] || []).push(f);
+  for (const rule of Object.keys(byRule).sort()) {
+    const group = el("details", "group");
+    if (openAll || Object.keys(byRule).length <= 2) group.open = true;
+    const summary = el("summary");
+    summary.appendChild(el("b", "bad", rule));
+    summary.appendChild(el("span", "hint", String(byRule[rule].length)));
+    const meta = ruleMeta(rule);
+    if (meta) {
+      if (meta.core) summary.appendChild(el("span", "tag core", "core"));
+      summary.appendChild(el("span", "tag" + (meta.record ? " record" : ""), meta.record ? "record" : "facts"));
+    }
+    group.appendChild(summary);
+    const body = el("div", "body");
+    if (meta) body.appendChild(el("div", "law", meta.law));
+    for (const f of byRule[rule]) body.appendChild(findingRow(f));
+    group.appendChild(body);
+    box.appendChild(group);
+  }
+}
+
+// ---- the dependency drawing: ELK layered, orthogonal lanes ----
+function flowColor(nodes, edges) {
+  const SOURCE = "#27405e", SINK = "#45335e", PLAIN = "#1d242e";
+  const degree = {};
+  for (const n of nodes) degree[n] = { incoming: 0, outgoing: 0 };
+  for (const e of edges) {
+    if (degree[e.from]) degree[e.from].outgoing++;
+    if (degree[e.to]) degree[e.to].incoming++;
+  }
+  return n => {
+    const d = degree[n];
+    if (d && d.outgoing && !d.incoming) return SOURCE;
+    if (d && d.incoming && !d.outgoing) return SINK;
+    return PLAIN;
+  };
+}
+function drawDeps(holder, scope, nodes, edges, tangleMembers, tangleSets, want) {
+  const label = place => {
+    const short = place === "." ? "." : place.split("/").pop();
+    const alarms = findingsUnder(place).length;
+    return short + (alarms ? "  ●" + alarms : "");
+  };
+  const sized = place => Math.max(70, label(place).length * 7.4 + 26);
+  new ELK().layout({
+    id: "root",
+    layoutOptions: {
+      "elk.algorithm": "layered",
+      "elk.direction": "DOWN",
+      "elk.edgeRouting": "ORTHOGONAL",
+      "elk.spacing.nodeNode": "30",
+      "elk.layered.spacing.nodeNodeBetweenLayers": "58",
+      "elk.spacing.edgeEdge": "11",
+      "elk.layered.spacing.edgeEdgeBetweenLayers": "11",
+      "elk.layered.spacing.edgeNodeBetweenLayers": "18",
+      "elk.padding": "[top=16,left=16,bottom=16,right=16]",
+    },
+    children: nodes.map(n => ({ id: n, width: sized(n), height: 30 })),
+    edges: edges.map((e, i) => ({ id: "e" + i, sources: [e.from], targets: [e.to] })),
+  }).then(done => {
+    const svg = svgel("svg", { class: "deps", viewBox: "0 0 " + done.width + " " + done.height });
+    const defs = svgel("defs", {});
+    const marker = svgel("marker", { id: "darrow", viewBox: "0 0 10 10", refX: 8, refY: 5,
+      markerWidth: 6.5, markerHeight: 6.5, orient: "auto" });
+    marker.appendChild(svgel("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "#8b95a3" }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+    GRAPHSVG = { nodes: new Map(), edges: [] };
+    for (const e of done.edges || []) {
+      const spec = edges[Number(e.id.slice(1))];
+      const cls = "gedge" + (spec.breaks ? " breaks" : "")
+        + (tangleSets.some(set => set.has(spec.from) && set.has(spec.to)) ? " tangled" : "");
+      const sections = e.sections || [];
+      sections.forEach((section, at) => {
+        const points = [section.startPoint, ...(section.bendPoints || []), section.endPoint];
+        const path = svgel("path", {
+          d: points.map((pt, j) => (j ? "L" : "M") + pt.x + " " + pt.y).join(" "),
+          class: cls,
+        });
+        if (at === sections.length - 1) path.setAttribute("marker-end", "url(#darrow)");
+        svg.appendChild(path);
+        GRAPHSVG.edges.push({ from: spec.from, to: spec.to, el: path });
+      });
+      for (const junction of e.junctionPoints || []) {
+        svg.appendChild(svgel("circle", { cx: junction.x, cy: junction.y, r: 2.4, class: "junction" }));
+      }
+    }
+    const flow = flowColor(nodes, edges);
+    for (const child of done.children || []) {
+      const place = child.id;
+      const outs = outcomesOf(place);
+      const g = svgel("g", { class: "gnode"
+        + (tangleMembers.has(place) ? " tangled" : "")
+        + (findingsUnder(place).length ? " alarmed" : "")
+        + (outs.length ? (outs.some(o => !o.passed) ? " stagefail" : " stageok") : "")
+        + (childrenOf(place).length || DATA.families.some(f => f.place === place) ? " enterable" : "") });
+      const rect = svgel("rect", { x: child.x, y: child.y, width: child.width, height: child.height });
+      rect.style.fill = flow(place);
+      g.appendChild(rect);
+      const text = svgel("text", { x: child.x + 12, y: child.y + 19 });
+      text.textContent = label(place);
+      g.appendChild(text);
+      g.onmouseenter = () => { if (!pinnedPlace) glow(place); };
+      g.onmouseleave = restoreGlow;
+      g.onclick = evt => {
+        evt.stopPropagation();
+        pinnedPlace = place;
+        select(place);
+        glow(place);
+        if (scope === "units") unitPanel(place); else placePanel(place);
+      };
+      g.ondblclick = evt => {
+        evt.stopPropagation();
+        if (childrenOf(place).length || DATA.families.some(f => f.place === place)) go("graph/" + place);
+      };
+      svg.appendChild(g);
+      GRAPHSVG.nodes.set(place, g);
+    }
+    svg.onclick = () => { pinnedPlace = null; deselect(); scopePanel(scope); };
+    panzoom(holder, svg, done.width, done.height);
+    holder.textContent = "";
+    holder.appendChild(svg);
+    if (want && want.members) glowMembers(want.members.map(m => fullOf(ownerOf(scope === "units" ? "." : scope), m)));
+    else if (want && want.select) {
+      const id = visibleFor(want.select);
+      if (id) { pinnedPlace = id; select(id); glow(id); }
+      scopePanel(scope);
+    } else scopePanel(scope);
+  });
+}
+function select(place) {
+  deselect();
+  const g = GRAPHSVG && GRAPHSVG.nodes.get(place);
+  if (g) g.classList.add("selected");
+}
+function deselect() {
+  if (!GRAPHSVG) return;
+  for (const g of GRAPHSVG.nodes.values()) g.classList.remove("selected");
+  unglow();
+}
+// Wheel zooms at the cursor, dragging pans: the viewBox is the camera.
+function panzoom(holder, svg, width, height) {
+  let vb = { x: 0, y: 0, w: width, h: height };
+  const apply = () => svg.setAttribute("viewBox", vb.x + " " + vb.y + " " + vb.w + " " + vb.h);
+  let moved = false;
+  holder.onwheel = evt => {
+    evt.preventDefault();
+    const k = evt.deltaY > 0 ? 1.12 : 1 / 1.12;
+    const box = svg.getBoundingClientRect();
+    const mx = vb.x + (evt.clientX - box.left) / box.width * vb.w;
+    const my = vb.y + (evt.clientY - box.top) / box.height * vb.h;
+    vb = { x: mx - (mx - vb.x) * k, y: my - (my - vb.y) * k, w: vb.w * k, h: vb.h * k };
+    apply();
+  };
+  let drag = null;
+  holder.onmousedown = evt => { moved = false; drag = { x: evt.clientX, y: evt.clientY, vx: vb.x, vy: vb.y }; };
+  holder.onmousemove = evt => {
+    if (!drag) return;
+    moved = true;
+    const box = svg.getBoundingClientRect();
+    vb.x = drag.vx - (evt.clientX - drag.x) / box.width * vb.w;
+    vb.y = drag.vy - (evt.clientY - drag.y) / box.height * vb.h;
+    apply();
+  };
+  holder.onmouseup = holder.onmouseleave = () => { drag = null; };
+  // A drag should not read as a background click.
+  svg.addEventListener("click", evt => { if (moved) { evt.stopPropagation(); moved = false; } }, true);
+}
+
+// ---- ledger, rules ----
+function ledger(view) {
+  const s = DATA.suppressions;
+  const summary = el("div", "card");
+  summary.appendChild(el("div", null, s.counted.length + " suppressions counted" +
+    (s.added === null ? " — no reference recorded: nothing is signed yet" :
+      ", " + s.added + " added since the signature")));
+  summary.appendChild(el("div", "dim", "every entry is a user decision: one rule quieted, one place, counted forever."));
+  view.appendChild(summary);
+  const byFile = {};
+  for (const entry of s.counted) (byFile[entry.file] = byFile[entry.file] || []).push(entry);
+  for (const file of Object.keys(byFile).sort()) {
+    const group = el("details", "group");
+    const summary = el("summary");
+    summary.appendChild(el("b", null, file));
+    summary.appendChild(el("span", "dim", String(byFile[file].length)));
+    group.appendChild(summary);
+    const body = el("div", "body");
+    const table = el("table");
+    for (const entry of byFile[file]) {
+      const row = el("tr");
+      row.appendChild(el("td", "dim", entry.line ? "line " + entry.line : ""));
+      row.appendChild(el("td", null, entry.text));
+      table.appendChild(row);
+    }
+    body.appendChild(table);
+    group.appendChild(body);
+    view.appendChild(group);
+  }
+  const third = el("div", "card");
+  third.appendChild(el("div", null, DATA.third.locked + " third parties locked" +
+    (DATA.third.added === null ? ", no reference recorded" : ", " + DATA.third.added + " added since the signature")));
+  view.appendChild(third);
+}
+function rules(view) {
+  const card = el("div", "card");
+  const table = el("table");
+  const head = el("tr");
+  for (const h of ["rule", "power", "group", "law"]) head.appendChild(el("th", null, h));
+  table.appendChild(head);
+  for (const r of DATA.rules) {
+    const row = el("tr");
+    row.appendChild(el("td", null, r.name));
+    row.appendChild(el("td", r.record ? "warn" : "dim", (r.core ? "core, " : "") + (r.record ? "record" : "facts")));
+    row.appendChild(el("td", "dim", r.group));
+    row.appendChild(el("td", "law", r.law));
+    table.appendChild(row);
+  }
+  card.appendChild(table);
+  view.appendChild(card);
+}
+
+route();
+</script>
+</body>
+</html>

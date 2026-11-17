@@ -1,0 +1,90 @@
+use std::fs;
+use std::path::Path;
+use std::path::PathBuf;
+
+use crate::core::graph::Graph;
+use crate::core::pack::Pack;
+use crate::core::repository::is_test;
+use crate::core::repository::Repo;
+use crate::core::rule;
+use crate::core::rule::Law;
+use crate::core::rule::Rule;
+use crate::domain::finding::Finding;
+
+pub const RULES: &[Rule] = &[rule::facts(
+    "split-version",
+    "third-parties",
+    "a third party resolves to one version of each epoch across the repository's lockfiles, an epoch being the versions its ecosystem holds compatible; a copy nested inside another third party is that party's own",
+)];
+
+pub fn versions_law() -> Law {
+    Law {
+        task: "versions",
+        rules: RULES,
+        run: instances,
+    }
+}
+
+// One third party at two versions of one epoch across the lockfiles, as one law.
+fn instances(found: &Graph) -> Vec<Finding> {
+    split_version(&found.root, &found.repo, &found.packs)
+}
+
+// A third party resolved at two versions of one epoch across the
+// repository's lockfiles is named with each of them and its place.
+fn split_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    for pack in packs {
+        let locks = pack.lockfiles();
+        if locks.is_empty() {
+            continue;
+        }
+        let mut versions: std::collections::BTreeMap<
+            (String, String),
+            std::collections::BTreeMap<String, PathBuf>,
+        > = std::collections::BTreeMap::new();
+        for path in &repo.lockfiles {
+            let Some(name) = path.file_name().map(|name| name.to_string_lossy()) else {
+                continue;
+            };
+            if !locks.contains(&name.as_ref()) {
+                continue;
+            }
+            let unit = repo.unit_of(path);
+            let home = repo.units[unit].path.clone();
+            if is_test(&home) {
+                continue;
+            }
+            let Ok(text) = fs::read_to_string(root.join(path)) else {
+                continue;
+            };
+            for (locked, version) in pack.locked(&name, &text) {
+                versions
+                    .entry((locked, pack.epoch(&version)))
+                    .or_default()
+                    .entry(version)
+                    .or_insert_with(|| path.clone());
+            }
+        }
+        for ((name, _), seen) in versions {
+            if seen.len() < 2 {
+                continue;
+            }
+            let places: Vec<String> = seen
+                .iter()
+                .map(|(version, place)| format!("{version} in {}", place.to_string_lossy()))
+                .collect();
+            let Some(anchor) = seen.values().min() else {
+                continue;
+            };
+            findings.push(Finding {
+                check: "integrity".to_string(),
+                file: anchor.clone(),
+                line: None,
+                rule: Some("split-version".to_string()),
+                reason: format!("{name} is locked at {}", places.join(" and ")),
+            });
+        }
+    }
+    findings
+}

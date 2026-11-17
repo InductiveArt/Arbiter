@@ -1,0 +1,19 @@
+name = "proto"
+marker = "buf.yaml"
+
+# A buf.yaml listing modules is a v2 workspace: it bounds its modules and
+# holds no contract of its own.
+[members_only]
+has = ["modules"]
+lacks = []
+
+# The adapter: what holds a proto unit to the bar, in the order run.
+# Each tool is pinned, so every unit is held to one bar, not to a machine's.
+[[check]]
+tool = "format_proto"
+run = ["npx", "--yes", "@bufbuild/buf@1.74.0", "format", "--diff", "--exit-code"]
+fix = ["npx", "--yes", "@bufbuild/buf@1.74.0", "format", "--write"]
+
+[[check]]
+tool = "lint_proto"
+run = ["npx", "--yes", "@bufbuild/buf@1.74.0", "lint"]

@@ -1,0 +1,145 @@
+syntax = "proto3";
+
+package task_runner.v1;
+
+// One run of a plan: how it ended, the kernel's account of every attempt of
+// its tasks summed, the folder it lives in, and each task's invocation in
+// plan order.
+message RunReport {
+  RunId run = 1;
+  RunRecord outcome = 2;
+  double seconds = 3;
+  Usage usage = 4;
+  string dir = 5;
+  repeated TaskInvocation invocations = 6;
+}
+
+// A run told apart from every other: the clock when it began, in
+// milliseconds since the Unix epoch, the process running it, and a count
+// within that process.
+message RunId {
+  uint64 millis = 1;
+  uint32 process = 2;
+  uint32 seq = 3;
+}
+
+// One occurrence of a task in a run, by its path: the plan and the task, and
+// for an item of a fanned task the item's key after an @.
+message TaskInvocationId {
+  RunId run = 1;
+  string path = 2;
+}
+
+message TaskAttemptId {
+  TaskInvocationId invocation = 1;
+  uint32 attempt = 2;
+}
+
+// How an invocation, an attempt or a substep ended.
+message RunRecord {
+  oneof ended {
+    Passed passed = 1;
+    // Why it failed.
+    string failed = 2;
+    // It ran past the time its task allowed.
+    TimedOut timed_out = 3;
+    // It was stopped from outside before it could finish.
+    Cancelled cancelled = 4;
+    // It never ran: a task it stands on did not pass, named by that task's
+    // path.
+    string skipped = 5;
+    // It never ran: the branch it reads was not taken, named by the path of
+    // the task that decided it.
+    string unneeded = 6;
+  }
+}
+
+message Passed {}
+
+message TimedOut {}
+
+message Cancelled {}
+
+// Every attempt at one task in order, and for a fanned task the invocation of
+// each item. A fanned task holds attempt 0 only, which ends as its items
+// ended together.
+message TaskInvocation {
+  TaskInvocationId id = 1;
+  string task = 2;
+  repeated TaskAttempt attempts = 3;
+  repeated TaskInvocation instances = 4;
+}
+
+// One attempt: how it ended, when it began, the slot it ran in and how long
+// it waited for one, whether its output was replayed from the cache, the
+// output it left and the key it is cached under, what it spent, its
+// process's account, what it measured and noted, and its substeps.
+message TaskAttempt {
+  TaskAttemptId id = 1;
+  RunRecord outcome = 2;
+  // Nanoseconds since the Unix epoch.
+  optional int64 began_unix_nanos = 3;
+  optional uint64 slot = 4;
+  optional uint64 wait_nanos = 5;
+  bool replayed = 6;
+  // The SHA-256 of the output's bytes in hex, its name among the outputs.
+  optional string output = 7;
+  // The SHA-256 in hex an output is cached under.
+  optional string cache_key = 8;
+  Resources resources = 9;
+  ProcessRecord process_record = 10;
+  map<string, double> measures = 11;
+  repeated string evidence = 12;
+  repeated TaskSubstep substeps = 13;
+}
+
+// One named part of an attempt's work, run inside the attempt, so what it
+// spent is already counted in the attempt's.
+message TaskSubstep {
+  string name = 1;
+  RunRecord outcome = 2;
+  optional int64 began_unix_nanos = 3;
+  Resources resources = 4;
+  map<string, double> measures = 5;
+  repeated string evidence = 6;
+  repeated TaskSubstep substeps = 7;
+}
+
+// The wall time, the CPU time of the thread doing the work when the host
+// tells it, and each program started along the way.
+message Resources {
+  uint64 wall_nanos = 1;
+  optional uint64 cpu_nanos = 2;
+  repeated ProcessRecord processes = 3;
+}
+
+// One process as its runtime saw it: how it was started, how long it took and
+// how long before its body began, how it exited, whether it was stopped, how
+// many bytes it printed and how many were kept, and the kernel's account.
+message ProcessRecord {
+  string program = 1;
+  repeated string args = 2;
+  uint64 wall_nanos = 3;
+  optional uint64 startup_nanos = 4;
+  optional int32 exit_code = 5;
+  optional int32 signal = 6;
+  bool killed = 7;
+  uint64 stdout_bytes = 8;
+  uint64 stdout_kept = 9;
+  uint64 stderr_bytes = 10;
+  uint64 stderr_kept = 11;
+  Usage usage = 12;
+}
+
+// The kernel's account of what processes spent.
+message Usage {
+  uint64 user_nanos = 1;
+  uint64 system_nanos = 2;
+  uint64 max_rss_bytes = 3;
+  uint64 minor_faults = 4;
+  uint64 major_faults = 5;
+  uint64 in_blocks = 6;
+  uint64 out_blocks = 7;
+  uint64 voluntary_switches = 8;
+  uint64 involuntary_switches = 9;
+}

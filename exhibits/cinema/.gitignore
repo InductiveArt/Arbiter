@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.arbiter/last/
+.arbiter/warm/
+.DS_Store

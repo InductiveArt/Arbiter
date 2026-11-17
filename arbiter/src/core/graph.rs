@@ -1,0 +1,147 @@
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::PathBuf;
+
+use crate::core::definition::Def;
+use crate::core::edge::Edge;
+use crate::core::pack::Pack;
+use crate::core::repository::is_test;
+use crate::core::repository::Repo;
+use crate::core::units;
+
+pub struct Graph {
+    pub root: PathBuf,
+    pub repo: Repo,
+    pub defs: Vec<Def>,
+    pub edges: Vec<Edge>,
+    pub packs: Vec<Box<dyn Pack>>,
+    pub scan_seconds: f64,
+    pub resolve_seconds: f64,
+}
+
+// The engine receives the packs: which packs exist is composition knowledge,
+// and the base never knows the registry of its implementors.
+pub fn graph(asked: &str, packs: Vec<Box<dyn Pack>>) -> Result<Graph, String> {
+    let clock = std::time::Instant::now();
+    let root = PathBuf::from(asked)
+        .canonicalize()
+        .map_err(|_| format!("no folder at {asked}"))?;
+    let repo = units::scan(&root, &packs)?;
+    let scan_seconds = clock.elapsed().as_secs_f64();
+    let mut found = read(root, repo, packs);
+    found.scan_seconds = scan_seconds;
+    Ok(found)
+}
+
+// The repository read into the graph: every file a language handles read for
+// what it defines and uses, then each use resolved to what it reaches.
+pub fn read(root: PathBuf, mut repo: Repo, mut packs: Vec<Box<dyn Pack>>) -> Graph {
+    let clock = std::time::Instant::now();
+    let rooted: Vec<PathBuf> = packs
+        .iter()
+        .flat_map(|pack| pack.roots(&root, &repo))
+        .collect();
+    repo.roots.extend(rooted);
+    let mut defs: Vec<Def> = Vec::new();
+    for file in &repo.files {
+        let Ok(source) = fs::read_to_string(root.join(file)) else {
+            continue;
+        };
+        let name = file
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let Some(index) = packs.iter().position(|pack| pack.handles(&name)) else {
+            continue;
+        };
+        let unit = repo.unit_of(file);
+        // Tests, roots and generated files are leaves: they use, and offer nothing they define.
+        let surface =
+            !is_test(file) && !repo.roots.contains(file) && !packs[index].generated(&name);
+        for definition in packs[index].scan(file, &source, surface) {
+            defs.push(Def {
+                name: definition.name,
+                file: file.clone(),
+                line: definition.line,
+                unit,
+                pack: index,
+                self_used: definition.self_used,
+            });
+        }
+    }
+    let mut edges = Vec::new();
+    for (index, pack) in packs.iter().enumerate() {
+        edges.extend(pack.resolve(index, &defs, &root, &repo));
+    }
+    Graph {
+        root,
+        repo,
+        defs,
+        edges,
+        packs,
+        scan_seconds: 0.0,
+        resolve_seconds: clock.elapsed().as_secs_f64(),
+    }
+}
+
+// Tarjan's strongly connected components over an indexed adjacency: the one
+// graph primitive every order law stands on.
+struct Tarjan<'graph> {
+    adjacency: &'graph [BTreeSet<usize>],
+    index: Vec<Option<usize>>,
+    low: Vec<usize>,
+    on_stack: Vec<bool>,
+    stack: Vec<usize>,
+    next: usize,
+    groups: Vec<Vec<usize>>,
+}
+
+pub fn strongly_connected(adjacency: &[BTreeSet<usize>]) -> Vec<Vec<usize>> {
+    let count = adjacency.len();
+    let mut state = Tarjan {
+        adjacency,
+        index: vec![None; count],
+        low: vec![0; count],
+        on_stack: vec![false; count],
+        stack: Vec::new(),
+        next: 0,
+        groups: Vec::new(),
+    };
+    for at in 0..count {
+        if state.index[at].is_none() {
+            visit(&mut state, at);
+        }
+    }
+    state.groups
+}
+
+fn visit(state: &mut Tarjan, at: usize) {
+    state.index[at] = Some(state.next);
+    state.low[at] = state.next;
+    state.next += 1;
+    state.stack.push(at);
+    state.on_stack[at] = true;
+    for &to in state.adjacency[at].iter() {
+        if state.index[to].is_none() {
+            visit(state, to);
+            state.low[at] = state.low[at].min(state.low[to]);
+        } else if state.on_stack[to] {
+            if let Some(entered) = state.index[to] {
+                state.low[at] = state.low[at].min(entered);
+            }
+        }
+    }
+    if Some(state.low[at]) != state.index[at] {
+        return;
+    }
+    let mut group = Vec::new();
+    while let Some(popped) = state.stack.pop() {
+        state.on_stack[popped] = false;
+        group.push(popped);
+        if popped == at {
+            break;
+        }
+    }
+    group.sort_unstable();
+    state.groups.push(group);
+}

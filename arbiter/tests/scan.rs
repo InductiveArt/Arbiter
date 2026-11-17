@@ -1,0 +1,562 @@
+use std::fs;
+use std::process::Command;
+
+use arbiter::packs::graphed;
+
+#[test]
+fn a_git_ignored_folder_is_not_the_repository() {
+    let root = std::env::temp_dir().join(format!("arbiter-scan-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("scrap")).expect("the folder is writable");
+    fs::write(root.join(".gitignore"), "scrap/\n").expect("the folder is writable");
+    fs::write(root.join("kept.py"), "value = 1\n").expect("the folder is writable");
+    fs::write(root.join("scrap/ghost.py"), "ghost = 1\n").expect("the folder is writable");
+    let path = root.to_string_lossy();
+
+    let bare = graphed(&path).expect("the folder exists");
+    assert!(
+        !bare
+            .repo
+            .files
+            .iter()
+            .any(|file| file.ends_with("scrap/ghost.py")),
+        "a .gitignore speaks with or without git"
+    );
+
+    let init = Command::new("git")
+        .arg("-C")
+        .arg(&root)
+        .args(["init", "-q"])
+        .status()
+        .expect("git runs");
+    assert!(init.success(), "git init succeeds");
+
+    let repo = graphed(&path).expect("the folder exists");
+    assert!(
+        repo.repo.files.iter().any(|file| file.ends_with("kept.py")),
+        "a file git would carry is read"
+    );
+    assert!(
+        !repo
+            .repo
+            .files
+            .iter()
+            .any(|file| file.ends_with("scrap/ghost.py")),
+        "a file git ignores is not"
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_folder_with_its_own_arbiter_is_another_repository() {
+    let root = std::env::temp_dir().join(format!("arbiter-foreign-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("exhibit/.arbiter")).expect("the folder is writable");
+    fs::write(root.join("kept.py"), "value = 1\n").expect("the folder is writable");
+    fs::write(
+        root.join("exhibit/pyproject.toml"),
+        "[project]\nname = \"exhibit\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(root.join("exhibit/app.py"), "app = 1\n").expect("the folder is writable");
+    let path = root.to_string_lossy();
+
+    let graph = graphed(&path).expect("the folder exists");
+    assert!(
+        !graph
+            .repo
+            .files
+            .iter()
+            .any(|file| file.starts_with("exhibit")),
+        "the border is never crossed"
+    );
+    assert!(
+        !graph
+            .repo
+            .manifests
+            .iter()
+            .any(|manifest| manifest.starts_with("exhibit")),
+        "a foreign manifest declares no unit here"
+    );
+    assert_eq!(
+        graph.repo.foreign,
+        [std::path::PathBuf::from("exhibit")],
+        "the run names the jurisdiction it passed by"
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_workspace_manifest_with_no_entry_is_a_container() {
+    let manifest = "package.json";
+    assert!(lists_members(
+        manifest,
+        r#"{"name":"root","workspaces":["libs/a"]}"#
+    ));
+    assert!(!lists_members(
+        manifest,
+        r#"{"name":"root","workspaces":["libs/a"],"exports":{".":"./src/index.ts"}}"#
+    ));
+    assert!(!lists_members(
+        manifest,
+        r#"{"name":"lib","main":"./src/index.ts"}"#
+    ));
+}
+
+#[test]
+fn a_published_unit_keeps_its_unused_surface() {
+    let root = std::env::temp_dir().join(format!("arbiter-published-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("the folder is writable");
+    fs::write(root.join("ghost.py"), "ghost = 1\n").expect("the folder is writable");
+    let path = root.to_string_lossy();
+
+    let graph = graphed(&path).expect("the folder exists");
+    let flagged = arbiter::tasks::laws::economy::winnow(&graph);
+    assert_eq!(flagged.len(), 1, "an unused symbol is a finding");
+
+    fs::write(root.join("PUBLISHED"), "").expect("the folder is writable");
+    let declared = graphed(&path).expect("the folder exists");
+    let kept = arbiter::tasks::laws::economy::winnow(&declared);
+    assert!(kept.is_empty(), "a published surface holds no finding");
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn fix_splits_an_import_to_one_per_line() {
+    let root = std::env::temp_dir().join(format!("arbiter-mend-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("the folder is writable");
+    fs::write(
+        root.join("m.ts"),
+        "export const a = 1;\nexport type B = number;\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("n.ts"),
+        "const d = 4;\nexport default d;\nexport const c = 3;\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("user.ts"),
+        "import { a, type B } from \"./m\";\nimport d, { c } from \"./n\";\n\nexport const sum: B = a + c + d;\n",
+    )
+    .expect("the folder is writable");
+
+    let graph = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let pack = graph
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "typescript")
+        .expect("the typescript pack exists");
+    let notes = pack.mend(&graph.root, &graph.repo);
+    assert_eq!(notes.len(), 1, "one file is rewritten");
+
+    let mended = fs::read_to_string(root.join("user.ts")).expect("the file stays readable");
+    assert_eq!(
+        mended,
+        "import { a } from \"./m\";\nimport type { B } from \"./m\";\nimport d from \"./n\";\nimport { c } from \"./n\";\n\nexport const sum: B = a + c + d;\n"
+    );
+
+    let again = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let quiet = again
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "typescript")
+        .expect("the typescript pack exists")
+        .mend(&again.root, &again.repo);
+    assert!(quiet.is_empty(), "a split file stays split");
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_first_gate_seeds_the_decision_files_and_never_overwrites() {
+    let root = std::env::temp_dir().join(format!("arbiter-seed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("the folder is writable");
+
+    arbiter::core::seeds::seeded(&root);
+    let units = fs::read_to_string(root.join(".arbiter/units.toml")).expect("units.toml seeded");
+    assert!(units.starts_with("# The unit graph, declared."));
+    assert!(
+        units
+            .lines()
+            .all(|line| line.is_empty() || line.starts_with('#')),
+        "a seed declares nothing"
+    );
+    let licenses =
+        fs::read_to_string(root.join(".arbiter/licenses.toml")).expect("licenses.toml seeded");
+    assert!(licenses
+        .lines()
+        .all(|line| line.is_empty() || line.starts_with('#')));
+
+    fs::write(
+        root.join(".arbiter/units.toml"),
+        "[units.\"libs/x\"]\ndeps = []\n",
+    )
+    .expect("the folder is writable");
+    arbiter::core::seeds::seeded(&root);
+    let kept = fs::read_to_string(root.join(".arbiter/units.toml")).expect("still readable");
+    assert!(
+        kept.starts_with("[units."),
+        "a written decision is never overwritten"
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn fix_splits_a_use_to_one_per_line() {
+    let root = std::env::temp_dir().join(format!("arbiter-mend-rs-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src")).expect("the folder is writable");
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"mendy\"\nversion = \"0.0.1\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("src/lib.rs"),
+        "use std::collections::{BTreeMap, BTreeSet};\nuse std::fmt::{self, Write as _};\n\npub fn hinge() {}\n",
+    )
+    .expect("the folder is writable");
+
+    let graph = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let pack = graph
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "rust")
+        .expect("the rust pack exists");
+    let notes = pack.mend(&graph.root, &graph.repo);
+    assert_eq!(notes.len(), 1, "one file is rewritten");
+
+    let mended = fs::read_to_string(root.join("src/lib.rs")).expect("the file stays readable");
+    assert_eq!(
+        mended,
+        "use std::collections::BTreeMap;\nuse std::collections::BTreeSet;\nuse std::fmt;\nuse std::fmt::Write as _;\n\npub fn hinge() {}\n"
+    );
+
+    let again = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let quiet = again
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "rust")
+        .expect("the rust pack exists")
+        .integrity(&again.root, &again.repo);
+    assert!(
+        quiet
+            .iter()
+            .all(|finding| finding.rule.as_deref() != Some("crowded-import")),
+        "the split leaves no crowded use"
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+// The runner the gate runs its plans with, the arbiter binary performing
+// each attempt.
+fn runner() -> task_runner::execution::runner::Runner {
+    task_runner::execution::runner::Runner::new()
+        .task_executable(env!("CARGO_BIN_EXE_arbiter"))
+        .task_arguments(&["attempt"])
+}
+
+#[test]
+fn a_fixing_run_reads_what_its_repairs_leave() {
+    let root = std::env::temp_dir().join(format!("arbiter-fixing-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src")).expect("the folder is writable");
+    for (file, content) in [
+        (
+            "Cargo.toml",
+            "[package]\nname = \"fixing\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
+        ),
+        ("src/lib.rs", "pub mod deps;\npub mod user;\n"),
+        (
+            "src/deps.rs",
+            "pub fn used() -> u8 {\n    1\n}\n\npub fn other() -> u8 {\n    2\n}\n",
+        ),
+        (
+            "src/user.rs",
+            "use crate::deps::*;\n\npub fn run() -> u8 {\n    used() + other()\n}\n",
+        ),
+    ] {
+        fs::write(root.join(file), content).expect("the folder is writable");
+    }
+    let asked = root.to_string_lossy().to_string();
+
+    let fixed = arbiter::gate::run::run(&asked, true, true, runner()).expect("the gate runs");
+    let user = fs::read_to_string(root.join("src/user.rs")).expect("the file stays readable");
+    assert!(
+        !user.contains("::*"),
+        "the lint's repair names each symbol the glob brought: {user}"
+    );
+    assert!(
+        fixed
+            .findings
+            .iter()
+            .any(|finding| finding.rule.as_deref() == Some("crowded-import")
+                && finding.file.ends_with("src/user.rs")),
+        "the run reads the file as the repairs left it"
+    );
+
+    let again = arbiter::gate::run::run(&asked, true, true, runner()).expect("the gate runs");
+    assert!(
+        again
+            .findings
+            .iter()
+            .all(|finding| finding.rule.as_deref() != Some("crowded-import")),
+        "a second repair splits what the first wrote"
+    );
+    let user = fs::read_to_string(root.join("src/user.rs")).expect("the file stays readable");
+    assert_eq!(
+        user.lines()
+            .filter(|line| line.starts_with("use crate::deps::"))
+            .count(),
+        2,
+        "one use for each symbol the file takes: {user}"
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_computed_python_import_is_named_and_a_literal_reaches() {
+    let root = std::env::temp_dir().join(format!("arbiter-load-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src/demo")).expect("the folder is writable");
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("src/demo/load.py"),
+        "import importlib\n\nimportlib.import_module(\"requests\")\nimportlib.import_module(\"demo.\" + \"kind\")\n",
+    )
+    .expect("the folder is writable");
+
+    let graph = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let shown: Vec<String> = graph
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "python")
+        .expect("the python pack exists")
+        .integrity(&graph.root, &graph.repo)
+        .iter()
+        .map(|finding| finding.reason.clone())
+        .collect();
+    assert!(
+        shown
+            .iter()
+            .any(|reason| reason
+                == "requests is imported, and the unit's manifest does not declare it"),
+        "a literal run-time import reaches the dependency law: {shown:?}"
+    );
+    assert!(
+        shown.iter().any(|reason| reason
+            == "imports a module through a computed value; a module is named by a literal"),
+        "a computed run-time import is named: {shown:?}"
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_contracts_import_outside_its_module_needs_a_declared_dependency() {
+    let root = std::env::temp_dir().join(format!("arbiter-buf-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("the folder is writable");
+    fs::write(
+        root.join("buf.yaml"),
+        "version: v2\nlint:\n  use:\n    - STANDARD\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("ping.proto"),
+        "syntax = \"proto3\";\npackage acme;\nimport \"vendor/thing.proto\";\nmessage Pinger { string id = 1; }\n",
+    )
+    .expect("the folder is writable");
+
+    let graph = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let shown: Vec<String> = graph
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "proto")
+        .expect("the proto pack exists")
+        .integrity(&graph.root, &graph.repo)
+        .iter()
+        .map(|finding| finding.reason.clone())
+        .collect();
+    assert!(
+        shown.iter().any(|reason| reason
+            == "vendor/thing.proto is imported, and the unit's manifest does not declare it"),
+        "an external import without a dep is named: {shown:?}"
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_buf_workspace_bounds_its_modules_without_being_checked() {
+    assert!(lists_members(
+        "buf.yaml",
+        "version: v2\nmodules:\n  - path: billing\n"
+    ));
+    assert!(!lists_members(
+        "buf.yaml",
+        "version: v2\nlint:\n  use:\n    - STANDARD\n"
+    ));
+}
+
+#[test]
+fn a_cargo_workspace_without_a_package_is_a_container() {
+    let manifest = "Cargo.toml";
+    assert!(lists_members(
+        manifest,
+        "[workspace]\nmembers = [\"a\", \"b\"]\n"
+    ));
+    assert!(!lists_members(
+        manifest,
+        "[package]\nname = \"solo\"\nversion = \"0.0.1\"\n"
+    ));
+    assert!(!lists_members(
+        manifest,
+        "[workspace]\nmembers = [\"a\"]\n\n[package]\nname = \"rooted\"\n"
+    ));
+}
+
+#[test]
+fn a_class_standing_where_a_protocol_is_asked_names_it() {
+    let root = std::env::temp_dir().join(format!("arbiter-doors-py-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src/demo")).expect("the folder is writable");
+    fs::write(
+        root.join("pyproject.toml"),
+        "[project]\nname = \"demo\"\nversion = \"0\"\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("src/demo/core.py"),
+        "from typing import Protocol\n\n\nclass Completer(Protocol):\n    def complete(self, prompt: str) -> str: ...\n\n\nclass Anthropic:\n    def complete(self, prompt: str) -> str:\n        return prompt\n\n\nclass Named(Completer):\n    def complete(self, prompt: str) -> str:\n        return prompt\n\n\ndef asked(prompt: str, completer: Completer) -> str:\n    return completer.complete(prompt)\n\n\nprint(asked(\"hi\", Anthropic()))\nprint(asked(\"hi\", Named()))\n",
+    )
+    .expect("the folder is writable");
+
+    let graph = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let shown: Vec<String> = graph
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "python")
+        .expect("the python pack exists")
+        .integrity(&graph.root, &graph.repo)
+        .iter()
+        .filter(|finding| finding.rule.as_deref() == Some("undeclared-protocol"))
+        .map(|finding| finding.reason.clone())
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            "Anthropic stands where Completer is asked and names no such base; \
+          a protocol satisfied by shape is still named"
+        ]
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_class_standing_where_an_interface_is_asked_names_it() {
+    let root = std::env::temp_dir().join(format!("arbiter-doors-ts-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src")).expect("the folder is writable");
+    fs::write(
+        root.join("package.json"),
+        "{\n  \"name\": \"demo\",\n  \"version\": \"0.0.0\"\n}\n",
+    )
+    .expect("the folder is writable");
+    fs::write(
+        root.join("src/core.ts"),
+        "interface Completer {\n  complete(prompt: string): string;\n}\n\nclass Anthropic {\n  complete(prompt: string): string {\n    return prompt;\n  }\n}\n\nclass Named implements Completer {\n  complete(prompt: string): string {\n    return prompt;\n  }\n}\n\nfunction asked(prompt: string, completer: Completer): string {\n  return completer.complete(prompt);\n}\n\nasked(\"hi\", new Anthropic());\nasked(\"hi\", new Named());\n",
+    )
+    .expect("the folder is writable");
+
+    let graph = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let shown: Vec<String> = graph
+        .packs
+        .iter()
+        .find(|pack| pack.label() == "typescript")
+        .expect("the typescript pack exists")
+        .integrity(&graph.root, &graph.repo)
+        .iter()
+        .filter(|finding| finding.rule.as_deref() == Some("undeclared-protocol"))
+        .map(|finding| finding.reason.clone())
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            "Anthropic stands where Completer is asked and names no such base; \
+          a protocol satisfied by shape is still named"
+        ]
+    );
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_broken_unit_declaration_is_named_never_read_as_virgin() {
+    let root = std::env::temp_dir().join(format!("arbiter-units-record-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
+    fs::write(root.join(".arbiter/units.toml"), "[units. not toml")
+        .expect("the folder is writable");
+    let found = graphed(&root.to_string_lossy()).expect("the folder exists");
+    let findings = arbiter::tasks::laws::findings(&found);
+    assert_eq!(findings.len(), 1);
+    assert_eq!(findings[0].rule.as_deref(), Some("unparsable-user-record"));
+    assert!(findings[0]
+        .reason
+        .contains("the declared boundaries cannot be read"));
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_broken_reference_is_named_never_read_as_virgin() {
+    let root = std::env::temp_dir().join(format!("arbiter-record-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join(".arbiter")).expect("the folder is writable");
+    fs::write(root.join(".arbiter/reference.json"), "{ not json").expect("the folder is writable");
+    let broken = arbiter::ledger::broken_record(&root);
+    assert_eq!(broken.len(), 1);
+    assert_eq!(broken[0].rule.as_deref(), Some("unparsable-user-record"));
+    assert!(broken[0].reason.contains("the signature cannot be read"));
+    fs::write(root.join(".arbiter/reference.json"), "{}").expect("the folder is writable");
+    assert!(arbiter::ledger::broken_record(&root).is_empty());
+    let _ = fs::remove_dir_all(&root);
+}
+
+// Whether the records read one manifest as only listing members, read from
+// disk the way a scan reads it: listed, then read as its ecosystem's marker.
+fn lists_members(marker: &str, content: &str) -> bool {
+    static CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let call = CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let root = std::env::temp_dir().join(format!("arbiter-members-{}-{call}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("the folder is writable");
+    fs::write(root.join(marker), content).expect("the folder is writable");
+    let root = fs::canonicalize(&root).expect("the folder resolves");
+    let listing =
+        arbiter::core::listing::list(&root, &[], &std::collections::BTreeSet::new(), &mut || {
+            Ok(())
+        })
+        .expect("the folder is listed");
+    let records =
+        arbiter::core::ecosystems::ecosystems(&arbiter::packs::all()).expect("the records read");
+    let markers =
+        arbiter::core::markers::read_markers(&root, &listing.files, &records, &mut || Ok(()))
+            .expect("the marker is read");
+    let _ = fs::remove_dir_all(&root);
+    markers.iter().any(|marker| marker.members_only)
+}

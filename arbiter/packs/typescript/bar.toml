@@ -1,0 +1,25 @@
+# The bar: options every unit's resolved tsconfig must state. Environment options,
+# target, module, lib, jsx and their kin, stay the unit's own. A default that already
+# matches does not count: the bar is written down, not inherited from a compiler default
+# that moves between releases.
+[compilerOptions]
+strict = true
+noUncheckedIndexedAccess = true
+exactOptionalPropertyTypes = true
+noImplicitOverride = true
+noImplicitReturns = true
+noFallthroughCasesInSwitch = true
+noPropertyAccessFromIndexSignature = true
+noUncheckedSideEffectImports = true
+noUnusedLocals = true
+noUnusedParameters = true
+allowUnreachableCode = false
+allowUnusedLabels = false
+verbatimModuleSyntax = true
+isolatedModules = true
+isolatedDeclarations = true
+declaration = true
+erasableSyntaxOnly = true
+forceConsistentCasingInFileNames = true
+noEmitOnError = true
+skipLibCheck = true

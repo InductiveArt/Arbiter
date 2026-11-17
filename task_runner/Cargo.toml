@@ -1,0 +1,30 @@
+[package]
+name = "task_runner"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+# Tasks with no purpose but to show the runner at work, compiled in for its tests.
+test-tasks = []
+
+[dependencies]
+libc = "0.2"
+# The runtime of the code generated from the runner's contract: prost for its
+# messages, pbjson for protobuf's JSON form of them.
+pbjson = "0.8"
+prost = "0.14"
+serde = { version = "1", features = ["derive"] }
+# A record read back must be the record written, every float included: the
+# default reader can land one step off.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
+[dev-dependencies]
+task_runner = { path = ".", features = ["test-tasks"] }
+
+[[bin]]
+name = "test-tasks"
+path = "src/bin/test-tasks.rs"
+required-features = ["test-tasks"]
+
+# A project of its own: its lock, its vendored crates, its build.
+[workspace]

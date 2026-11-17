@@ -1,0 +1,31 @@
+name = "rust"
+marker = "Cargo.toml"
+
+# A marker holding every key under `has` and none under `lacks` only lists
+# member units and holds no code of its own.
+[members_only]
+has = ["workspace"]
+lacks = ["package"]
+
+# The adapter: what holds a Rust unit to the bar, in the order run.
+[[check]]
+tool = "format_rust"
+run = ["cargo", "fmt", "--check"]
+fix = ["cargo", "fmt"]
+
+[[check]]
+tool = "lint_rust"
+# A glob import names none of the symbols it brings, so a search for a symbol
+# never finds where it came from: clippy names each one, from the compiler's
+# own resolution, and its fix writes them out.
+run = ["cargo", "clippy", "--all-targets", "--quiet", "--", "-D", "warnings", "-D", "clippy::wildcard_imports"]
+# Asked to repair, cargo repairs whatever a version control system holds or
+# not, as every other fixer does.
+fix = ["cargo", "clippy", "--fix", "--allow-dirty", "--allow-staged", "--allow-no-vcs", "--all-targets", "--quiet", "--", "-W", "clippy::wildcard_imports"]
+# The same lint printing JSON lines, which the cargo_json reader reads into
+# findings, and cargo naming the root of the workspace their paths run from.
+findings = { reader = "cargo_json", run = ["cargo", "clippy", "--all-targets", "--quiet", "--message-format=json", "--", "-D", "warnings", "-D", "clippy::wildcard_imports"], root = ["cargo", "locate-project", "--workspace", "--message-format", "json"] }
+
+[[check]]
+tool = "test_rust"
+run = ["cargo", "test", "--quiet"]

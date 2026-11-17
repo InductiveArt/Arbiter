@@ -1,0 +1,28 @@
+name = "python"
+marker = "pyproject.toml"
+
+# A marker holding every key under `has` and none under `lacks` only lists
+# member units and holds no code of its own.
+[members_only]
+has = ["tool.uv.workspace"]
+lacks = ["project"]
+
+# The adapter: what holds a Python unit to the bar, in the order run.
+# Each tool is pinned, so every unit is held to one bar, not to a machine's.
+[[check]]
+tool = "format_python"
+run = ["uvx", "ruff@0.17.1", "format", "--check", "--config", "{pack}/ruff.toml", "."]
+fix = ["uvx", "ruff@0.17.1", "format", "--config", "{pack}/ruff.toml", "."]
+
+[[check]]
+tool = "lint_python"
+run = ["uvx", "ruff@0.17.1", "check", "--config", "{pack}/ruff.toml", "."]
+fix = ["uvx", "ruff@0.17.1", "check", "--fix", "--config", "{pack}/ruff.toml", "."]
+
+[[check]]
+tool = "check_python_types"
+run = ["uv", "run", "--no-sync", "--with", "basedpyright==1.40.2", "basedpyright"]
+
+[[check]]
+tool = "test_python"
+run = ["uv", "run", "--no-sync", "--with", "pytest==9.1.1", "pytest", "-q"]

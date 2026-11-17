@@ -1,0 +1,124 @@
+# The unit graph, declared. The gate holds the resolved imports to this file
+# one unit at a time: a unit absent here is unchecked, so adopt at your pace.
+#
+# [units."libs/example"]
+# # Who may import this unit: exact paths, a folder and below as "apps/*", or "*".
+# visibility = ["apps/*"]
+# # The units this one uses, held both ways: using an undeclared unit is a
+# # finding, and so is declaring one never used.
+# deps = ["libs/other"]
+
+[units."arbiter".inner."src/core"]
+deps = ["src/domain"]
+
+[units."arbiter".inner."src/packs"]
+deps = ["src/domain", "src/core"]
+
+[units."arbiter".inner."src/tasks/laws"]
+deps = ["src/domain", "src/core", "src/ledger.rs"]
+
+
+[units."arbiter".inner."src/ledger.rs"]
+deps = ["src/domain", "src/core"]
+
+[units."arbiter".inner."src/gate"]
+deps = [
+  "src/domain",
+  "src/core",
+  "src/tasks",
+  "src/tasks/laws",
+  "src/ledger.rs",
+  "src/packs",
+  "src/report",
+  "//task_runner/proto",
+  "//task_runner/src/record",
+  "//task_runner/src/context",
+  "//task_runner/src/declaration",
+  "//task_runner/src/execution",
+  "//task_runner/src/value",
+]
+
+[units."arbiter".inner."src/report"]
+deps = [
+  "src/domain",
+  "src/core",
+  "src/ledger.rs",
+  "src/packs",
+  "//task_runner/proto",
+  "//task_runner/src/value",
+]
+
+[units."arbiter".inner."src/court"]
+deps = ["src/domain", "src/core", "src/tasks/laws", "src/report", "src/packs"]
+
+[units."arbiter".inner."src/tasks"]
+deps = ["src/domain", "src/core", "src/ledger.rs", "src/packs"]
+
+[units."arbiter".inner."src/commands"]
+deps = [
+  "src/core",
+  "src/tasks/laws",
+  "src/ledger.rs",
+  "src/gate",
+  "src/court",
+  "src/report",
+  "src/packs",
+  "src/tasks",
+  "src/domain",
+  "//task_runner/src/declaration",
+  "//task_runner/src/execution",
+]
+
+[units."arbiter".inner."src/domain"]
+deps = []
+
+
+[units."task_runner".inner."src"]
+deps = ["proto"]
+
+[units."task_runner".inner."src/kernel"]
+deps = ["proto"]
+
+[units."task_runner".inner."src/value"]
+deps = []
+
+[units."task_runner".inner."src/record"]
+deps = ["proto", "src/kernel", "src/value"]
+
+[units."task_runner".inner."src/context"]
+deps = ["proto", "src/kernel", "src/record"]
+
+[units."task_runner".inner."src/declaration"]
+deps = ["proto", "src/value", "src/record", "src/context"]
+
+[units."task_runner".inner."src/protocol"]
+deps = ["proto", "src/record", "src/declaration"]
+
+[units."task_runner".inner."src/runtime"]
+deps = ["proto", "src/kernel", "src/record", "src/protocol"]
+
+[units."task_runner".inner."src/attempt"]
+deps = [
+  "proto",
+  "src/kernel",
+  "src/value",
+  "src/record",
+  "src/context",
+  "src/declaration",
+  "src/protocol",
+]
+
+[units."task_runner".inner."src/execution"]
+deps = [
+  "proto",
+  "src/kernel",
+  "src/value",
+  "src/record",
+  "src/context",
+  "src/declaration",
+  "src/protocol",
+  "src/runtime",
+]
+
+[units."task_runner".inner."src/test_tasks"]
+deps = ["src/record", "src/context", "src/declaration"]

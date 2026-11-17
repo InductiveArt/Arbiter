@@ -1,0 +1,18 @@
+# The unit graph, declared. Five services, each its own unit; the folders
+# below state that no service's code stands on another unit's - every
+# coupling between services rides a declared channel, never an import.
+
+[units."services/gate".inner."src/gate"]
+deps = []
+
+[units."services/catalog".inner."src/catalog"]
+deps = []
+
+[units."services/shelf".inner."src/shelf"]
+deps = []
+
+[units."services/tickets".inner."src/tickets"]
+deps = []
+
+[units."services/player".inner."src/player"]
+deps = []

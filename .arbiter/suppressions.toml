@@ -1,0 +1,10 @@
+# Record suppressions. Each entry quiets one rule for the packages it names,
+# in the units it states, and is counted in the ledger like any suppression.
+# An entry that quiets nothing is stale; a form wider than its named subjects
+# is a blanket, refused and never recorded.
+#
+# [[suppression]]
+# rule = "unused-dependency"
+# language = "python"
+# packages = ["coverage"]
+# units = ["*"]
