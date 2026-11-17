@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::typescript::language::generated;
@@ -46,7 +47,7 @@ pub fn instances(
         let unit = repo.unit_of(file);
         // A unit on a test path is a fixture: data for some test, not code to check.
         let home = repo.units[unit].path.clone();
-        if repo.is_test(unit, &home) {
+        if is_test(&home) {
             continue;
         }
         let mut target = None;

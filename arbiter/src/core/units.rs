@@ -11,13 +11,14 @@ use crate::core::markers::read_markers;
 use crate::core::pack::Pack;
 use crate::core::repository::Repo;
 use crate::domain::file::File;
+use crate::domain::found_units::FoundUnits;
 use crate::domain::marker::Marker;
 use crate::domain::unit::Unit;
 
-// The repository under a folder as the languages find it: its files, the
-// units their markers make, and what a law asks of the files by name: the
-// manifests, the lockfiles and the PUBLISHED marks.
-pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Result<Repo, String> {
+// The units under a folder as the languages find them: the files no rule
+// keeps out, grouped under the folders their markers make units, and the
+// folders below holding a repository of their own.
+pub fn find(root: &Path, packs: &[Box<dyn Pack>]) -> Result<FoundUnits, String> {
     let outputs: Vec<&str> = packs
         .iter()
         .flat_map(|pack| pack.outputs().iter().copied())
@@ -25,7 +26,16 @@ pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Result<Repo, String> {
     let carried = committed(root);
     let listing = list(root, &outputs, &carried, &mut || Ok(()))?;
     let markers = read_markers(root, &listing.files, &ecosystems(packs)?, &mut || Ok(()))?;
-    let units = group_files_by_unit(&listing.files, &markers);
+    Ok(FoundUnits {
+        units: group_files_by_unit(&listing.files, &markers),
+        foreign: listing.foreign,
+    })
+}
+
+// The repository the graph reads, built from the units found: their files,
+// and what a law asks of the files by name: the manifests, the lockfiles and
+// the PUBLISHED marks.
+pub fn repo(found: FoundUnits, packs: &[Box<dyn Pack>]) -> Repo {
     let lockfiles: HashSet<&str> = packs
         .iter()
         .flat_map(|pack| pack.lockfiles().iter().copied())
@@ -35,16 +45,25 @@ pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Result<Repo, String> {
             .and_then(|name| name.to_str())
             .is_some_and(|name| names.contains(name))
     };
-    let files: Vec<PathBuf> = listing.files.into_iter().map(|file| file.path).collect();
-    let manifests: BTreeSet<PathBuf> = markers.into_iter().map(|marker| marker.path).collect();
+    let mut files: Vec<PathBuf> = found
+        .units
+        .iter()
+        .flat_map(|unit| unit.files.iter().map(|file| file.path.clone()))
+        .collect();
+    files.sort();
+    let manifests: BTreeSet<PathBuf> = found
+        .units
+        .iter()
+        .flat_map(|unit| unit.markers.iter().map(|marker| marker.path.clone()))
+        .collect();
     let published = files
         .iter()
         .filter(|file| file.file_name().is_some_and(|name| name == "PUBLISHED"))
         .map(|file| file.parent().unwrap_or(Path::new("")).to_path_buf())
         .collect();
-    Ok(Repo {
-        units,
-        roots: HashSet::new(),
+    Repo {
+        units: found.units,
+        roots: BTreeSet::new(),
         lockfiles: files
             .iter()
             .filter(|file| named(file, &lockfiles))
@@ -52,9 +71,14 @@ pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Result<Repo, String> {
             .collect(),
         manifests: manifests.into_iter().collect(),
         published,
-        foreign: listing.foreign,
+        foreign: found.foreign,
         files,
-    })
+    }
+}
+
+// The repository under a folder, found and built in one go.
+pub fn scan(root: &Path, packs: &[Box<dyn Pack>]) -> Result<Repo, String> {
+    Ok(repo(find(root, packs)?, packs))
 }
 
 // Every unit, sorted by path, the listed folder itself first. A unit is the

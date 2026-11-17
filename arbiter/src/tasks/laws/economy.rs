@@ -1,5 +1,6 @@
 use crate::core::edge::Edge;
 use crate::core::graph::Graph;
+use crate::core::repository::is_test;
 use crate::core::rule;
 use crate::core::rule::Law;
 use crate::core::rule::Rule;
@@ -44,10 +45,7 @@ pub fn winnow(found: &Graph) -> Vec<Finding> {
             .filter(|edge| edge.def == index && edge.file != def.file)
             .collect();
         // A test keeps nothing alive, wherever it lives.
-        if users
-            .iter()
-            .any(|edge| !found.repo.is_test(edge.unit, &edge.file))
-        {
+        if users.iter().any(|edge| !is_test(&edge.file)) {
             continue;
         }
         let (name, reason) = if users.is_empty() {

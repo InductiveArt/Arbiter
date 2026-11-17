@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use crate::core::graph::Graph;
 use crate::core::pack::Pack;
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::core::rule;
 use crate::core::rule::Law;
@@ -51,7 +52,7 @@ fn split_version(root: &Path, repo: &Repo, packs: &[Box<dyn Pack>]) -> Vec<Findi
             }
             let unit = repo.unit_of(path);
             let home = repo.units[unit].path.clone();
-            if repo.is_test(unit, &home) {
+            if is_test(&home) {
                 continue;
             }
             let Ok(text) = fs::read_to_string(root.join(path)) else {

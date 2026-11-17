@@ -10,6 +10,7 @@ use task_runner::record::task_failure::TaskFailure;
 
 use crate::domain::ecosystem::Ecosystem;
 use crate::domain::folder::Folder;
+use crate::domain::found_units::FoundUnits;
 use crate::domain::subprocess::Subprocess;
 use crate::domain::unit::Unit;
 use crate::domain::unit_check::CheckReading;
@@ -19,8 +20,8 @@ pub fn plan_unit_checks_task() -> Task {
     Task::new(
         "plan_unit_checks",
         |context: &mut TaskContext,
-         (folder, units, ecosystems): (In<Folder>, In<Vec<Unit>>, In<Vec<Ecosystem>>)| {
-            plan_unit_checks(context, &folder, &units, &ecosystems)
+         (folder, found, ecosystems): (In<Folder>, In<FoundUnits>, In<Vec<Ecosystem>>)| {
+            plan_unit_checks(context, &folder, &found.units, &ecosystems)
         },
     )
     .line(

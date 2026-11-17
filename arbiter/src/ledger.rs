@@ -5,6 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::core::graph::Graph;
+use crate::core::repository::is_test;
 use crate::core::suppression::Suppression;
 use crate::domain::finding::line_at;
 use crate::domain::finding::Finding;
@@ -43,7 +44,7 @@ fn kept(found: &Graph) -> Vec<Suppression> {
         for suppression in pack.suppressions() {
             let unit = found.repo.unit_of(&suppression.file);
             let home = found.repo.units[unit].path.clone();
-            if found.repo.is_test(unit, &home) {
+            if is_test(&home) {
                 continue;
             }
             all.push(suppression);
@@ -84,7 +85,7 @@ pub fn packages(found: &Graph) -> Vec<String> {
             }
             let unit = found.repo.unit_of(path);
             let home = found.repo.units[unit].path.clone();
-            if found.repo.is_test(unit, &home) {
+            if is_test(&home) {
                 continue;
             }
             let Ok(text) = fs::read_to_string(found.root.join(path)) else {

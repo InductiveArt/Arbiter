@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 
@@ -16,7 +17,7 @@ pub fn instances(
     let mut named = BTreeSet::new();
     for (unit, paths) in externals {
         let home = repo.units[*unit].path.clone();
-        if repo.is_test(*unit, &home) {
+        if is_test(&home) {
             continue;
         }
         let empty = declared

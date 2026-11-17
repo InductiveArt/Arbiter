@@ -1,5 +1,8 @@
 use std::path::Path;
 
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+
 use crate::core::definition::Def;
 use crate::core::definition::Definition;
 use crate::core::edge::Edge;
@@ -12,7 +15,8 @@ use crate::domain::finding::Finding;
 // of its readings: the edges their uses resolve to, the laws they break, and
 // the suppressions they hold.
 pub trait Reader: Language {
-    type Reading;
+    // Written out whole, so readings can travel to another process.
+    type Reading: Serialize + DeserializeOwned;
 
     // One file read whole: its reading, and the definitions it offers when it
     // is a surface. A file the language cannot read leaves nothing.

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::typescript::reading::Reading;
@@ -18,7 +19,7 @@ pub fn instances(
     for file in &routes.written {
         let unit = repo.unit_of(file);
         let home = repo.units[unit].path.clone();
-        if repo.is_test(unit, &home) {
+        if is_test(&home) {
             continue;
         }
         let Some(owned) = defined.get(file) else {

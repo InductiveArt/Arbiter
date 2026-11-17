@@ -8,13 +8,21 @@ use std::time::Duration;
 
 use arbiter::commands::languages;
 use arbiter::commands::tasks;
+use arbiter::domain::dials::Dials;
 use arbiter::domain::file::File;
 use arbiter::domain::finding::Finding;
 use arbiter::domain::folder::Folder;
+use arbiter::domain::found_units::FoundUnits;
+use arbiter::domain::gate_mode::GateMode;
+use arbiter::domain::generated_checks::GeneratedChecks;
+use arbiter::domain::law::LawFindings;
+use arbiter::domain::law::LawName;
 use arbiter::domain::subprocess::Subprocess;
 use arbiter::domain::subprocess::SubprocessExit;
 use arbiter::domain::unit::Unit;
 use arbiter::packs::all;
+use arbiter::packs::graphed;
+use arbiter::tasks::laws;
 use arbiter::wip_tasks::listed;
 use arbiter::wip_tasks::load_ecosystems::load_ecosystems;
 
@@ -93,8 +101,9 @@ fn the_ecosystems_are_loaded_and_the_units_of_a_folder_found_each_task_in_a_proc
         .expect("the attempt left its record");
     assert_eq!(loading.measures.get("ecosystems"), Some(&4.0));
     assert_eq!(loading.measures.get("tools"), Some(&12.0));
-    let units = store.get::<Vec<Unit>>().expect("the units are kept");
-    let told: Vec<(String, String, String)> = units
+    let found = store.get::<FoundUnits>().expect("the units are kept");
+    let told: Vec<(String, String, String)> = found
+        .units
         .iter()
         .map(|unit| {
             let markers: Vec<String> = unit
@@ -162,6 +171,170 @@ fn the_ecosystems_are_loaded_and_the_units_of_a_folder_found_each_task_in_a_proc
 }
 
 #[test]
+fn each_law_held_in_a_process_of_its_own_finds_what_the_laws_find_in_one() {
+    let demo = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/demo"));
+    let plan = Plan::fanned(
+        "laws",
+        &listed(),
+        &[
+            "load_ecosystems",
+            "find_units",
+            "read_graph",
+            "list_laws",
+            "find_law_instances",
+        ],
+        &[FanOut::of::<LawName, LawFindings>(
+            "find_law_instances",
+            |law| law.name.clone(),
+        )],
+    )
+    .expect("the tasks wire into a plan");
+    let runs = folder("law-runs");
+
+    let (report, store) = Runner::new()
+        .task_executable(task_executable())
+        .run(&plan, seeded(&demo), &runs)
+        .expect("the plan is run");
+
+    assert_eq!(*report.outcome(), RunRecord::passed());
+    let gathered = store
+        .get::<Vec<LawFindings>>()
+        .expect("each law's findings are kept");
+    let held: Vec<&str> = gathered.iter().map(|law| law.law.as_str()).collect();
+    assert_eq!(
+        held,
+        [
+            "economy",
+            "cycles",
+            "boundaries",
+            "folders",
+            "licenses",
+            "versions",
+            "suppressions",
+            "cpp",
+            "infra",
+            "proto",
+            "python",
+            "rust",
+            "typescript"
+        ],
+        "every core law, then every language's laws, each one attempt"
+    );
+    let told = |findings: Vec<&Finding>| {
+        let mut all: Vec<(String, Option<u32>, Option<String>, String)> = findings
+            .into_iter()
+            .map(|finding| {
+                (
+                    finding.file.to_string_lossy().into_owned(),
+                    finding.line,
+                    finding.rule.clone(),
+                    finding.reason.clone(),
+                )
+            })
+            .collect();
+        all.sort();
+        all
+    };
+    let in_one = laws::findings(&graphed(&demo.to_string_lossy()).expect("the fixture is read"));
+    assert_eq!(
+        told(
+            gathered
+                .iter()
+                .flat_map(|law| law.findings.iter())
+                .collect()
+        ),
+        told(in_one.iter().collect()),
+        "the laws find the same, held apart or together"
+    );
+    let _ = fs::remove_dir_all(&runs);
+}
+
+#[test]
+fn the_dials_and_the_generated_code_are_read_unit_by_unit_and_fixtures_never() {
+    let repository = folder("dialed");
+    for (path, content) in [
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"lowered\"]\n\n[workspace.lints.clippy]\nall = \"allow\"\n",
+        ),
+        (
+            "lowered/Cargo.toml",
+            "[package]\nname = \"lowered\"\n\n[lints.clippy]\ncmp_owned = \"allow\"\n",
+        ),
+        ("lowered/src/lib.rs", "pub fn one() {}\n"),
+        ("contracts/buf.yaml", "version: v2\n"),
+        ("contracts/shop.proto", "syntax = \"proto3\";\n"),
+        (
+            "tests/fixture/Cargo.toml",
+            "[package]\nname = \"fixture\"\n\n[lints.rust]\nwarnings = \"allow\"\n",
+        ),
+        ("tests/fixture/src/lib.rs", "pub fn two() {}\n"),
+    ] {
+        let file = repository.join(path);
+        fs::create_dir_all(file.parent().expect("a file sits in a folder"))
+            .expect("a folder is made");
+        fs::write(file, content).expect("a file is written");
+    }
+    let mut seeds = seeded(&repository);
+    seeds
+        .put(&GateMode {
+            fixing: false,
+            cold: false,
+        })
+        .expect("a mode encodes");
+    let plan = Plan::new(
+        "dials",
+        &listed(),
+        &[
+            "load_ecosystems",
+            "find_units",
+            "read_dials",
+            "check_generated",
+        ],
+    )
+    .expect("the tasks wire into a plan");
+    let runs = folder("dial-runs");
+
+    let (report, store) = Runner::new()
+        .task_executable(task_executable())
+        .run(&plan, seeds, &runs)
+        .expect("the plan is run");
+
+    assert_eq!(*report.outcome(), RunRecord::passed());
+    let dials = store.get::<Dials>().expect("the dials are kept");
+    let told: Vec<(String, Option<&str>, &str)> = dials
+        .findings
+        .iter()
+        .map(|finding| {
+            (
+                finding.file.to_string_lossy().into_owned(),
+                finding.rule.as_deref(),
+                finding.reason.as_str(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        told,
+        [(
+            "lowered/Cargo.toml".to_string(),
+            Some("lowered-dial"),
+            "lints.clippy.cmp_owned is allow; the bar denies every warning"
+        )],
+        "a workspace that only lists members and a fixture have no dials of their own"
+    );
+    let generated = store
+        .get::<GeneratedChecks>()
+        .expect("the generated checks are kept");
+    assert!(generated.outcomes.is_empty(), "nothing here is generated");
+    assert_eq!(
+        generated.notes,
+        ["contracts has no contracts reference; arbiter ledger sign records today's"]
+    );
+    let _ = fs::remove_dir_all(&repository);
+    let _ = fs::remove_dir_all(&runs);
+}
+
+#[test]
 fn no_two_tasks_the_task_executable_serves_share_a_name() {
     let mut seen = HashSet::new();
     for task in listed() {
@@ -187,18 +360,57 @@ fn the_tasks_view_tells_what_each_task_leaves_reads_and_is_bounded_by() {
          find_units\n  \
          each unit under one folder with its markers and its own files: the folder itself and \
          any folder under it holding an ecosystem's marker; what a .gitignore leaves out unless \
-         git carries it, the ecosystems' build output, third_party, dot-folders, links and \
-         any folder below holding its own .arbiter are never read\n  \
+         git carries it, the ecosystems' build output, third_party, dot-folders, links and any \
+         folder below holding its own .arbiter are never read, only named\n  \
          reads   Folder, Vec<Ecosystem>\n  \
-         leaves  Vec<Unit>\n  \
+         leaves  FoundUnits\n  \
+         limits  no time limit, one attempt, computed every run\n\
+         \n\
+         read_graph\n  \
+         the units found read into the graph: every file a language handles read for what it \
+         defines and uses, each use resolved to the definitions it reaches, written out with \
+         each language's readings\n  \
+         reads   Folder, FoundUnits\n  \
+         leaves  GraphData\n  \
+         limits  no time limit, one attempt, computed every run\n\
+         \n\
+         list_laws\n  \
+         every law held over the graph: each of the core's laws, then each language's laws by \
+         the language's name\n  \
+         reads   nothing\n  \
+         leaves  Vec<LawName>\n  \
+         limits  no time limit, one attempt, computed every run\n\
+         \n\
+         find_law_instances\n  \
+         one law held over the graph, its languages given back their readings: the instances of \
+         one of the core's laws, or of one language's laws\n  \
+         reads   GraphData, LawName\n  \
+         leaves  LawFindings\n  \
+         limits  no time limit, one attempt, computed every run\n\
+         \n\
+         read_dials\n  \
+         each unit's dials as its own config sets them, held to the bar, for every language \
+         with a marker in the unit except a marker that only lists members; a unit on a test \
+         path is a fixture and has none\n  \
+         reads   Folder, FoundUnits\n  \
+         leaves  Dials\n  \
+         limits  no time limit, one attempt, computed every run\n\
+         \n\
+         check_generated\n  \
+         each unit's generated code compared with what its contracts generate, and its \
+         contracts with the image the user signed, by every language that compares any; a \
+         fixing run regenerates first, and a unit on a test path is a fixture and is never \
+         compared\n  \
+         reads   Folder, FoundUnits, GateMode\n  \
+         leaves  GeneratedChecks\n  \
          limits  no time limit, one attempt, computed every run\n\
          \n\
          plan_unit_checks\n  \
          each tool of each ecosystem once in every unit of that ecosystem, except a unit whose \
-         marker only lists members, as the program running it there, with the reader of what \
-         it prints and the program printing its root when it has them; it starts nothing, and \
+         marker only lists members, as the program running it there, with the reader of what it \
+         prints and the program printing its root when it has them; it starts nothing, and \
          writes the configs the programs point at in its own folder\n  \
-         reads   Folder, Vec<Unit>, Vec<Ecosystem>\n  \
+         reads   Folder, FoundUnits, Vec<Ecosystem>\n  \
          leaves  Vec<UnitCheck>\n  \
          limits  no time limit, one attempt, computed every run\n\
          \n\
@@ -210,8 +422,8 @@ fn the_tasks_view_tells_what_each_task_leaves_reads_and_is_bounded_by() {
          limits  no time limit, one attempt, computed every run\n\
          \n\
          run_subprocess\n  \
-         starts one program in its folder, keeps all it prints and tells how it ended; an \
-         exit other than 0 is told, never failed\n  \
+         starts one program in its folder, keeps all it prints and tells how it ended; an exit \
+         other than 0 is told, never failed\n  \
          reads   Subprocess\n  \
          leaves  SubprocessExit\n  \
          limits  1800s at most, one attempt, computed every run\n\

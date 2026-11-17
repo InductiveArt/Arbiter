@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::core::trees;
 use crate::packs::typescript::import_shape::import_shapes;
@@ -23,7 +24,7 @@ pub fn mend(root: &Path, repo: &Repo) -> Vec<String> {
         // A unit on a test path is a fixture: data for some test, never repaired.
         let unit = repo.unit_of(file);
         let home = repo.units[unit].path.clone();
-        if repo.is_test(unit, &home) {
+        if is_test(&home) {
             continue;
         }
         let path = root.join(file);

@@ -1,6 +1,8 @@
 use std::path::Path;
 use std::path::PathBuf;
 
+use serde_json::Value;
+
 use crate::core::definition::Def;
 use crate::core::definition::Definition;
 use crate::core::drift::Drift;
@@ -27,6 +29,12 @@ pub trait Pack: Language {
 
     // Every suppression the readings hold.
     fn suppressions(&self) -> Vec<Suppression>;
+
+    // The readings made so far, written out so another process can hold them.
+    fn written(&self) -> Result<Value, String>;
+
+    // Takes readings the same language wrote out, in place of its own.
+    fn restore(&mut self, written: Value) -> Result<(), String>;
 }
 
 // A reader and the readings it has made so far, one per file read.
@@ -148,5 +156,14 @@ impl<R: Reader> Pack for Packed<R> {
 
     fn suppressions(&self) -> Vec<Suppression> {
         self.reader.suppressions(&self.readings)
+    }
+
+    fn written(&self) -> Result<Value, String> {
+        serde_json::to_value(&self.readings).map_err(|error| error.to_string())
+    }
+
+    fn restore(&mut self, written: Value) -> Result<(), String> {
+        self.readings = serde_json::from_value(written).map_err(|error| error.to_string())?;
+        Ok(())
     }
 }

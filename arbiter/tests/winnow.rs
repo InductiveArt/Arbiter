@@ -36,6 +36,55 @@ fn the_fixture_yields_its_known_findings() {
 }
 
 #[test]
+fn a_graph_written_out_and_read_back_finds_what_it_found() {
+    use arbiter::core::graph_data::GraphData;
+    let found = graphed(DEMO).expect("the fixture folder exists");
+    let text = serde_json::to_string(&GraphData::of(&found).expect("the graph writes out"))
+        .expect("the graph is json");
+    let back: GraphData = serde_json::from_str(&text).expect("the json reads back");
+    let again = back
+        .into_graph(arbiter::packs::all())
+        .expect("each language takes its readings back");
+    let sorted = |graph: &arbiter::core::graph::Graph| {
+        let mut all: Vec<(String, Option<u32>, Option<String>, String)> = laws::findings(graph)
+            .into_iter()
+            .map(|finding| {
+                (
+                    finding.file.to_string_lossy().into_owned(),
+                    finding.line,
+                    finding.rule,
+                    finding.reason,
+                )
+            })
+            .collect();
+        all.sort();
+        all
+    };
+    assert_eq!(
+        sorted(&again),
+        sorted(&found),
+        "the same laws find the same"
+    );
+    let counted = |graph: &arbiter::core::graph::Graph| -> Vec<String> {
+        arbiter::ledger::counted(graph)
+            .iter()
+            .map(|suppression| suppression.text.clone())
+            .collect()
+    };
+    assert_eq!(
+        counted(&again),
+        counted(&found),
+        "the same suppressions count"
+    );
+    assert_eq!(
+        serde_json::to_string(&GraphData::of(&again).expect("the graph writes out again"))
+            .expect("the graph is json"),
+        text,
+        "a graph read back writes out byte for byte as it was"
+    );
+}
+
+#[test]
 fn every_finding_names_a_law_the_matrix_drills() {
     let found = graphed(DEMO).expect("the fixture folder exists");
     let mut all = laws::findings(&found);

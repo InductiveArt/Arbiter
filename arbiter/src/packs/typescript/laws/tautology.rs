@@ -1,3 +1,4 @@
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::typescript::reading::Reading;
@@ -8,7 +9,7 @@ pub fn instances(readings: &[Reading], repo: &Repo) -> Vec<Finding> {
         .iter()
         .filter(|reading| {
             let unit = repo.unit_of(&reading.file);
-            !repo.is_test(unit, &repo.units[unit].path)
+            !is_test(&repo.units[unit].path)
         })
         .flat_map(|reading| {
             reading.tautologies.iter().map(|tautology| {

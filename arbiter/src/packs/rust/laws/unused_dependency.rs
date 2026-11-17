@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use crate::core::record;
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::rust::language::handles;
@@ -46,7 +47,7 @@ pub fn instances(
     let mut findings = Vec::new();
     for (unit, crates) in declared {
         let home = repo.units[*unit].path.clone();
-        if repo.is_test(*unit, &home) || !coded.contains(unit) {
+        if is_test(&home) || !coded.contains(unit) {
             continue;
         }
         let unit_name = repo.unit_name(*unit);

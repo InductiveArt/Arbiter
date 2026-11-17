@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use crate::core::drift::Drift;
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::packs::proto::buf::run_buf;
 use crate::packs::proto::language::MANIFEST;
@@ -45,7 +46,7 @@ pub fn record(root: &Path, repo: &Repo) -> Vec<String> {
         }
         let unit = manifest.parent().unwrap_or(Path::new(""));
         // A unit on a test path is a fixture: data for some test, not contracts to record.
-        if repo.is_test(repo.unit_of(manifest), unit) {
+        if is_test(unit) {
             continue;
         }
         let folder = root.join(unit);

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::python::reading::Asking;
@@ -48,7 +49,7 @@ pub fn instances(readings: &[Reading], repo: &Repo) -> Vec<Finding> {
     let mut unnamed = BTreeSet::new();
     let fixture = |file: &PathBuf| {
         let unit = repo.unit_of(file);
-        repo.is_test(unit, &repo.units[unit].path.clone()) || repo.is_test(unit, file)
+        is_test(&repo.units[unit].path.clone()) || is_test(file)
     };
     let mut findings = Vec::new();
     let mut undeclared_door =

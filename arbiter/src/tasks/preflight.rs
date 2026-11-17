@@ -1,3 +1,4 @@
+use crate::core::repository::is_test;
 use std::path::Path;
 use std::process::Command;
 
@@ -25,7 +26,7 @@ pub fn preflight(root: &Path) -> Vec<String> {
             }
             let unit = repo.unit_of(path);
             let home = repo.units[unit].path.clone();
-            !repo.is_test(unit, &home)
+            !is_test(&home)
         });
         if !present {
             continue;

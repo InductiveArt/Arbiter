@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::core::pack::Pack;
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::core::tools::checks;
 use crate::core::tools::executed;
@@ -24,7 +25,7 @@ pub fn checked(
     let mut dialed = Vec::new();
     for (index, unit) in repo.units.iter().enumerate() {
         // A unit on a test path is a fixture: data for some test, not code to check.
-        if repo.is_test(index, &unit.path) {
+        if is_test(&unit.path) {
             continue;
         }
         let folder = root.join(&unit.path);

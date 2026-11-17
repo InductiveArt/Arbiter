@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::core::language::pinned;
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::typescript::language::generated;
@@ -34,7 +35,7 @@ pub fn instances(
     }) {
         let unit = repo.unit_of(file);
         let home = repo.units[unit].path.clone();
-        if repo.is_test(unit, &home) {
+        if is_test(&home) {
             continue;
         }
         // Generated code is scanned and holds no finding: its imports only reach.
@@ -61,8 +62,7 @@ pub fn instances(
         let developed = manifest.is_some_and(|entry| entry.dev.contains(&package));
         // Development code may rest on devDependencies: tests, the toolchain's
         // config files, and a type-only import, which erases at build time.
-        let development =
-            repo.is_test(unit, file) || developmental(file) || reading.typed.contains(&line);
+        let development = is_test(file) || developmental(file) || reading.typed.contains(&line);
         if shipped || (developed && development) {
             continue;
         }

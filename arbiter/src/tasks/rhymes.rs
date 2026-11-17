@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use crate::core::graph::Graph;
+use crate::core::repository::is_test;
 use crate::core::task::Task;
 use crate::packs::graphed;
 
@@ -88,7 +89,7 @@ pub fn rhymes(found: &Graph) -> Vec<Group> {
         // A unit on a test path is a fixture: data for some test, not code to measure.
         let unit = found.repo.unit_of(file);
         let home = found.repo.units[unit].path.clone();
-        if found.repo.is_test(unit, &home) {
+        if is_test(&home) {
             continue;
         }
         let Ok(source) = fs::read_to_string(found.root.join(file)) else {

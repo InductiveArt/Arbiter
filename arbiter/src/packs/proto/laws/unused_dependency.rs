@@ -5,6 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::core::record;
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 
@@ -21,7 +22,7 @@ pub fn instances(
     let mut live: HashSet<usize> = HashSet::new();
     for (unit, (manifest, deps)) in declared {
         let home = repo.units[*unit].path.clone();
-        if repo.is_test(*unit, &home) || deps.is_empty() {
+        if is_test(&home) || deps.is_empty() {
             continue;
         }
         if externals.get(unit).is_some_and(|paths| !paths.is_empty()) {

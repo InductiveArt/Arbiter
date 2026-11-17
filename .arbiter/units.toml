@@ -52,6 +52,7 @@ deps = [
   "src/core",
   "src/domain",
   "src/packs",
+  "src/tasks/laws",
   "//task_runner/proto",
   "//task_runner/src/record",
   "//task_runner/src/context",

@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::rust::language::BUILTIN_CRATES;
@@ -21,7 +22,7 @@ pub fn instances(
     for reading in readings {
         let unit = repo.unit_of(&reading.file);
         let home = repo.units[unit].path.clone();
-        if repo.is_test(unit, &home) {
+        if is_test(&home) {
             continue;
         }
         // A module the file declares, or a name it imports, is no crate.

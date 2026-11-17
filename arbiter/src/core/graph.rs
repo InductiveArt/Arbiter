@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use crate::core::definition::Def;
 use crate::core::edge::Edge;
 use crate::core::pack::Pack;
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::core::units;
 
@@ -20,13 +21,22 @@ pub struct Graph {
 
 // The engine receives the packs: which packs exist is composition knowledge,
 // and the base never knows the registry of its implementors.
-pub fn graph(asked: &str, mut packs: Vec<Box<dyn Pack>>) -> Result<Graph, String> {
+pub fn graph(asked: &str, packs: Vec<Box<dyn Pack>>) -> Result<Graph, String> {
     let clock = std::time::Instant::now();
     let root = PathBuf::from(asked)
         .canonicalize()
         .map_err(|_| format!("no folder at {asked}"))?;
-    let mut repo = units::scan(&root, &packs)?;
+    let repo = units::scan(&root, &packs)?;
     let scan_seconds = clock.elapsed().as_secs_f64();
+    let mut found = read(root, repo, packs);
+    found.scan_seconds = scan_seconds;
+    Ok(found)
+}
+
+// The repository read into the graph: every file a language handles read for
+// what it defines and uses, then each use resolved to what it reaches.
+pub fn read(root: PathBuf, mut repo: Repo, mut packs: Vec<Box<dyn Pack>>) -> Graph {
+    let clock = std::time::Instant::now();
     let rooted: Vec<PathBuf> = packs
         .iter()
         .flat_map(|pack| pack.roots(&root, &repo))
@@ -46,9 +56,8 @@ pub fn graph(asked: &str, mut packs: Vec<Box<dyn Pack>>) -> Result<Graph, String
         };
         let unit = repo.unit_of(file);
         // Tests, roots and generated files are leaves: they use, and offer nothing they define.
-        let surface = !repo.is_test(unit, file)
-            && !repo.roots.contains(file)
-            && !packs[index].generated(&name);
+        let surface =
+            !is_test(file) && !repo.roots.contains(file) && !packs[index].generated(&name);
         for definition in packs[index].scan(file, &source, surface) {
             defs.push(Def {
                 name: definition.name,
@@ -64,15 +73,15 @@ pub fn graph(asked: &str, mut packs: Vec<Box<dyn Pack>>) -> Result<Graph, String
     for (index, pack) in packs.iter().enumerate() {
         edges.extend(pack.resolve(index, &defs, &root, &repo));
     }
-    Ok(Graph {
+    Graph {
         root,
         repo,
         defs,
         edges,
         packs,
-        scan_seconds,
-        resolve_seconds: clock.elapsed().as_secs_f64() - scan_seconds,
-    })
+        scan_seconds: 0.0,
+        resolve_seconds: clock.elapsed().as_secs_f64(),
+    }
 }
 
 // Tarjan's strongly connected components over an indexed adjacency: the one

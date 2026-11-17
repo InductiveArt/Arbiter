@@ -2,6 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::core::measures;
+use crate::core::repository::is_test;
 use crate::gate::Run;
 use crate::ledger;
 
@@ -84,7 +85,7 @@ fn snapshot(run: &Run) -> serde_json::Value {
             let home = found.repo.units[index].path.clone();
             serde_json::json!({
                 "name": found.repo.unit_name(index),
-                "test": found.repo.is_test(index, &home),
+                "test": is_test(&home),
             })
         })
         .collect();

@@ -1,8 +1,14 @@
+pub mod check_outcome;
 pub mod diagnostic;
+pub mod dials;
 pub mod ecosystem;
 pub mod file;
 pub mod finding;
 pub mod folder;
+pub mod found_units;
+pub mod gate_mode;
+pub mod generated_checks;
+pub mod law;
 pub mod marker;
 pub mod subprocess;
 pub mod unit;

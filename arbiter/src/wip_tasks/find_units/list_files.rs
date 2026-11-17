@@ -3,13 +3,12 @@ use task_runner::record::task_failure::TaskFailure;
 
 use crate::core::listing::committed::committed;
 use crate::core::listing::list;
-use crate::domain::file::File;
+use crate::core::listing::Listing;
 use crate::domain::folder::Folder;
 
-// Every file under the folder that no rule keeps out, sorted by path, as the
-// listing reads it, each folder holding a repository of its own noted and
-// the walk's counts measured.
-pub fn list_files(context: &mut TaskContext, folder: &Folder) -> Result<Vec<File>, TaskFailure> {
+// The listing of the folder, each folder holding a repository of its own
+// noted and the walk's counts measured.
+pub fn list_files(context: &mut TaskContext, folder: &Folder) -> Result<Listing, TaskFailure> {
     let languages = crate::packs::all();
     let outputs: Vec<&str> = languages
         .iter()
@@ -29,7 +28,7 @@ pub fn list_files(context: &mut TaskContext, folder: &Folder) -> Result<Vec<File
     context.measure("skipped", listing.skipped as f64);
     context.measure("foreign", listing.foreign.len() as f64);
     context.measure("links", listing.links as f64);
-    Ok(listing.files)
+    Ok(listing)
 }
 
 #[cfg(test)]
@@ -83,7 +82,9 @@ mod tests {
         let folder = Folder {
             path: root.to_path_buf(),
         };
-        list_files(context, &folder).map_err(|failure| failure.reason)
+        list_files(context, &folder)
+            .map(|listing| listing.files)
+            .map_err(|failure| failure.reason)
     }
 
     fn paths(listed: &[File]) -> Vec<String> {

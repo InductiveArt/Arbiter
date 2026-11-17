@@ -11,6 +11,7 @@ pub mod drift;
 pub mod ecosystems;
 pub mod edge;
 pub mod graph;
+pub mod graph_data;
 pub mod language;
 pub mod listing;
 pub mod markers;

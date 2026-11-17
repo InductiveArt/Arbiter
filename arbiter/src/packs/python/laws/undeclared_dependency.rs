@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::core::language::pinned;
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::python::distributions::distribution_map;
@@ -44,7 +45,7 @@ pub fn instances(
     for (file, module, line) in spoken {
         let unit = repo.unit_of(file);
         let home = repo.units[unit].path.clone();
-        if repo.is_test(unit, &home) {
+        if is_test(&home) {
             continue;
         }
         // Generated code is scanned and holds no finding: its imports reach, and
@@ -67,7 +68,7 @@ pub fn instances(
         let manifest = declared.get(&unit);
         let shipped = manifest.is_some_and(|entry| entry.shipped.contains(&distribution));
         let developed = manifest.is_some_and(|entry| entry.dev.contains(&distribution));
-        if shipped || (developed && repo.is_test(unit, file)) {
+        if shipped || (developed && is_test(file)) {
             continue;
         }
         if named.insert((unit, top.to_string())) {

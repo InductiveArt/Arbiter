@@ -9,7 +9,7 @@ use task_runner::record::task_failure::TaskFailure;
 use crate::core::units::group_files_by_unit;
 use crate::domain::ecosystem::Ecosystem;
 use crate::domain::folder::Folder;
-use crate::domain::unit::Unit;
+use crate::domain::found_units::FoundUnits;
 use crate::wip_tasks::find_units::list_files::list_files;
 use crate::wip_tasks::find_units::read_markers::read_markers;
 
@@ -24,7 +24,7 @@ pub fn find_units_task() -> Task {
         "each unit under one folder with its markers and its own files: the folder itself and \
          any folder under it holding an ecosystem's marker; what a .gitignore leaves out unless \
          git carries it, the ecosystems' build output, third_party, dot-folders, links and \
-         any folder below holding its own .arbiter are never read",
+         any folder below holding its own .arbiter are never read, only named",
     )
 }
 
@@ -32,15 +32,19 @@ fn find_units(
     context: &mut TaskContext,
     folder: &Folder,
     ecosystems: &[Ecosystem],
-) -> Result<Vec<Unit>, TaskFailure> {
-    let files = context.substep("list_files", |substep| list_files(substep, folder))?;
+) -> Result<FoundUnits, TaskFailure> {
+    let listing = context.substep("list_files", |substep| list_files(substep, folder))?;
     let markers = context.substep("read_markers", |substep| {
-        read_markers(substep, folder, &files, ecosystems)
+        read_markers(substep, folder, &listing.files, ecosystems)
     })?;
-    context.substep("group_files_by_unit", |substep| {
-        let units = group_files_by_unit(&files, &markers);
+    let units = context.substep("group_files_by_unit", |substep| {
+        let units = group_files_by_unit(&listing.files, &markers);
         substep.measure("units", units.len() as f64);
         Ok(units)
+    })?;
+    Ok(FoundUnits {
+        units,
+        foreign: listing.foreign,
     })
 }
 
@@ -122,9 +126,10 @@ mod tests {
             ],
         );
         let mut context = context();
-        let units = find_units(&mut context, &Folder { path: root.clone() }, &ecosystems())
+        let found = find_units(&mut context, &Folder { path: root.clone() }, &ecosystems())
             .expect("the units are found");
-        let told: Vec<(String, usize)> = units
+        let told: Vec<(String, usize)> = found
+            .units
             .iter()
             .map(|unit| (unit.path.to_string_lossy().into_owned(), unit.files.len()))
             .collect();

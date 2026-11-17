@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::packs::python::distributions::normalized_name;
 use crate::packs::python::language::MANIFEST;
@@ -15,7 +16,7 @@ pub fn licenses(root: &Path, repo: &Repo) -> Vec<(PathBuf, String, String)> {
         }
         let unit = repo.unit_of(manifest);
         let home = repo.units[unit].path.clone();
-        if repo.is_test(unit, &home) {
+        if is_test(&home) {
             continue;
         }
         let folder = manifest.parent().unwrap_or(Path::new(""));

@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::core::language::pinned;
 use crate::core::record;
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 use crate::domain::finding::Finding;
 use crate::packs::python::distributions::distribution_map;
@@ -57,7 +58,7 @@ pub fn instances(
     let mut findings = Vec::new();
     for (unit, entry) in declared {
         let home = repo.units[*unit].path.clone();
-        if repo.is_test(*unit, &home) || !coded.contains(unit) {
+        if is_test(&home) || !coded.contains(unit) {
             continue;
         }
         let name = repo.unit_name(*unit);

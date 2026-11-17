@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use crate::core::digest::Digest;
 use crate::core::edge::Edge;
 use crate::core::pack::Pack;
+use crate::core::repository::is_test;
 use crate::core::repository::Repo;
 
 // What a warm skip stands on: the unit's whole cone of inputs, keyed by
@@ -53,9 +54,8 @@ pub fn warmth(
     let own: Vec<Option<String>> = repo
         .units
         .iter()
-        .enumerate()
-        .map(|(index, unit)| {
-            if repo.is_test(index, &unit.path) {
+        .map(|unit| {
+            if is_test(&unit.path) {
                 return None;
             }
             let mut digest = Digest::new();

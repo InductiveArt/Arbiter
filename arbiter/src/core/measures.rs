@@ -5,6 +5,7 @@ use crate::core::declarations::fits;
 use crate::core::declarations::DECLARATIONS;
 use crate::core::graph::strongly_connected;
 use crate::core::graph::Graph;
+use crate::core::repository::is_test;
 
 // One family of the containment tree, told in repo coordinates: the unit it
 // belongs to, its place, and the edges between its children.
@@ -103,7 +104,7 @@ pub fn drawn(found: &Graph) -> Vec<(String, String, bool)> {
         }
         let test = |unit: usize| {
             let home = found.repo.units[unit].path.clone();
-            found.repo.is_test(unit, &home)
+            is_test(&home)
         };
         if test(owner) || test(edge.unit) {
             continue;
@@ -141,7 +142,7 @@ pub fn sibling_graphs(
             continue;
         }
         let home = found.repo.units[unit].path.clone();
-        if found.repo.is_test(unit, &home) {
+        if is_test(&home) {
             continue;
         }
         let s = edge.file.strip_prefix(&home).unwrap_or(&edge.file);

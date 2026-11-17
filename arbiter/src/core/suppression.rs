@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 // A directive in the code that quiets a rule, as the ledger counts it.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Suppression {
     pub file: PathBuf,
     pub line: usize,
