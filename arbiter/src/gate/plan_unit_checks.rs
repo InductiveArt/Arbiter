@@ -1,6 +1,4 @@
-use std::ffi::OsStr;
-use std::fs;
-use std::io;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use task_runner::context::task_context::TaskContext;
@@ -8,57 +6,75 @@ use task_runner::declaration::pull::In;
 use task_runner::declaration::task::Task;
 use task_runner::record::task_failure::TaskFailure;
 
+use crate::core::repository::is_test;
 use crate::domain::ecosystem::Ecosystem;
 use crate::domain::folder::Folder;
 use crate::domain::found_units::FoundUnits;
-use crate::domain::subprocess::Subprocess;
+use crate::domain::planned_checks::PlannedChecks;
+use crate::domain::tool_run::ToolRun;
+use crate::domain::unit::shown;
 use crate::domain::unit::Unit;
 use crate::domain::unit_check::CheckReading;
 use crate::domain::unit_check::UnitCheck;
+use crate::domain::unit_cone::UnitCone;
+
+// What planning reads: the listed folder, the units found in it, the
+// ecosystems, and each unit's input cone.
+type PlanReads = (
+    In<Folder>,
+    In<FoundUnits>,
+    In<Vec<Ecosystem>>,
+    In<Vec<UnitCone>>,
+);
 
 pub fn plan_unit_checks_task() -> Task {
     Task::new(
         "plan_unit_checks",
-        |context: &mut TaskContext,
-         (folder, found, ecosystems): (In<Folder>, In<FoundUnits>, In<Vec<Ecosystem>>)| {
-            plan_unit_checks(context, &folder, &found.units, &ecosystems)
+        |context: &mut TaskContext, (folder, found, ecosystems, cones): PlanReads| {
+            plan_unit_checks(context, &folder, &found.units, &ecosystems, &cones)
         },
     )
     .line(
-        "each tool of each ecosystem once in every unit of that ecosystem, except a unit whose \
-         marker only lists members, as the program running it there, with the reader of what \
-         it prints and the program printing its root when it has them; it starts nothing, and \
-         writes the configs the programs point at in its own folder",
+        "each tool of each ecosystem once in every unit of that ecosystem, except a fixture and a \
+         unit whose marker only lists members, as the program running it there, handed the \
+         configs its words point at and the unit's input cone, with the reader of what it \
+         prints and the program printing its root when it has them, and a note for each unit \
+         an ecosystem plans nothing in; it starts nothing",
     )
 }
 
 // Ecosystems in the order given, the tools of each in the order its record
-// writes them, each tool once per unit.
+// writes them, each tool once per unit. A unit on a test path is a fixture:
+// data for some test, not code to check.
 fn plan_unit_checks(
     context: &mut TaskContext,
     folder: &Folder,
     units: &[Unit],
     ecosystems: &[Ecosystem],
-) -> Result<Vec<UnitCheck>, TaskFailure> {
+    cones: &[UnitCone],
+) -> Result<PlannedChecks, TaskFailure> {
+    let cones: BTreeMap<&Path, &str> = cones
+        .iter()
+        .map(|cone| (cone.unit.as_path(), cone.digest.as_str()))
+        .collect();
     let mut checks = Vec::new();
     for ecosystem in ecosystems {
         let held: Vec<&Unit> = units
             .iter()
+            .filter(|unit| !is_test(&unit.path))
             .filter(|unit| {
                 unit.markers
                     .iter()
                     .any(|marker| marker.ecosystem == ecosystem.name && !marker.members_only)
             })
             .collect();
-        let configs = context.dir().join("config").join(&ecosystem.name);
-        let pointed = configs.to_string_lossy();
         for tool in &ecosystem.tools {
             // A tool whose findings are read is run by the words that print them.
             let run = tool
                 .findings
                 .as_ref()
                 .map_or(&tool.run, |readable| &readable.run);
-            let Some((program, arguments)) = split(run, &pointed) else {
+            let Some(words) = ToolRun::of(run, ecosystem) else {
                 return Err(TaskFailure::from(format!(
                     "the tool {} names no program",
                     tool.name
@@ -70,7 +86,7 @@ fn plan_unit_checks(
                 .and_then(|readable| readable.root.as_ref())
             {
                 None => None,
-                Some(words) => Some(split(words, &pointed).ok_or_else(|| {
+                Some(root) => Some(ToolRun::of(root, ecosystem).ok_or_else(|| {
                     TaskFailure::from(format!(
                         "the root of the tool {} names no program",
                         tool.name
@@ -78,93 +94,72 @@ fn plan_unit_checks(
                 })?),
             };
             for unit in &held {
+                let Some(cone) = cones.get(unit.path.as_path()) else {
+                    return Err(TaskFailure::from(format!(
+                        "the unit {} has no input cone",
+                        shown(&unit.path)
+                    )));
+                };
                 let at = folder.path.join(&unit.path);
-                let name = format!("{} in {}", tool.name, shown(unit));
+                let name = format!("{} in {}", tool.name, shown(&unit.path));
                 let reading = tool.findings.as_ref().map(|readable| CheckReading {
                     reader: readable.reader,
-                    root: root.as_ref().map(|(program, arguments)| Subprocess {
-                        name: format!("root of {name}"),
-                        program: program.clone(),
-                        arguments: arguments.clone(),
-                        folder: at.clone(),
-                    }),
+                    root: root
+                        .as_ref()
+                        .map(|root| root.subprocess(format!("root of {name}"), &at, Some(cone))),
                 });
                 checks.push(UnitCheck {
                     check: tool.name.clone(),
+                    ecosystem: ecosystem.name.clone(),
                     unit: unit.path.clone(),
-                    subprocess: Subprocess {
-                        name,
-                        program: program.clone(),
-                        arguments: arguments.clone(),
-                        folder: at,
-                    },
+                    subprocess: words.subprocess(name, &at, Some(cone)),
                     reading,
                 });
             }
         }
-        if !held.is_empty() {
-            write_configs(&configs, ecosystem)?;
-        }
     }
     context.measure("checks", checks.len() as f64);
-    Ok(checks)
+    Ok(PlannedChecks {
+        checks,
+        notes: unplanned(units, ecosystems),
+    })
 }
 
-// The words with `{pack}` given the config folder, as the program and the
-// arguments handed to it.
-fn split(words: &[String], pointed: &str) -> Option<(String, Vec<String>)> {
-    let mut given = words.iter().map(|word| word.replace("{pack}", pointed));
-    let program = given.next()?;
-    Some((program, given.collect()))
-}
-
-// The ecosystem's config files, written inside the attempt's own folder so
-// nothing changes in the folder the tools are run on.
-fn write_configs(into: &Path, ecosystem: &Ecosystem) -> Result<(), TaskFailure> {
-    if ecosystem.configs.is_empty() {
-        return Ok(());
-    }
-    if !plain(&ecosystem.name) {
-        return Err(TaskFailure::from(format!(
-            "the ecosystem name {} is not a plain file name",
-            ecosystem.name
-        )));
-    }
-    fs::create_dir_all(into).map_err(|error| unwritten(into, &error))?;
-    for config in &ecosystem.configs {
-        if !plain(&config.name) {
-            return Err(TaskFailure::from(format!(
-                "the config {} of {} is not a plain file name",
-                config.name, ecosystem.name
-            )));
+// A note for each unit an ecosystem holds and plans nothing in, unit by unit:
+// a marker only listing members is checked through its members, and an
+// ecosystem with no tool declares none yet.
+fn unplanned(units: &[Unit], ecosystems: &[Ecosystem]) -> Vec<String> {
+    let mut notes = Vec::new();
+    for unit in units.iter().filter(|unit| !is_test(&unit.path)) {
+        for ecosystem in ecosystems {
+            let Some(marker) = unit
+                .markers
+                .iter()
+                .find(|marker| marker.ecosystem == ecosystem.name)
+            else {
+                continue;
+            };
+            if marker.members_only {
+                notes.push(format!(
+                    "{} is a {} workspace; its members are the units checked",
+                    shown(&unit.path),
+                    ecosystem.name
+                ));
+            } else if ecosystem.tools.is_empty() {
+                notes.push(format!(
+                    "{} is {}, which declares no tools yet",
+                    shown(&unit.path),
+                    ecosystem.name
+                ));
+            }
         }
-        let file = into.join(&config.name);
-        fs::write(&file, &config.content).map_err(|error| unwritten(&file, &error))?;
     }
-    Ok(())
-}
-
-// A name that stays inside the folder it is joined to.
-fn plain(name: &str) -> bool {
-    Path::new(name).file_name().and_then(OsStr::to_str) == Some(name)
-}
-
-fn shown(unit: &Unit) -> String {
-    if unit.path.as_os_str().is_empty() {
-        ".".to_string()
-    } else {
-        unit.path.to_string_lossy().into_owned()
-    }
-}
-
-fn unwritten(path: &Path, error: &io::Error) -> TaskFailure {
-    TaskFailure::from(format!("{} could not be written: {error}", path.display()))
+    notes
 }
 
 #[cfg(test)]
 mod tests {
     use std::env;
-    use std::fs;
     use std::path::Path;
     use std::path::PathBuf;
 
@@ -185,23 +180,14 @@ mod tests {
     use crate::domain::subprocess::Subprocess;
     use crate::domain::unit::Unit;
     use crate::domain::unit_check::UnitCheck;
+    use crate::domain::unit_cone::UnitCone;
 
-    // The attempt's own folder, one per test.
-    fn attempt(name: &str) -> PathBuf {
-        let dir = env::temp_dir().join(format!(
-            "arbiter-checks-{name}-{}-{}",
-            std::process::id(),
-            RunId::next()
-        ));
-        fs::create_dir_all(&dir).expect("the folder is made");
-        dir
-    }
-
-    fn context(attempt: &Path) -> TaskContext {
+    // Planning writes nothing, so no folder of its own is needed.
+    fn context() -> TaskContext {
         TaskContext::new(
             TaskAttemptId::new(RunId::next(), "plan_unit_checks", 1),
             StopToken::new(),
-            attempt.to_path_buf(),
+            env::temp_dir(),
         )
     }
 
@@ -230,6 +216,23 @@ mod tests {
             .collect()
     }
 
+    // A cone for each unit, its digest naming the unit.
+    fn cones(units: &[Unit]) -> Vec<UnitCone> {
+        units
+            .iter()
+            .map(|unit| UnitCone {
+                unit: unit.path.clone(),
+                digest: format!("cone of {}", unit.path.display()),
+            })
+            .collect()
+    }
+
+    fn planned(units: &[Unit], ecosystems: &[Ecosystem]) -> Vec<UnitCheck> {
+        plan_unit_checks(&mut context(), &folder(), units, ecosystems, &cones(units))
+            .expect("the checks are planned")
+            .checks
+    }
+
     fn ecosystem(name: &str, tools: &[(&str, &[&str])], configs: &[(&str, &str)]) -> Ecosystem {
         Ecosystem {
             name: name.to_string(),
@@ -240,6 +243,7 @@ mod tests {
                 .map(|(name, run)| Tool {
                     name: name.to_string(),
                     run: words(run),
+                    fix: None,
                     findings: None,
                 })
                 .collect(),
@@ -281,7 +285,6 @@ mod tests {
 
     #[test]
     fn each_tool_is_planned_once_per_unit_of_its_ecosystem_in_the_order_written() {
-        let attempt = attempt("order");
         let ecosystems = vec![
             ecosystem(
                 "rust",
@@ -299,9 +302,10 @@ mod tests {
             ("libs/a", &[("python", false), ("rust", false)]),
             ("tools/probe", &[("python", false)]),
         ]);
-        let mut context = context(&attempt);
-        let checks = plan_unit_checks(&mut context, &folder(), &units, &ecosystems)
-            .expect("the checks are planned");
+        let mut context = context();
+        let checks = plan_unit_checks(&mut context, &folder(), &units, &ecosystems, &cones(&units))
+            .expect("the checks are planned")
+            .checks;
         assert_eq!(
             told(&checks),
             [
@@ -346,22 +350,17 @@ mod tests {
             "planning starts no program"
         );
         assert_eq!(recorded.measures.get("checks"), Some(&6.0));
-        let _ = fs::remove_dir_all(&attempt);
     }
 
     #[test]
     fn a_tool_whose_findings_are_read_is_run_by_the_words_that_print_them_beside_its_root() {
-        let attempt = attempt("readable");
         let mut rust = ecosystem("rust", &[("lint_rust", &["cargo", "clippy"])], &[]);
         rust.tools[0].findings = Some(ReadableRun {
             reader: Reader::CargoJson,
             run: words(&["cargo", "clippy", "--message-format=json"]),
             root: Some(words(&["cargo", "locate-project", "--workspace"])),
         });
-        let ecosystems = vec![rust];
-        let units = units(&[("libs/a", &[("rust", false)])]);
-        let checks = plan_unit_checks(&mut context(&attempt), &folder(), &units, &ecosystems)
-            .expect("the checks are planned");
+        let checks = planned(&units(&[("libs/a", &[("rust", false)])]), &[rust]);
         assert_eq!(
             told(&checks),
             [line(
@@ -372,47 +371,124 @@ mod tests {
         );
         let reading = checks[0].reading.as_ref().expect("its findings are read");
         assert_eq!(reading.reader, Reader::CargoJson);
+        let root = reading.root.as_ref().expect("its root is asked");
         assert_eq!(
-            reading.root.as_ref().map(line_of),
-            Some(line(
+            line_of(root),
+            line(
                 "root of lint_rust in libs/a",
                 "/repository/libs/a",
                 "cargo locate-project --workspace"
-            )),
+            ),
             "the root is asked in the folder the tool runs in"
         );
-        let _ = fs::remove_dir_all(&attempt);
+        assert_eq!(root.cone, checks[0].subprocess.cone, "over the same files");
     }
 
     #[test]
-    fn a_word_pointing_at_the_config_folder_is_given_where_the_configs_were_written() {
-        let attempt = attempt("config");
+    fn each_program_carries_the_cone_of_its_unit_and_a_fixture_is_never_checked() {
+        let ecosystems = vec![ecosystem(
+            "rust",
+            &[("lint_rust", &["cargo", "clippy"])],
+            &[],
+        )];
+        let checks = planned(
+            &units(&[
+                ("", &[("rust", false)]),
+                ("libs/a", &[("rust", false)]),
+                ("tests/fixture", &[("rust", false)]),
+            ]),
+            &ecosystems,
+        );
+        assert_eq!(
+            checks
+                .iter()
+                .map(|check| (
+                    check.subprocess.name.as_str(),
+                    check.subprocess.cone.as_deref()
+                ))
+                .collect::<Vec<_>>(),
+            [
+                ("lint_rust in .", Some("cone of ")),
+                ("lint_rust in libs/a", Some("cone of libs/a"))
+            ]
+        );
+    }
+
+    #[test]
+    fn a_unit_an_ecosystem_plans_nothing_in_is_noted_unit_by_unit_and_a_fixture_never() {
+        let ecosystems = vec![
+            ecosystem("proto", &[], &[]),
+            ecosystem("rust", &[("lint_rust", &["cargo", "clippy"])], &[]),
+        ];
+        let units = units(&[
+            ("", &[("rust", true)]),
+            ("contracts", &[("proto", false)]),
+            ("tests/fixture", &[("rust", true)]),
+        ]);
+        let planned = plan_unit_checks(
+            &mut context(),
+            &folder(),
+            &units,
+            &ecosystems,
+            &cones(&units),
+        )
+        .expect("the checks are planned");
+        assert!(planned.checks.is_empty());
+        assert_eq!(
+            planned.notes,
+            [
+                ". is a rust workspace; its members are the units checked",
+                "contracts is proto, which declares no tools yet"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_unit_with_no_input_cone_fails_the_plan() {
+        let ecosystems = vec![ecosystem(
+            "rust",
+            &[("lint_rust", &["cargo", "clippy"])],
+            &[],
+        )];
+        let units = units(&[("libs/a", &[("rust", false)])]);
+        let failed = plan_unit_checks(&mut context(), &folder(), &units, &ecosystems, &[])
+            .expect_err("no cone to stand on");
+        assert_eq!(failed.reason, "the unit libs/a has no input cone");
+    }
+
+    #[test]
+    fn a_program_whose_words_point_at_the_configs_is_handed_them_and_keeps_the_word_for_its_run() {
         let ecosystems = vec![ecosystem(
             "python",
-            &[(
-                "lint_python",
-                &["ruff", "check", "--config", "{pack}/ruff.toml"],
-            )],
+            &[
+                (
+                    "lint_python",
+                    &["ruff", "check", "--config", "{pack}/ruff.toml"],
+                ),
+                ("format_python", &["ruff", "format"]),
+            ],
             &[("ruff.toml", "line-length = 100\n")],
         )];
-        let units = units(&[("", &[("python", false)])]);
-        let checks = plan_unit_checks(&mut context(&attempt), &folder(), &units, &ecosystems)
-            .expect("the checks are planned");
-        let written = attempt.join("config").join("python").join("ruff.toml");
+        let checks = planned(&units(&[("", &[("python", false)])]), &ecosystems);
         assert_eq!(
             checks[0].subprocess.arguments,
-            ["check", "--config", &written.to_string_lossy()]
+            ["check", "--config", "{pack}/ruff.toml"]
         );
         assert_eq!(
-            fs::read_to_string(&written).expect("the config is written"),
-            "line-length = 100\n"
+            checks[0].subprocess.configs,
+            [Config {
+                name: "ruff.toml".to_string(),
+                content: "line-length = 100\n".to_string(),
+            }]
         );
-        let _ = fs::remove_dir_all(&attempt);
+        assert!(
+            checks[1].subprocess.configs.is_empty(),
+            "words that never point at the configs are handed none"
+        );
     }
 
     #[test]
-    fn an_ecosystem_with_no_unit_plans_nothing_and_writes_no_config() {
-        let attempt = attempt("none");
+    fn an_ecosystem_with_no_unit_plans_nothing() {
         let ecosystems = vec![ecosystem(
             "python",
             &[(
@@ -421,49 +497,17 @@ mod tests {
             )],
             &[("ruff.toml", "line-length = 100\n")],
         )];
-        let units = units(&[("", &[("rust", false)]), ("libs", &[("python", true)])]);
-        let checks = plan_unit_checks(&mut context(&attempt), &folder(), &units, &ecosystems)
-            .expect("nothing to check is no failure");
+        let checks = planned(
+            &units(&[("", &[("rust", false)]), ("libs", &[("python", true)])]),
+            &ecosystems,
+        );
         assert!(checks.is_empty());
-        assert!(!attempt.join("config").exists());
-        let _ = fs::remove_dir_all(&attempt);
-    }
-
-    #[test]
-    fn a_config_or_an_ecosystem_named_as_a_path_is_refused() {
-        let attempt = attempt("escape");
-        let units = units(&[("", &[("python", false)]), ("b", &[("../out", false)])]);
-        let config = vec![ecosystem(
-            "python",
-            &[("lint_python", &["ruff"])],
-            &[("../escape.toml", "x")],
-        )];
-        let failed = plan_unit_checks(&mut context(&attempt), &folder(), &units, &config)
-            .expect_err("a config is written nowhere but in its own folder");
-        assert_eq!(
-            failed.reason,
-            "the config ../escape.toml of python is not a plain file name"
-        );
-        let named = vec![ecosystem(
-            "../out",
-            &[("lint", &["ruff"])],
-            &[("a.toml", "x")],
-        )];
-        let failed = plan_unit_checks(&mut context(&attempt), &folder(), &units, &named)
-            .expect_err("an ecosystem's configs are written nowhere but under its own name");
-        assert_eq!(
-            failed.reason,
-            "the ecosystem name ../out is not a plain file name"
-        );
-        assert!(!attempt.join("out").exists());
-        let _ = fs::remove_dir_all(&attempt);
     }
 
     #[test]
     fn a_tool_or_a_root_naming_no_program_fails_even_with_no_unit_to_run_it_in() {
-        let attempt = attempt("wordless");
         let ecosystems = vec![ecosystem("rust", &[("format_rust", &[])], &[])];
-        let failed = plan_unit_checks(&mut context(&attempt), &folder(), &units(&[]), &ecosystems)
+        let failed = plan_unit_checks(&mut context(), &folder(), &units(&[]), &ecosystems, &[])
             .expect_err("nothing to start");
         assert_eq!(failed.reason, "the tool format_rust names no program");
         let mut rootless = ecosystem("rust", &[("lint_rust", &["cargo"])], &[]);
@@ -472,12 +516,11 @@ mod tests {
             run: words(&["cargo", "clippy"]),
             root: Some(Vec::new()),
         });
-        let failed = plan_unit_checks(&mut context(&attempt), &folder(), &units(&[]), &[rootless])
+        let failed = plan_unit_checks(&mut context(), &folder(), &units(&[]), &[rootless], &[])
             .expect_err("no root to start");
         assert_eq!(
             failed.reason,
             "the root of the tool lint_rust names no program"
         );
-        let _ = fs::remove_dir_all(&attempt);
     }
 }

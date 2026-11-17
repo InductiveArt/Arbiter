@@ -6,12 +6,13 @@ use serde::Serialize;
 use crate::domain::ecosystem::Reader;
 use crate::domain::subprocess::Subprocess;
 
-// One tool to run in one unit: the tool by name, the unit by its path from
-// the listed folder, the program running the tool there, and how what it
-// prints is read into findings when it is.
+// One tool to run in one unit: the tool by name, the ecosystem it is a tool
+// of, the unit by its path from the listed folder, the program running the
+// tool there, and how what it prints is read into findings when it is.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UnitCheck {
     pub check: String,
+    pub ecosystem: String,
     pub unit: PathBuf,
     pub subprocess: Subprocess,
     pub reading: Option<CheckReading>,

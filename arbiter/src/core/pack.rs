@@ -113,15 +113,12 @@ impl<R: Reader> Language for Packed<R> {
         self.reader.generated(name)
     }
 
-    fn drift(
-        &self,
-        root: &Path,
-        folder: &Path,
-        fixing: bool,
-        cold: bool,
-        notes: &mut Vec<String>,
-    ) -> Vec<Drift> {
-        self.reader.drift(root, folder, fixing, cold, notes)
+    fn drift(&self, root: &Path, folder: &Path, cold: bool, notes: &mut Vec<String>) -> Vec<Drift> {
+        self.reader.drift(root, folder, cold, notes)
+    }
+
+    fn regenerate(&self, root: &Path, folder: &Path, cold: bool) -> Option<Drift> {
+        self.reader.regenerate(root, folder, cold)
     }
 
     fn record(&self, root: &Path, repo: &Repo) -> Vec<String> {

@@ -1,10 +1,11 @@
 use std::process::ExitCode;
 
+use task_runner::declaration::caching::Caching;
 use task_runner::declaration::read::Read;
 use task_runner::declaration::read::When;
 use task_runner::declaration::task::Task;
 
-use crate::wip_tasks::listed;
+use crate::gate::listed;
 
 pub fn run() -> ExitCode {
     print!("{}", shown(&listed()));
@@ -60,10 +61,12 @@ fn limits(task: &Task) -> String {
         0 => "one attempt".to_string(),
         more => format!("up to {} attempts", more + 1),
     };
-    let kept = if task.cached {
-        "replayed for the same inputs"
-    } else {
-        "computed every run"
+    let kept = match task.caching {
+        Caching::Never => "computed every run",
+        Caching::Every => "replayed for the same inputs",
+        Caching::Accepted(_) => {
+            "replayed for the same inputs once its cache test accepted the output"
+        }
     };
     format!("{time}, {attempts}, {kept}")
 }

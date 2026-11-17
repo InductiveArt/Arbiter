@@ -5,5 +5,5 @@ pub mod domain;
 pub mod gate;
 pub mod ledger;
 pub mod packs;
+pub mod report;
 pub mod tasks;
-pub mod wip_tasks;

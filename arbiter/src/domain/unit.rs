@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::path::PathBuf;
 
 use serde::Deserialize;
@@ -14,4 +15,13 @@ pub struct Unit {
     pub path: PathBuf,
     pub markers: Vec<Marker>,
     pub files: Vec<File>,
+}
+
+// A unit as a person reads its place: its path, or a dot for the folder itself.
+pub fn shown(unit: &Path) -> String {
+    if unit.as_os_str().is_empty() {
+        ".".to_string()
+    } else {
+        unit.to_string_lossy().into_owned()
+    }
 }

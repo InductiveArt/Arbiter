@@ -350,7 +350,8 @@ impl<'a> RunScheduler<'a> {
         let plan = self.plan;
         let task = &plan.tasks[self.invocations[invocation].at];
         let key = task
-            .cached
+            .caching
+            .replays()
             .then(|| self.key(task, &self.read_inputs(invocation)));
         self.invocations[invocation].asked = true;
         out.push(Decision::Attempt {

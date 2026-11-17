@@ -1,3 +1,4 @@
+pub mod cargo_json;
 pub mod check_outcome;
 pub mod diagnostic;
 pub mod dials;
@@ -10,6 +11,10 @@ pub mod gate_mode;
 pub mod generated_checks;
 pub mod law;
 pub mod marker;
+pub mod planned_checks;
+pub mod repairs;
 pub mod subprocess;
+pub mod tool_run;
 pub mod unit;
 pub mod unit_check;
+pub mod unit_cone;

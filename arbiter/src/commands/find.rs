@@ -54,16 +54,6 @@ fn emit(findings: &[Finding], rule: Option<&str>) {
         if rule.is_some_and(|rule| finding.rule.as_deref() != Some(rule)) {
             continue;
         }
-        let shown = finding.file.to_string_lossy();
-        println!(
-            "{}",
-            serde_json::json!({
-                "check": finding.check,
-                "file": shown,
-                "line": finding.line.unwrap_or(0),
-                "rule": finding.rule,
-                "reason": finding.reason,
-            })
-        );
+        println!("{}", finding.written());
     }
 }

@@ -22,10 +22,34 @@ deps = ["src/domain", "src/core", "src/ledger.rs"]
 deps = ["src/domain", "src/core"]
 
 [units."arbiter".inner."src/gate"]
-deps = ["src/domain", "src/core", "src/tasks", "src/tasks/laws", "src/ledger.rs", "src/packs"]
+deps = [
+  "src/domain",
+  "src/core",
+  "src/tasks",
+  "src/tasks/laws",
+  "src/ledger.rs",
+  "src/packs",
+  "src/report",
+  "//task_runner/proto",
+  "//task_runner/src/record",
+  "//task_runner/src/context",
+  "//task_runner/src/declaration",
+  "//task_runner/src/execution",
+  "//task_runner/src/value",
+]
+
+[units."arbiter".inner."src/report"]
+deps = [
+  "src/domain",
+  "src/core",
+  "src/ledger.rs",
+  "src/packs",
+  "//task_runner/proto",
+  "//task_runner/src/value",
+]
 
 [units."arbiter".inner."src/court"]
-deps = ["src/core", "src/tasks/laws", "src/ledger.rs", "src/gate", "src/packs"]
+deps = ["src/domain", "src/core", "src/tasks/laws", "src/report", "src/packs"]
 
 [units."arbiter".inner."src/tasks"]
 deps = ["src/domain", "src/core", "src/ledger.rs", "src/packs"]
@@ -37,27 +61,17 @@ deps = [
   "src/ledger.rs",
   "src/gate",
   "src/court",
+  "src/report",
   "src/packs",
   "src/tasks",
   "src/domain",
-  "src/wip_tasks",
   "//task_runner/src/declaration",
+  "//task_runner/src/execution",
 ]
 
 [units."arbiter".inner."src/domain"]
 deps = []
 
-[units."arbiter".inner."src/wip_tasks"]
-deps = [
-  "src/core",
-  "src/domain",
-  "src/packs",
-  "src/tasks/laws",
-  "//task_runner/proto",
-  "//task_runner/src/record",
-  "//task_runner/src/context",
-  "//task_runner/src/declaration",
-]
 
 [units."task_runner".inner."src"]
 deps = ["proto"]

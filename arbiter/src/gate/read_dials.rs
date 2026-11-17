@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use task_runner::context::task_context::TaskContext;
 use task_runner::declaration::pull::In;
 use task_runner::declaration::task::Task;
@@ -9,6 +7,7 @@ use crate::core::repository::is_test;
 use crate::domain::dials::Dials;
 use crate::domain::folder::Folder;
 use crate::domain::found_units::FoundUnits;
+use crate::domain::unit::shown;
 
 pub fn read_dials_task() -> Task {
     Task::new(
@@ -62,13 +61,4 @@ fn read_dials(
     }
     context.measure("findings", dials.findings.len() as f64);
     Ok(dials)
-}
-
-// A unit as a person reads its place: its path, or a dot for the folder itself.
-pub fn shown(unit: &Path) -> String {
-    if unit.as_os_str().is_empty() {
-        ".".to_string()
-    } else {
-        unit.to_string_lossy().into_owned()
-    }
 }

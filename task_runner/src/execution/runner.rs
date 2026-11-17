@@ -17,6 +17,7 @@ use crate::declaration::plan::Plan;
 use crate::execution::event::Event;
 use crate::execution::observer::Observer;
 use crate::execution::observer::Quiet;
+use crate::execution::run_folder::CACHE_DIR;
 use crate::execution::run_folder::RUNNING_FILE;
 use crate::execution::run_folder::RUNS_DIR;
 use crate::execution::run_folder::RUN_FILE;
@@ -32,21 +33,25 @@ use crate::runtime::process_runtime::ProcessRuntime;
 use crate::runtime::task_runtime::TaskRuntime;
 use crate::value::identity::Identity;
 use crate::value::run_store::RunStore;
+use crate::value::task_cache::TaskCache;
 
 // How often the run looks at its attempts between events.
 const TICK: Duration = Duration::from_millis(2);
 
 // What runs plans: this many attempts at once, each as a process of the
-// task executable that must begin its body within the startup allowance, stopped
-// by a request and then by force after the grace, its output kept on disk up
-// to the cap, and this many runs kept in a root.
+// task executable handed these words before its folder, that must begin its
+// body within the startup allowance, stopped by a request and then by force
+// after the grace, its output kept on disk up to the cap, this many runs kept
+// in a root, and whether a run is cold, reading nothing the cache holds.
 pub struct Runner {
     slots: usize,
     task_executable: PathBuf,
+    task_arguments: Vec<String>,
     keep: usize,
     startup: Duration,
     grace: Duration,
     cap: u64,
+    cold: bool,
     identity: OnceLock<Identity>,
 }
 
@@ -63,10 +68,12 @@ impl Runner {
             // The binary running now; when it cannot be told, none, which
             // verifying a run refuses.
             task_executable: env::current_exe().unwrap_or_default(),
+            task_arguments: Vec::new(),
             keep: 20,
             startup: Duration::from_secs(10),
             grace: Duration::from_secs(1),
             cap: 16 << 20,
+            cold: false,
             identity: OnceLock::new(),
         }
     }
@@ -78,6 +85,19 @@ impl Runner {
 
     pub fn task_executable(mut self, executable: impl Into<PathBuf>) -> Runner {
         self.task_executable = executable.into();
+        self
+    }
+
+    // The words handed before each attempt's folder, so one binary can be
+    // both what runs a plan and what performs its attempts.
+    pub fn task_arguments(mut self, words: &[&str]) -> Runner {
+        self.task_arguments = words.iter().map(|word| word.to_string()).collect();
+        self
+    }
+
+    // Every cached task is computed again, and what it leaves is still cached.
+    pub fn cold(mut self) -> Runner {
+        self.cold = true;
         self
     }
 
@@ -104,7 +124,12 @@ impl Runner {
     // The runtime every attempt runs in: a process of the task executable,
     // leading a process group of its own.
     fn runtime(&self) -> ProcessRuntime {
-        ProcessRuntime::new(self.task_executable.clone(), self.cap, self.grace)
+        ProcessRuntime::new(
+            self.task_executable.clone(),
+            self.task_arguments.clone(),
+            self.cap,
+            self.grace,
+        )
     }
 
     // Everything that stands between the plan and a run from these seeds,
@@ -193,16 +218,18 @@ impl Runner {
             grace: self.grace,
             tick: TICK,
         };
+        let cache = TaskCache::at(root.join(CACHE_DIR));
+        let cache = if self.cold { cache.unread() } else { cache };
         let executor = TaskExecutor::new(
             scheduler,
-            decisions,
             self.runtime(),
             site,
+            cache,
             self.slots,
             timing,
             observer,
         );
-        let (invocations, store) = executor.execute(stop_token).records();
+        let (invocations, store) = executor.execute(decisions, stop_token).records();
         let mut usage = Usage::default();
         for attempt in invocations.iter().flat_map(|invocation| {
             invocation.attempts.iter().chain(

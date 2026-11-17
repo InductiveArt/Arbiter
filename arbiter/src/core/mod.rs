@@ -5,6 +5,7 @@ pub mod digest;
 // plane that stamps it already stands on core.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub mod cone;
 pub mod declarations;
 pub mod definition;
 pub mod drift;
@@ -22,10 +23,9 @@ pub mod reader;
 pub mod record;
 pub mod repository;
 pub mod rule;
+pub mod seeds;
 pub mod stance;
 pub mod suppression;
 pub mod task;
-pub mod tools;
 pub mod trees;
 pub mod units;
-pub mod warm;

@@ -20,7 +20,6 @@ use crate::declaration::task::Task;
 use crate::execution::decision::Decision;
 use crate::execution::event::Event;
 use crate::execution::observer::Observer;
-use crate::execution::run_folder::CACHE_DIR;
 use crate::execution::run_folder::OUTPUTS_DIR;
 use crate::execution::run_scheduler::RunScheduler;
 use crate::execution::site::Site;
@@ -99,16 +98,15 @@ pub struct TaskExecutor<'a, 'o, R: TaskRuntime> {
 impl<'a, 'o, R: TaskRuntime> TaskExecutor<'a, 'o, R> {
     pub fn new(
         scheduler: RunScheduler<'a>,
-        decisions: Vec<Decision>,
         runtime: R,
         site: Site,
+        cache: TaskCache,
         slots: usize,
         timing: Timing,
         observer: &'o mut dyn Observer,
     ) -> TaskExecutor<'a, 'o, R> {
         let outputs = TaskOutputStore::at(site.root.join(OUTPUTS_DIR));
-        let cache = TaskCache::at(site.root.join(CACHE_DIR));
-        let mut executor = TaskExecutor {
+        TaskExecutor {
             scheduler,
             runtime,
             site,
@@ -120,14 +118,14 @@ impl<'a, 'o, R: TaskRuntime> TaskExecutor<'a, 'o, R> {
             out: Vec::new(),
             observer,
             cancelled: false,
-        };
-        executor.apply(decisions);
-        executor
+        }
     }
 
-    // Runs until every task settled, or the token or a signal cancels the run
-    // and what the cancel still unlocks has settled too.
-    pub fn execute(mut self, stop_token: &StopToken) -> RunScheduler<'a> {
+    // Takes the decisions the scheduler began with, then runs until every task
+    // settled, or the token or a signal cancels the run and what the cancel
+    // still unlocks has settled too.
+    pub fn execute(mut self, decisions: Vec<Decision>, stop_token: &StopToken) -> RunScheduler<'a> {
+        self.apply(decisions);
         loop {
             if self.scheduler.settled() {
                 break;
@@ -448,14 +446,22 @@ impl<'a, 'o, R: TaskRuntime> TaskExecutor<'a, 'o, R> {
             stderr_kept: ended.stderr.1,
             usage: Some(ended.usage),
         });
+        let task = &self.scheduler.plan().tasks[self.scheduler.task_of(invocation)];
         let mut output = None;
-        if *attempt.outcome() == RunRecord::passed()
-            && !self.scheduler.plan().tasks[self.scheduler.task_of(invocation)].leaves_nothing()
-        {
+        if *attempt.outcome() == RunRecord::passed() && !task.leaves_nothing() {
             match EncodedValue::from_file(dir.join(OUTPUT_FILE)) {
                 Ok(value) => {
                     attempt.output = Some(TaskOutputHash::of(&value.bytes).as_str().to_string());
-                    attempt.cache_key = key.map(|key| key.as_str().to_string());
+                    attempt.cache_key = match key.map(|key| (key, task.caching.names(&value))) {
+                        Some((key, Ok(true))) => Some(key.as_str().to_string()),
+                        Some((_, Ok(false))) | None => None,
+                        Some((_, Err(error))) => {
+                            attempt.evidence.push(format!(
+                                "the output could not be tested for the cache: {error}"
+                            ));
+                            None
+                        }
+                    };
                     output = Some(value);
                 }
                 Err(error) => {
@@ -472,7 +478,7 @@ impl<'a, 'o, R: TaskRuntime> TaskExecutor<'a, 'o, R> {
     }
 
     // The output an attempt left, kept in the store under its hash and named
-    // in the cache when the task is cached. An output that cannot be kept
+    // in the cache when the task's caching names it. An output that cannot be kept
     // fails the attempt; an entry the cache cannot take is noted instead.
     fn kept(
         &self,
@@ -625,6 +631,7 @@ mod tests {
     use crate::runtime::task_runtime::TaskRuntime;
     use crate::value::identity::Identity;
     use crate::value::run_store::RunStore;
+    use crate::value::task_cache::TaskCache;
 
     // Attempts that begin their body and end between two looks: the mark is
     // never seen, and each ends at its first poll, its record left as a task
@@ -707,9 +714,9 @@ mod tests {
             tick: Duration::from_millis(1),
         };
         let mut quiet = Quiet;
-        let executor =
-            TaskExecutor::new(scheduler, decisions, Fleeting, site, 1, timing, &mut quiet);
-        let (invocations, _) = executor.execute(&StopToken::new()).records();
+        let cache = TaskCache::at(dir.join("cache"));
+        let executor = TaskExecutor::new(scheduler, Fleeting, site, cache, 1, timing, &mut quiet);
+        let (invocations, _) = executor.execute(decisions, &StopToken::new()).records();
         let _ = fs::remove_dir_all(&dir);
         let attempt = invocations[0]
             .attempts

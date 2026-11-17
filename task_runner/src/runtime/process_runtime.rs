@@ -25,20 +25,27 @@ use crate::record::refusal::RefusalReason;
 use crate::runtime::ended::Ended;
 use crate::runtime::task_runtime::TaskRuntime;
 
-// Attempts as processes of the task executable: each is told its folder, leads
-// a process group of its own, so what it starts is stopped with it, has its
-// output pumped to disk up to the cap, and its pumps are given this long to
-// drain once it ended.
+// Attempts as processes of the task executable: each is handed the words
+// given, then its folder, leads a process group of its own, so what it starts
+// is stopped with it, has its output pumped to disk up to the cap, and its
+// pumps are given this long to drain once it ended.
 pub struct ProcessRuntime {
     task_executable: PathBuf,
+    arguments: Vec<String>,
     cap: u64,
     drain: Duration,
 }
 
 impl ProcessRuntime {
-    pub fn new(task_executable: PathBuf, cap: u64, drain: Duration) -> ProcessRuntime {
+    pub fn new(
+        task_executable: PathBuf,
+        arguments: Vec<String>,
+        cap: u64,
+        drain: Duration,
+    ) -> ProcessRuntime {
         ProcessRuntime {
             task_executable,
+            arguments,
             cap,
             drain,
         }
@@ -78,6 +85,7 @@ impl TaskRuntime for ProcessRuntime {
     fn start(&mut self, dir: &Path) -> Result<ProcessHandle, String> {
         let mut command = Command::new(&self.task_executable);
         command
+            .args(&self.arguments)
             .arg(dir)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())

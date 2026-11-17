@@ -10,16 +10,27 @@ use crate::value::task_output_hash::TaskOutputHash;
 // key, holding the hash of that output. It holds no output itself.
 pub struct TaskCache {
     dir: PathBuf,
+    reading: bool,
 }
 
 impl TaskCache {
     pub fn at(dir: PathBuf) -> TaskCache {
-        TaskCache { dir }
+        TaskCache { dir, reading: true }
+    }
+
+    // The cache of a cold run: it answers no lookup, so every output is
+    // computed again, and still takes every entry the run leaves.
+    pub fn unread(mut self) -> TaskCache {
+        self.reading = false;
+        self
     }
 
     // The output's hash the key names; nothing when no entry, or no whole
-    // one, is there.
+    // one, is there, or the cache is not read.
     pub fn get(&self, key: &TaskCacheKey) -> Option<TaskOutputHash> {
+        if !self.reading {
+            return None;
+        }
         let text = fs::read_to_string(self.dir.join(key.as_str())).ok()?;
         TaskOutputHash::parse(text.trim())
     }

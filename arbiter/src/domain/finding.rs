@@ -28,6 +28,18 @@ impl Finding {
         }
     }
 
+    // The finding as every JSON line and snapshot writes it; a finding with no
+    // line is written at line 0, which readers count as none.
+    pub fn written(&self) -> serde_json::Value {
+        serde_json::json!({
+            "check": self.check,
+            "file": self.file.to_string_lossy(),
+            "line": self.line.unwrap_or(0),
+            "rule": self.rule,
+            "reason": self.reason,
+        })
+    }
+
     // A finding of the integrity check: a law's rule broken at a place.
     pub fn integrity(file: &Path, line: usize, rule: &str, reason: String) -> Self {
         Finding {

@@ -1,10 +1,9 @@
 use std::process::ExitCode;
 
 use crate::core::pack::Pack;
-use crate::core::tools::checks;
 use crate::domain::ecosystem::Ecosystem;
+use crate::gate::load_ecosystems::load_ecosystems;
 use crate::packs::all;
-use crate::wip_tasks::load_ecosystems::load_ecosystems;
 
 const HEADS: [&str; 7] = [
     "language",
@@ -39,14 +38,13 @@ pub fn shown(packs: &[Box<dyn Pack>], ecosystems: &[Ecosystem]) -> String {
         let ecosystem = ecosystems
             .iter()
             .find(|ecosystem| ecosystem.name == pack.label());
-        let held: Vec<String> = pack
-            .adapter()
-            .map(checks)
-            .unwrap_or_default()
-            .into_iter()
-            .map(|check| check.name)
-            .collect();
-        let held: Vec<&str> = held.iter().map(String::as_str).collect();
+        let held: Vec<&str> = ecosystem.map_or_else(Vec::new, |ecosystem| {
+            ecosystem
+                .tools
+                .iter()
+                .map(|tool| tool.name.as_str())
+                .collect()
+        });
         rows.push([
             pack.label().to_string(),
             ecosystem

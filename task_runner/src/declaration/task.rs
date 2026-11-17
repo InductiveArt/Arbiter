@@ -4,9 +4,12 @@ use std::any::TypeId;
 use std::sync::Arc;
 use std::time::Duration;
 
+use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::context::task_context::TaskContext;
+use crate::declaration::caching::CacheTest;
+use crate::declaration::caching::Caching;
 use crate::declaration::pull::Pull;
 use crate::declaration::read::Read;
 use crate::declaration::read::ReadInput;
@@ -21,9 +24,8 @@ pub(crate) type TaskBody =
 // declares, the tasks it runs after, the one type it produces, or nothing,
 // the body turning the first into the
 // second, how long one attempt may take, how many more attempts a failure
-// earns, and whether an output once computed for the same inputs is taken
-// from the store instead of computed again. A task is found by name in the
-// process that runs it, so the name is its identity.
+// earns, and its caching. A task is found by name in the process that runs
+// it, so the name is its identity.
 #[derive(Clone)]
 pub struct Task {
     pub name: String,
@@ -33,7 +35,7 @@ pub struct Task {
     body: TaskBody,
     pub timeout: Option<Duration>,
     pub retries: u32,
-    pub cached: bool,
+    pub caching: Caching,
 }
 
 impl Task {
@@ -59,7 +61,7 @@ impl Task {
             }),
             timeout: None,
             retries: 0,
-            cached: false,
+            caching: Caching::Never,
         }
     }
 
@@ -84,7 +86,16 @@ impl Task {
     }
 
     pub fn cached(mut self) -> Task {
-        self.cached = true;
+        self.caching = Caching::Every;
+        self
+    }
+
+    // Cached, the cache naming only the outputs the test accepts.
+    pub fn cached_when<T: Any + DeserializeOwned>(
+        mut self,
+        accepts: impl Fn(&T) -> bool + Send + Sync + 'static,
+    ) -> Task {
+        self.caching = Caching::Accepted(CacheTest::of(accepts));
         self
     }
 
@@ -111,6 +122,7 @@ mod tests {
     use crate::contract::RunId;
     use crate::contract::RunRecord;
     use crate::contract::TaskAttemptId;
+    use crate::declaration::caching::Caching;
     use crate::declaration::pull::Done;
     use crate::declaration::pull::Failed;
     use crate::declaration::pull::In;
@@ -217,10 +229,8 @@ mod tests {
         let plain = Task::new("scan", |_: &mut TaskContext, (): ()| {
             Ok::<u8, TaskFailure>(0)
         });
-        assert_eq!(
-            (plain.timeout, plain.retries, plain.cached),
-            (None, 0, false)
-        );
+        assert_eq!((plain.timeout, plain.retries), (None, 0));
+        assert!(matches!(plain.caching, Caching::Never));
         let bounded = Task::new("scan", |_: &mut TaskContext, (): ()| {
             Ok::<u8, TaskFailure>(0)
         })
@@ -228,7 +238,20 @@ mod tests {
         .retries(2)
         .cached();
         assert_eq!(bounded.timeout, Some(Duration::from_secs(30)));
-        assert_eq!((bounded.retries, bounded.cached), (2, true));
+        assert_eq!(bounded.retries, 2);
+        assert!(matches!(bounded.caching, Caching::Every));
+    }
+
+    #[test]
+    fn a_task_cached_when_a_test_accepts_its_output_names_the_type_the_test_reads() {
+        let task = Task::new("scan", |_: &mut TaskContext, (): ()| {
+            Ok::<u8, TaskFailure>(0)
+        })
+        .cached_when(|code: &u8| *code == 0);
+        match task.caching {
+            Caching::Accepted(test) => assert_eq!(test.output, ValueType::of::<u8>()),
+            _ => panic!("the task is not cached by its test"),
+        }
     }
 
     #[test]

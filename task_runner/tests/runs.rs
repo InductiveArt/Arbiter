@@ -844,6 +844,40 @@ fn each_item_of_a_cached_fanned_task_is_replayed_on_its_own() {
 }
 
 #[test]
+fn only_an_output_its_cache_test_accepts_is_replayed_and_any_other_is_computed_again() {
+    let root = root("cache-tested");
+    let plan = squares("square_cached_when_even");
+    let replayed = |report: &RunReport| -> Vec<(bool, bool)> {
+        report
+            .invocation("square_cached_when_even")
+            .expect("the fanned task is recorded")
+            .instances
+            .iter()
+            .filter_map(|instance| instance.attempts.last())
+            .map(|attempt| (attempt.replayed, attempt.cache_key.is_some()))
+            .collect()
+    };
+    let (first, _) = runner()
+        .run(&plan, numbered(&[1, 2, 3]), &root)
+        .expect("the numbers are seeded");
+    assert_eq!(
+        replayed(&first),
+        [(false, false), (false, true), (false, false)],
+        "only the even square is named in the cache"
+    );
+    let (second, store) = runner()
+        .run(&plan, numbered(&[1, 2, 3]), &root)
+        .expect("the numbers are seeded");
+    assert_eq!(
+        replayed(&second),
+        [(false, false), (true, true), (false, false)],
+        "the odd squares are computed again on the same inputs"
+    );
+    assert_eq!(store.get::<Total>().map(|total| total.value), Some(14));
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
 fn a_task_reading_a_failure_is_unneeded_when_that_task_passes_and_the_run_stays_clean() {
     let root = root("unneeded");
     let (report, store) = runner()
@@ -971,6 +1005,60 @@ fn a_cached_task_is_replayed_from_the_store_on_the_same_inputs_and_computed_on_o
         .expect("the root is seeded");
     assert!(!third.attempt("costly").expect("ran").replayed);
     assert_ne!(third_store.get::<Costly>(), second_store.get::<Costly>());
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_cold_run_computes_a_cached_task_again_and_still_names_what_it_left_in_the_cache() {
+    let root = root("cold");
+    let plan = Plan::new("gate", &listed(), &["costly"]).expect("valid");
+    runner()
+        .run(&plan, seeded("repo", true), &root)
+        .expect("the root is seeded");
+    let (cold, cold_store) = runner()
+        .cold()
+        .run(&plan, seeded("repo", true), &root)
+        .expect("the root is seeded");
+    let computed = cold.attempt("costly").expect("ran");
+    assert!(
+        !computed.replayed && computed.process_record.is_some(),
+        "the same inputs are computed again"
+    );
+    assert!(computed.cache_key.is_some(), "and what they left is cached");
+    let (warm, warm_store) = runner()
+        .run(&plan, seeded("repo", true), &root)
+        .expect("the root is seeded");
+    assert!(warm.attempt("costly").expect("recorded").replayed);
+    assert_eq!(
+        warm_store.get::<Costly>(),
+        cold_store.get::<Costly>(),
+        "the next run replays what the cold one computed"
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_task_executable_is_handed_the_words_given_before_each_attempt_s_folder() {
+    let root = root("worded");
+    let plan = Plan::new("gate", &listed(), &["scan"]).expect("valid");
+    // A program refusing any call that does not begin with the words, then
+    // performing the attempt as the test tasks do.
+    let executable = root.join("worded");
+    fs::write(
+        &executable,
+        format!(
+            "#!/bin/sh\n[ \"$1\" = attempt ] || exit 9\nshift\nexec {} \"$@\"\n",
+            env!("CARGO_BIN_EXE_test-tasks")
+        ),
+    )
+    .expect("a file is written");
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).expect("made executable");
+    let (report, _) = Runner::new()
+        .task_executable(&executable)
+        .task_arguments(&["attempt"])
+        .run(&plan, seeded("repo", true), &root)
+        .expect("the run is verified");
+    assert_eq!(*report.outcome(), RunRecord::passed());
     let _ = fs::remove_dir_all(&root);
 }
 

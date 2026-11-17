@@ -17,18 +17,22 @@ use arbiter::domain::gate_mode::GateMode;
 use arbiter::domain::generated_checks::GeneratedChecks;
 use arbiter::domain::law::LawFindings;
 use arbiter::domain::law::LawName;
+use arbiter::domain::repairs::Repairs;
 use arbiter::domain::subprocess::Subprocess;
 use arbiter::domain::subprocess::SubprocessExit;
 use arbiter::domain::unit::Unit;
+use arbiter::gate::listed;
+use arbiter::gate::load_ecosystems::load_ecosystems;
 use arbiter::packs::all;
 use arbiter::packs::graphed;
+use arbiter::report::files;
+use arbiter::report::of_plan;
 use arbiter::tasks::laws;
-use arbiter::wip_tasks::listed;
-use arbiter::wip_tasks::load_ecosystems::load_ecosystems;
 
 use task_runner::context::task_context::TaskContext;
 use task_runner::contract::RunId;
 use task_runner::contract::RunRecord;
+use task_runner::contract::RunReport;
 use task_runner::declaration::fan_out::FanOut;
 use task_runner::declaration::plan::Plan;
 use task_runner::declaration::pull::Done;
@@ -43,8 +47,12 @@ fn binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_arbiter"))
 }
 
-fn task_executable() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_arbiter-tasks"))
+// The runner every plan here is run by: the arbiter binary performs each
+// attempt, as the gate itself has it do.
+fn runner() -> Runner {
+    Runner::new()
+        .task_executable(binary())
+        .task_arguments(&["attempt"])
 }
 
 fn folder(name: &str) -> PathBuf {
@@ -90,10 +98,7 @@ fn the_ecosystems_are_loaded_and_the_units_of_a_folder_found_each_task_in_a_proc
         .expect("the two tasks wire into a plan");
     let runs = folder("runs");
 
-    let (report, store) = Runner::new()
-        .task_executable(task_executable())
-        .run(&plan, seeds, &runs)
-        .expect("the plan is run");
+    let (report, store) = runner().run(&plan, seeds, &runs).expect("the plan is run");
 
     assert_eq!(*report.outcome(), RunRecord::passed());
     let loading = report
@@ -191,8 +196,7 @@ fn each_law_held_in_a_process_of_its_own_finds_what_the_laws_find_in_one() {
     .expect("the tasks wire into a plan");
     let runs = folder("law-runs");
 
-    let (report, store) = Runner::new()
-        .task_executable(task_executable())
+    let (report, store) = runner()
         .run(&plan, seeded(&demo), &runs)
         .expect("the plan is run");
 
@@ -277,10 +281,7 @@ fn the_dials_and_the_generated_code_are_read_unit_by_unit_and_fixtures_never() {
     }
     let mut seeds = seeded(&repository);
     seeds
-        .put(&GateMode {
-            fixing: false,
-            cold: false,
-        })
+        .put(&GateMode { cold: false })
         .expect("a mode encodes");
     let plan = Plan::new(
         "dials",
@@ -295,10 +296,7 @@ fn the_dials_and_the_generated_code_are_read_unit_by_unit_and_fixtures_never() {
     .expect("the tasks wire into a plan");
     let runs = folder("dial-runs");
 
-    let (report, store) = Runner::new()
-        .task_executable(task_executable())
-        .run(&plan, seeds, &runs)
-        .expect("the plan is run");
+    let (report, store) = runner().run(&plan, seeds, &runs).expect("the plan is run");
 
     assert_eq!(*report.outcome(), RunRecord::passed());
     let dials = store.get::<Dials>().expect("the dials are kept");
@@ -366,6 +364,15 @@ fn the_tasks_view_tells_what_each_task_leaves_reads_and_is_bounded_by() {
          leaves  FoundUnits\n  \
          limits  no time limit, one attempt, computed every run\n\
          \n\
+         repair_units\n  \
+         every repair arbiter can make, one after another since each rewrites the folder the \
+         next reads: the languages mend their own findings, the generated code is written again \
+         from its contracts, then each tool that can repair what it finds does, unit by unit; a \
+         fixture is never repaired, and a repair that does not succeed is told\n  \
+         reads   Folder, FoundUnits, Vec<Ecosystem>, GateMode\n  \
+         leaves  Repairs\n  \
+         limits  no time limit, one attempt, computed every run\n\
+         \n\
          read_graph\n  \
          the units found read into the graph: every file a language handles read for what it \
          defines and uses, each use resolved to the definitions it reaches, written out with \
@@ -398,42 +405,57 @@ fn the_tasks_view_tells_what_each_task_leaves_reads_and_is_bounded_by() {
          \n\
          check_generated\n  \
          each unit's generated code compared with what its contracts generate, and its \
-         contracts with the image the user signed, by every language that compares any; a \
-         fixing run regenerates first, and a unit on a test path is a fixture and is never \
-         compared\n  \
+         contracts with the image the user signed, by every language that compares any; it \
+         rewrites nothing, and a unit on a test path is a fixture and is never compared\n  \
          reads   Folder, FoundUnits, GateMode\n  \
          leaves  GeneratedChecks\n  \
          limits  no time limit, one attempt, computed every run\n\
          \n\
+         digest_unit_cones\n  \
+         each unit's input cone as one digest: its own files, the files of every unit it stands \
+         on through the graph, and every lockfile, each file by its path and content\n  \
+         reads   GraphData\n  \
+         leaves  Vec<UnitCone>\n  \
+         limits  no time limit, one attempt, computed every run\n\
+         \n\
          plan_unit_checks\n  \
-         each tool of each ecosystem once in every unit of that ecosystem, except a unit whose \
-         marker only lists members, as the program running it there, with the reader of what it \
-         prints and the program printing its root when it has them; it starts nothing, and \
-         writes the configs the programs point at in its own folder\n  \
-         reads   Folder, FoundUnits, Vec<Ecosystem>\n  \
-         leaves  Vec<UnitCheck>\n  \
+         each tool of each ecosystem once in every unit of that ecosystem, except a fixture and \
+         a unit whose marker only lists members, as the program running it there, handed the \
+         configs its words point at and the unit's input cone, with the reader of what it \
+         prints and the program printing its root when it has them, and a note for each unit an \
+         ecosystem plans nothing in; it starts nothing\n  \
+         reads   Folder, FoundUnits, Vec<Ecosystem>, Vec<UnitCone>\n  \
+         leaves  PlannedChecks\n  \
          limits  no time limit, one attempt, computed every run\n\
          \n\
          list_check_subprocesses\n  \
          every program the checks run, in their order: each check's own, then the one printing \
          its root when it has one\n  \
-         reads   Vec<UnitCheck>\n  \
+         reads   PlannedChecks\n  \
          leaves  Vec<Subprocess>\n  \
          limits  no time limit, one attempt, computed every run\n\
          \n\
          run_subprocess\n  \
-         starts one program in its folder, keeps all it prints and tells how it ended; an exit \
-         other than 0 is told, never failed\n  \
+         starts one program in its folder, the configs it is handed written in its own folder, \
+         keeps all it prints and tells how it ended; an exit other than 0 is told, never \
+         failed, and only an exit with 0 is taken from the cache\n  \
          reads   Subprocess\n  \
          leaves  SubprocessExit\n  \
-         limits  1800s at most, one attempt, computed every run\n\
+         limits  1800s at most, one attempt, replayed for the same inputs once its cache test \
+         accepted the output\n\
          \n\
          read_check_findings\n  \
          what each check printed, read into findings when it has a reader, their files placed \
-         from the root printed for them; a check that did not exit with 0 and leaves no finding \
-         is one finding, and every check is read even after one could not be\n  \
-         reads   Folder, Vec<UnitCheck>, Vec<SubprocessExit>\n  \
+         from the root printed for them; every check is read even after one could not be\n  \
+         reads   Folder, PlannedChecks, Vec<SubprocessExit>\n  \
          leaves  Vec<Finding>\n  \
+         limits  no time limit, one attempt, computed every run\n\
+         \n\
+         account_ledger\n  \
+         the ledger's account of the graph: every suppression counted, every third party the \
+         lockfiles resolve, and how many of each the signed reference does not hold\n  \
+         reads   GraphData\n  \
+         leaves  LedgerAccount\n  \
          limits  no time limit, one attempt, computed every run\n"
     );
 }
@@ -450,6 +472,10 @@ fn the_tasks_view_tells_when_a_read_fires_and_every_limit_a_task_sets() {
     .within(Duration::from_secs(30))
     .retries(2)
     .cached();
+    let tested = Task::new("probe", |_: &mut TaskContext, (): ()| {
+        Ok::<u8, TaskFailure>(0)
+    })
+    .cached_when(|code: &u8| *code == 0);
     let alone = Task::new("seed", |_: &mut TaskContext, (): ()| {
         Ok::<Unit, TaskFailure>(Unit {
             path: PathBuf::new(),
@@ -458,11 +484,17 @@ fn the_tasks_view_tells_when_a_read_fires_and_every_limit_a_task_sets() {
         })
     });
     assert_eq!(
-        tasks::shown(&[shaped, alone]),
+        tasks::shown(&[shaped, tested, alone]),
         "mend\n  \
          reads   Vec<File>, Unit when its task failed, Vec<Unit> however its task ended\n  \
          leaves  u8\n  \
          limits  30s at most, up to 3 attempts, replayed for the same inputs\n\
+         \n\
+         probe\n  \
+         reads   nothing\n  \
+         leaves  u8\n  \
+         limits  no time limit, one attempt, replayed for the same inputs once its cache test \
+         accepted the output\n\
          \n\
          seed\n  \
          reads   nothing\n  \
@@ -501,7 +533,7 @@ fn the_languages_view_tells_each_language_s_marker_rule_checks_needs_locks_and_o
                 "proto",
                 "buf.yaml",
                 "has modules",
-                "format, lint",
+                "format_proto, lint_proto",
                 "npx",
                 "none",
                 "none"
@@ -510,7 +542,7 @@ fn the_languages_view_tells_each_language_s_marker_rule_checks_needs_locks_and_o
                 "python",
                 "pyproject.toml",
                 "has tool.uv.workspace, lacks project",
-                "format, lint, types, test",
+                "format_python, lint_python, check_python_types, test_python",
                 "uv",
                 "uv.lock",
                 "__pycache__"
@@ -519,7 +551,7 @@ fn the_languages_view_tells_each_language_s_marker_rule_checks_needs_locks_and_o
                 "rust",
                 "Cargo.toml",
                 "has workspace, lacks package",
-                "fmt, clippy, test",
+                "format_rust, lint_rust, test_rust",
                 "cargo",
                 "Cargo.lock",
                 "target"
@@ -528,7 +560,7 @@ fn the_languages_view_tells_each_language_s_marker_rule_checks_needs_locks_and_o
                 "typescript",
                 "package.json",
                 "has workspaces, lacks main, exports, bin",
-                "lint, types, test",
+                "lint_typescript, check_typescript_types, test_typescript",
                 "node, npx",
                 "pnpm-lock.yaml, package-lock.json",
                 "node_modules, dist"
@@ -649,6 +681,8 @@ fn the_tools_an_ecosystem_declares_are_run_in_every_unit_each_program_as_an_item
         "tools",
         &[
             "find_units",
+            "read_graph",
+            "digest_unit_cones",
             "plan_unit_checks",
             "list_check_subprocesses",
             "run_subprocess",
@@ -657,10 +691,7 @@ fn the_tools_an_ecosystem_declares_are_run_in_every_unit_each_program_as_an_item
     );
     let runs = folder("runs");
 
-    let (report, store) = Runner::new()
-        .task_executable(task_executable())
-        .run(&plan, seeds, &runs)
-        .expect("the plan is run");
+    let (report, store) = runner().run(&plan, seeds, &runs).expect("the plan is run");
 
     assert_eq!(*report.outcome(), RunRecord::passed());
     let ran = ran(&store);
@@ -694,23 +725,9 @@ fn the_tools_an_ecosystem_declares_are_run_in_every_unit_each_program_as_an_item
         "each program ran in a process of its own"
     );
     let findings = store.get::<Vec<Finding>>().expect("the findings are kept");
-    assert_eq!(
-        found(&findings),
-        [
-            ("format_rust", "", None, None),
-            ("format_rust", "libs/a", None, None)
-        ],
-        "a program with no reader that does not exit with 0 is one finding on its unit"
-    );
-    assert_eq!(
-        findings
-            .iter()
-            .map(|finding| finding.reason.as_str())
-            .collect::<Vec<_>>(),
-        [
-            "sh exited with 1; all it printed is kept in the record of format_rust in .",
-            "sh exited with 1; all it printed is kept in the record of format_rust in libs/a"
-        ]
+    assert!(
+        findings.is_empty(),
+        "a program with no reader is told by how it ended, never as a finding"
     );
     assert_eq!(
         items
@@ -726,6 +743,379 @@ fn the_tools_an_ecosystem_declares_are_run_in_every_unit_each_program_as_an_item
             "tools/run_subprocess@test_rust in libs/a",
         ],
         "the record a finding points at goes by the name of its program"
+    );
+    let _ = fs::remove_dir_all(&repository);
+    let _ = fs::remove_dir_all(&runs);
+}
+
+// The programs of the run taken from the cache, by name.
+fn replayed(report: &RunReport, plan: &str) -> Vec<String> {
+    let prefix = format!("{plan}/run_subprocess@");
+    report
+        .invocation("run_subprocess")
+        .expect("the programs ran")
+        .instances
+        .iter()
+        .filter(|item| item.attempts.last().is_some_and(|attempt| attempt.replayed))
+        .map(|item| item.id().path.trim_start_matches(&prefix).to_string())
+        .collect()
+}
+
+#[test]
+fn a_program_that_exited_with_0_is_taken_from_the_cache_until_its_unit_s_cone_moves_and_any_other_runs_again(
+) {
+    let repository = repository(
+        "cached",
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"top\"\n\n[dependencies]\na = { path = \"libs/a\" }\n",
+            ),
+            ("src/lib.rs", "use a::a;\n\npub fn one() {\n    a();\n}\n"),
+            ("libs/a/Cargo.toml", "[package]\nname = \"a\"\n"),
+            ("libs/a/src/lib.rs", "pub fn a() {}\n"),
+            ("libs/b/Cargo.toml", "[package]\nname = \"b\"\n"),
+            ("libs/b/src/lib.rs", "pub fn b() {}\n"),
+        ],
+    );
+    let mut ecosystems = load_ecosystems().expect("the records are read");
+    for tool in ecosystems
+        .iter_mut()
+        .flat_map(|ecosystem| ecosystem.tools.iter_mut())
+    {
+        let words: &[&str] = match tool.name.as_str() {
+            "format_rust" | "test_rust" => &["true"],
+            "lint_rust" => &["sh", "-c", "exit 1"],
+            _ => continue,
+        };
+        tool.run = words.iter().map(|word| word.to_string()).collect();
+        tool.findings = None;
+    }
+    let plan = fanned(
+        "cached",
+        &[
+            "find_units",
+            "read_graph",
+            "digest_unit_cones",
+            "plan_unit_checks",
+            "list_check_subprocesses",
+            "run_subprocess",
+        ],
+    );
+    let runs = folder("runs");
+    let run = || {
+        let mut seeds = seeded(&repository);
+        seeds.put(&ecosystems).expect("the ecosystems encode");
+        let (report, _) = runner().run(&plan, seeds, &runs).expect("the plan is run");
+        report
+    };
+
+    assert!(
+        replayed(&run(), "cached").is_empty(),
+        "a first run computes all"
+    );
+    assert_eq!(
+        replayed(&run(), "cached"),
+        [
+            "format_rust in .",
+            "format_rust in libs/a",
+            "format_rust in libs/b",
+            "test_rust in .",
+            "test_rust in libs/a",
+            "test_rust in libs/b",
+        ],
+        "an exit with 0 is taken from the cache, and the lint exiting with 1 runs again"
+    );
+    fs::write(
+        repository.join("libs/a/src/lib.rs"),
+        "pub fn a() {}\n\npub fn more() {}\n",
+    )
+    .expect("the file is rewritten");
+    assert_eq!(
+        replayed(&run(), "cached"),
+        ["format_rust in libs/b", "test_rust in libs/b"],
+        "a changed file runs again the programs of its unit and of every unit standing on it"
+    );
+    let _ = fs::remove_dir_all(&repository);
+    let _ = fs::remove_dir_all(&runs);
+}
+
+// The gate's tasks over a folder whose ecosystems are seeded, in plan order.
+const GATE: [&str; 12] = [
+    "find_units",
+    "read_graph",
+    "list_laws",
+    "find_law_instances",
+    "read_dials",
+    "check_generated",
+    "digest_unit_cones",
+    "plan_unit_checks",
+    "list_check_subprocesses",
+    "run_subprocess",
+    "read_check_findings",
+    "account_ledger",
+];
+
+fn gate_plan() -> Plan {
+    Plan::fanned(
+        "gate",
+        &listed(),
+        &GATE,
+        &[
+            FanOut::of::<LawName, LawFindings>("find_law_instances", |law| law.name.clone()),
+            FanOut::of::<Subprocess, SubprocessExit>("run_subprocess", |subprocess| {
+                subprocess.name.clone()
+            }),
+        ],
+    )
+    .expect("the tasks wire into a plan")
+}
+
+#[test]
+fn the_report_is_written_from_the_values_the_plan_left_and_the_record_of_its_run() {
+    let repository = repository(
+        "reported",
+        &[
+            ("Cargo.toml", "[package]\nname = \"top\"\n"),
+            ("src/lib.rs", "pub fn one() {}\n"),
+            ("libs/a/Cargo.toml", "[package]\nname = \"a\"\n"),
+            ("libs/a/src/lib.rs", "pub fn a() {}\n"),
+        ],
+    );
+    let mut ecosystems = load_ecosystems().expect("the records are read");
+    for tool in ecosystems
+        .iter_mut()
+        .flat_map(|ecosystem| ecosystem.tools.iter_mut())
+    {
+        let words: &[&str] = match tool.name.as_str() {
+            "format_rust" => &["sh", "-c", "echo unformatted; exit 1"],
+            "lint_rust" | "test_rust" => &["true"],
+            _ => continue,
+        };
+        tool.run = words.iter().map(|word| word.to_string()).collect();
+        tool.findings = None;
+    }
+    let mut seeds = seeded(&repository);
+    seeds.put(&ecosystems).expect("the ecosystems encode");
+    seeds
+        .put(&GateMode { cold: false })
+        .expect("the mode encodes");
+    let tasks = GATE;
+    let plan = gate_plan();
+    let runs = folder("runs");
+
+    let (record, store) = runner().run(&plan, seeds, &runs).expect("the plan is run");
+    let run = of_plan::gate_run(&store, &record).expect("every value is left");
+
+    assert_eq!(
+        run.outcomes
+            .iter()
+            .map(|outcome| (
+                outcome.check.as_str(),
+                outcome.unit.to_str().expect("a path in UTF-8"),
+                outcome.language.as_str(),
+                outcome.passed
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("format_rust", "", "rust", false),
+            ("lint_rust", "", "rust", true),
+            ("test_rust", "", "rust", true),
+            ("format_rust", "libs/a", "rust", false),
+            ("lint_rust", "libs/a", "rust", true),
+            ("test_rust", "libs/a", "rust", true),
+        ],
+        "unit by unit, each unit's tools in the order planned"
+    );
+    assert_eq!(run.outcomes[0].output, "unformatted\n");
+    assert!(
+        run.outcomes
+            .iter()
+            .all(|outcome| outcome.seconds > 0.0 && !outcome.warm),
+        "each program's time is read from the record of its run"
+    );
+    let graph = graphed(&repository.to_string_lossy()).expect("the folder is read");
+    let held = laws::findings(&graph);
+    assert!(
+        held.iter().all(|finding| run.findings.contains(finding)),
+        "every finding of the laws is reported"
+    );
+    assert!(
+        run.findings
+            .iter()
+            .all(|finding| finding.check != "format_rust"),
+        "a check that failed is told by its outcome alone"
+    );
+    assert!(
+        run.findings
+            .windows(2)
+            .all(|pair| (&pair[0].file, pair[0].line) <= (&pair[1].file, pair[1].line)),
+        "in the order of file and line"
+    );
+    assert_eq!(run.ledger.counted.len(), 0);
+    assert_eq!(
+        run.steps
+            .iter()
+            .map(|step| step.op.as_str())
+            .collect::<Vec<_>>(),
+        tasks,
+        "the steps are the plan's tasks"
+    );
+    let programs = &run.steps[9];
+    assert_eq!(
+        programs
+            .children
+            .iter()
+            .map(|item| item.op.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "format_rust in .",
+            "format_rust in libs/a",
+            "lint_rust in .",
+            "lint_rust in libs/a",
+            "test_rust in .",
+            "test_rust in libs/a",
+        ],
+        "a task run per item holds each item under it"
+    );
+    assert!(files::report(&run.outcomes, &run.findings)
+        .contains("\n## format_rust — libs/a\n\nunformatted\n"));
+    let _ = fs::remove_dir_all(&repository);
+    let _ = fs::remove_dir_all(&runs);
+}
+
+#[test]
+fn a_fixing_run_repairs_one_thing_at_a_time_before_the_gate_and_a_failed_repair_stands_for_its_check(
+) {
+    let repository = repository(
+        "repaired",
+        &[
+            ("Cargo.toml", "[package]\nname = \"top\"\n"),
+            (
+                "src/lib.rs",
+                "use std::{fmt, io};\n\npub fn one(_: &dyn fmt::Debug, _: io::ErrorKind) {}\n",
+            ),
+            ("libs/a/Cargo.toml", "[package]\nname = \"a\"\n"),
+            ("libs/a/src/lib.rs", "pub fn a() {}\n"),
+            (
+                "tests/fixture/Cargo.toml",
+                "[package]\nname = \"fixture\"\n",
+            ),
+            ("tests/fixture/src/lib.rs", "use std::{fmt, io};\n"),
+        ],
+    );
+    let runs = folder("runs");
+    let order = runs.join("order");
+    let shell = |script: String| vec!["sh".to_string(), "-c".to_string(), script];
+    let mut ecosystems = load_ecosystems().expect("the records are read");
+    for tool in ecosystems
+        .iter_mut()
+        .flat_map(|ecosystem| ecosystem.tools.iter_mut())
+    {
+        let repair = match tool.name.as_str() {
+            "format_rust" => format!("echo format $(pwd -P) >> {}", order.display()),
+            "lint_rust" => format!(
+                "echo lint $(pwd -P) >> {}; echo broken; exit 3",
+                order.display()
+            ),
+            "test_rust" => {
+                tool.run = vec!["true".to_string()];
+                continue;
+            }
+            _ => continue,
+        };
+        tool.run = vec!["true".to_string()];
+        tool.fix = Some(shell(repair));
+        tool.findings = None;
+    }
+    let seeds = || {
+        let mut seeds = seeded(&repository);
+        seeds.put(&ecosystems).expect("the ecosystems encode");
+        seeds
+            .put(&GateMode { cold: false })
+            .expect("the mode encodes");
+        seeds
+    };
+    let repair = Plan::new("repair", &listed(), &["find_units", "repair_units"])
+        .expect("the tasks wire into a plan");
+
+    let (record, store) = runner()
+        .run(&repair, seeds(), &runs)
+        .expect("the repairs are run");
+
+    assert_eq!(*record.outcome(), RunRecord::passed());
+    let here = fs::canonicalize(&repository).expect("the folder resolves");
+    let here = here.display();
+    assert_eq!(
+        fs::read_to_string(&order)
+            .expect("the repairs ran")
+            .lines()
+            .collect::<Vec<_>>(),
+        [
+            format!("format {here}"),
+            format!("lint {here}"),
+            format!("format {here}/libs/a"),
+            format!("lint {here}/libs/a"),
+        ],
+        "one at a time, unit by unit, each unit's tools in the order its record writes them"
+    );
+    let repairs = store.get::<Repairs>().expect("the repairs are told");
+    assert_eq!(repairs.notes, ["src/lib.rs split to one use per line"]);
+    assert!(fs::read_to_string(repository.join("src/lib.rs"))
+        .expect("readable")
+        .starts_with("use std::fmt;\nuse std::io;\n"));
+    assert_eq!(
+        fs::read_to_string(repository.join("tests/fixture/src/lib.rs")).expect("readable"),
+        "use std::{fmt, io};\n",
+        "a fixture is never repaired"
+    );
+    assert_eq!(
+        repairs
+            .failed
+            .iter()
+            .map(|failed| (
+                failed.check.as_str(),
+                failed.unit.to_str().expect("a path in UTF-8"),
+                failed.output.as_str()
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("lint_rust", "", "broken\n"),
+            ("lint_rust", "libs/a", "broken\n")
+        ]
+    );
+
+    let (record, store) = runner()
+        .run(&gate_plan(), seeds(), &runs)
+        .expect("the gate is run");
+    let run = of_plan::gate_run(&store, &record)
+        .expect("every value is left")
+        .repaired(repairs);
+
+    assert_eq!(
+        run.outcomes
+            .iter()
+            .map(|outcome| (
+                outcome.check.as_str(),
+                outcome.unit.to_str().expect("a path in UTF-8"),
+                outcome.passed,
+                outcome.output.as_str()
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("format_rust", "", true, ""),
+            ("lint_rust", "", false, "broken\n"),
+            ("test_rust", "", true, ""),
+            ("format_rust", "libs/a", true, ""),
+            ("lint_rust", "libs/a", false, "broken\n"),
+            ("test_rust", "libs/a", true, ""),
+        ],
+        "the failed repair stands for its check, which passed on the repaired files"
+    );
+    assert_eq!(
+        run.notes.last().map(String::as_str),
+        Some("src/lib.rs split to one use per line"),
+        "the repairs' notes follow the gate's own"
     );
     let _ = fs::remove_dir_all(&repository);
     let _ = fs::remove_dir_all(&runs);
@@ -771,6 +1161,8 @@ fn the_rust_tools_as_the_built_in_record_writes_them_place_each_fault_in_its_fil
         &[
             "load_ecosystems",
             "find_units",
+            "read_graph",
+            "digest_unit_cones",
             "plan_unit_checks",
             "list_check_subprocesses",
             "run_subprocess",
@@ -779,8 +1171,7 @@ fn the_rust_tools_as_the_built_in_record_writes_them_place_each_fault_in_its_fil
     );
     let runs = folder("runs");
 
-    let (report, store) = Runner::new()
-        .task_executable(task_executable())
+    let (report, store) = runner()
         .run(&plan, seeded(&repository), &runs)
         .expect("the plan is run");
 
@@ -796,7 +1187,6 @@ fn the_rust_tools_as_the_built_in_record_writes_them_place_each_fault_in_its_fil
     assert_eq!(
         found(&findings),
         [
-            ("format_rust", "solo", None, None),
             (
                 "lint_rust",
                 "globbed/src/lib.rs",
@@ -818,11 +1208,6 @@ fn the_rust_tools_as_the_built_in_record_writes_them_place_each_fault_in_its_fil
         ],
         "a member's file is placed from the root of the workspace cargo wrote it from, \
          and a glob import is a fault like any other"
-    );
-    assert!(
-        findings[0].reason.starts_with("cargo exited with 1; "),
-        "{}",
-        findings[0].reason
     );
     let told = ran
         .iter()

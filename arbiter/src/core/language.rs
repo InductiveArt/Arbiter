@@ -99,18 +99,19 @@ pub trait Language {
     }
 
     // Compares the unit's generated code with its contracts using the unit's own
-    // tools; a fixing run repairs in place first. A unit the pack has nothing to
-    // compare returns nothing.
-    fn drift(
-        &self,
-        root: &Path,
-        folder: &Path,
-        fixing: bool,
-        cold: bool,
-        notes: &mut Vec<String>,
-    ) -> Vec<Drift> {
-        let _ = (root, folder, fixing, cold, notes);
+    // tools, rewriting nothing. A unit the pack has nothing to compare returns
+    // nothing.
+    fn drift(&self, root: &Path, folder: &Path, cold: bool, notes: &mut Vec<String>) -> Vec<Drift> {
+        let _ = (root, folder, cold, notes);
         Vec::new()
+    }
+
+    // Rewrites the unit's generated code from its contracts in place, deletes
+    // what they no longer generate, and compares again; a unit the language
+    // generates nothing for returns nothing.
+    fn regenerate(&self, root: &Path, folder: &Path, cold: bool) -> Option<Drift> {
+        let _ = (root, folder, cold);
+        None
     }
 
     // Writes the pack's signed reference, as `arbiter ledger sign` asks; each line

@@ -3,14 +3,15 @@ use task_runner::declaration::pull::In;
 use task_runner::declaration::task::Task;
 use task_runner::record::task_failure::TaskFailure;
 
+use crate::domain::planned_checks::PlannedChecks;
 use crate::domain::subprocess::Subprocess;
 use crate::domain::unit_check::UnitCheck;
 
 pub fn list_check_subprocesses_task() -> Task {
     Task::new(
         "list_check_subprocesses",
-        |_: &mut TaskContext, checks: In<Vec<UnitCheck>>| {
-            Ok::<Vec<Subprocess>, TaskFailure>(list_check_subprocesses(&checks))
+        |_: &mut TaskContext, planned: In<PlannedChecks>| {
+            Ok::<Vec<Subprocess>, TaskFailure>(list_check_subprocesses(&planned.checks))
         },
     )
     .line(
@@ -43,12 +44,15 @@ mod tests {
             program: "cargo".to_string(),
             arguments: Vec::new(),
             folder: PathBuf::from("/repository"),
+            configs: Vec::new(),
+            cone: None,
         }
     }
 
     fn check(name: &str, reading: Option<CheckReading>) -> UnitCheck {
         UnitCheck {
             check: name.to_string(),
+            ecosystem: "rust".to_string(),
             unit: PathBuf::new(),
             subprocess: program(name),
             reading,

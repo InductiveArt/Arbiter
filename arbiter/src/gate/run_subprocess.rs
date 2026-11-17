@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::os::unix::process::ExitStatusExt;
@@ -21,17 +22,31 @@ pub fn run_subprocess_task() -> Task {
         },
     )
     .within(Duration::from_secs(30 * 60))
+    .cached_when(SubprocessExit::exited_with_zero)
     .line(
-        "starts one program in its folder, keeps all it prints and tells how it ended; an \
-         exit other than 0 is told, never failed",
+        "starts one program in its folder, the configs it is handed written in its own folder, \
+         keeps all it prints and tells how it ended; an exit other than 0 is told, never \
+         failed, and only an exit with 0 is taken from the cache",
     )
 }
 
-// How the program ended is told as it ended: only a program that could not
-// be run fails the task.
+// The program run with what it is handed and all it prints kept in the
+// attempt's own folder.
 fn run_subprocess(
     context: &mut TaskContext,
     subprocess: &Subprocess,
+) -> Result<SubprocessExit, TaskFailure> {
+    let kept = context.dir().to_path_buf();
+    run_subprocess_in(context, subprocess, &kept)
+}
+
+// How the program ended is told as it ended: only a program that could not
+// be run fails the task. Its configs and all it prints are kept in the folder
+// given, so nothing changes in the folder the program runs in.
+pub fn run_subprocess_in(
+    context: &mut TaskContext,
+    subprocess: &Subprocess,
+    kept: &Path,
 ) -> Result<SubprocessExit, TaskFailure> {
     context.note(format!("folder: {}", subprocess.folder.display()));
     if !subprocess.folder.is_dir() {
@@ -40,12 +55,11 @@ fn run_subprocess(
             subprocess.folder.display()
         )));
     }
+    let arguments = handed(context, subprocess, kept)?;
     let mut command = Command::new(&subprocess.program);
-    command
-        .args(&subprocess.arguments)
-        .current_dir(&subprocess.folder);
+    command.args(&arguments).current_dir(&subprocess.folder);
     let finished = context.command(&mut command)?;
-    let output = context.dir().join("output");
+    let output = kept.join("output");
     fs::create_dir_all(&output).map_err(|error| unwritten(&output, &error))?;
     keep(context, &output.join("stdout"), "stdout", &finished.stdout)?;
     keep(context, &output.join("stderr"), "stderr", &finished.stderr)?;
@@ -57,6 +71,42 @@ fn run_subprocess(
     };
     context.note(format!("ended: {}", exit.ended(&subprocess.program)));
     Ok(exit)
+}
+
+// The configs written in the folder given, and the words with `{pack}` given
+// where they were written.
+fn handed(
+    context: &mut TaskContext,
+    subprocess: &Subprocess,
+    kept: &Path,
+) -> Result<Vec<String>, TaskFailure> {
+    if subprocess.configs.is_empty() {
+        return Ok(subprocess.arguments.clone());
+    }
+    let folder = kept.join("config");
+    fs::create_dir_all(&folder).map_err(|error| unwritten(&folder, &error))?;
+    for config in &subprocess.configs {
+        if !plain(&config.name) {
+            return Err(TaskFailure::from(format!(
+                "the config {} is not a plain file name",
+                config.name
+            )));
+        }
+        let file = folder.join(&config.name);
+        fs::write(&file, &config.content).map_err(|error| unwritten(&file, &error))?;
+    }
+    context.note(format!("configs: {}", folder.display()));
+    let pointed = folder.to_string_lossy();
+    Ok(subprocess
+        .arguments
+        .iter()
+        .map(|word| word.replace("{pack}", &pointed))
+        .collect())
+}
+
+// A name that stays inside the folder it is joined to.
+fn plain(name: &str) -> bool {
+    Path::new(name).file_name().and_then(OsStr::to_str) == Some(name)
 }
 
 // The whole of one stream, never a tail: a cut output hides everything
@@ -90,6 +140,7 @@ mod tests {
     use task_runner::contract::TaskAttemptId;
 
     use super::run_subprocess;
+    use crate::domain::ecosystem::Config;
     use crate::domain::subprocess::Subprocess;
     use crate::domain::subprocess::SubprocessExit;
 
@@ -127,6 +178,8 @@ mod tests {
             program: words[0].to_string(),
             arguments: words[1..].iter().map(|word| word.to_string()).collect(),
             folder: root.join("work").join(folder),
+            configs: Vec::new(),
+            cone: None,
         }
     }
 
@@ -188,6 +241,48 @@ mod tests {
             attempt.evidence.last().map(String::as_str),
             Some("ended: sh exited with 3")
         );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_configs_handed_are_written_in_the_attempt_s_folder_where_a_word_holding_pack_points() {
+        let root = ground("configs", &[("a/x", "")]);
+        let mut context = context(&root, StopToken::new());
+        let mut told = subprocess(&root, "a", &["cat", "{pack}/ruff.toml"]);
+        told.configs = vec![Config {
+            name: "ruff.toml".to_string(),
+            content: "line-length = 100\n".to_string(),
+        }];
+        let exit = run_subprocess(&mut context, &told).expect("the program ran");
+        assert_eq!(exit.stdout, "line-length = 100\n");
+        let written = root.join("attempt").join("config");
+        assert!(
+            !root.join("work").join("a").join("config").exists(),
+            "nothing is written in the folder the program runs in"
+        );
+        let attempt = context.finished(RunRecord::passed());
+        assert!(attempt
+            .evidence
+            .contains(&format!("configs: {}", written.display())));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_config_named_as_a_path_is_refused_and_nothing_runs() {
+        let root = ground("escape", &[("a/x", "")]);
+        let mut told = subprocess(&root, "a", &["touch", "ran"]);
+        told.configs = vec![Config {
+            name: "../escape.toml".to_string(),
+            content: "x".to_string(),
+        }];
+        let failed = run_subprocess(&mut context(&root, StopToken::new()), &told)
+            .expect_err("a config is written nowhere but in the attempt's folder");
+        assert_eq!(
+            failed.reason,
+            "the config ../escape.toml is not a plain file name"
+        );
+        assert!(!root.join("attempt").join("escape.toml").exists());
+        assert!(!root.join("work").join("a").join("ran").exists());
         let _ = fs::remove_dir_all(&root);
     }
 

@@ -3,8 +3,6 @@ use std::path::PathBuf;
 
 use serde_json::Value;
 
-use task_runner::record::task_failure::TaskFailure;
-
 use crate::domain::diagnostic::Diagnostic;
 
 // Each error or warning cargo printed that points at a line, told once: a
@@ -24,15 +22,24 @@ pub fn read_cargo_json(printed: &str) -> Vec<Diagnostic> {
 
 // The folder holding the manifest cargo names as the root of its workspace,
 // from what it prints when asked where that root is.
-pub fn workspace_root(located: &str) -> Result<PathBuf, TaskFailure> {
+pub fn workspace_root(located: &str) -> Result<PathBuf, String> {
     serde_json::from_str::<Value>(located.trim())
         .ok()
         .and_then(|told| told["root"].as_str().map(PathBuf::from))
         .filter(|manifest| manifest.is_absolute())
         .and_then(|manifest| manifest.parent().map(Path::to_path_buf))
-        .ok_or_else(|| {
-            TaskFailure::from(format!("cargo named no workspace root: {}", located.trim()))
-        })
+        .ok_or_else(|| format!("cargo named no workspace root: {}", located.trim()))
+}
+
+// What cargo printed for a person to read: the text each message renders, in
+// the order printed, and nothing of the lines that are not messages.
+pub fn rendered(printed: &str) -> String {
+    printed
+        .lines()
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .filter(|line| line["reason"] == "compiler-message")
+        .filter_map(|line| line["message"]["rendered"].as_str().map(str::to_string))
+        .collect()
 }
 
 fn diagnostic(message: &Value) -> Option<Diagnostic> {
@@ -59,6 +66,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::read_cargo_json;
+    use super::rendered;
     use super::workspace_root;
     use crate::domain::diagnostic::Diagnostic;
 
@@ -126,10 +134,16 @@ mod tests {
             "{\"root\":\"Cargo.toml\"}",
         ] {
             let refused = workspace_root(told).expect_err("no root is named");
-            assert_eq!(
-                refused.reason,
-                format!("cargo named no workspace root: {told}")
-            );
+            assert_eq!(refused, format!("cargo named no workspace root: {told}"));
         }
+    }
+
+    #[test]
+    fn what_cargo_printed_is_read_as_the_text_each_message_renders() {
+        let printed = [ARTIFACT, LINT, SUMMARY, FINISHED].join("\n");
+        assert_eq!(
+            rendered(&printed),
+            "error: equal expressions as operands to `==`\nerror: aborting due to 1 previous error\n"
+        );
     }
 }

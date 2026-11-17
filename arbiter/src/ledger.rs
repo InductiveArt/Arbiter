@@ -4,6 +4,9 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::core::graph::Graph;
 use crate::core::repository::is_test;
 use crate::core::suppression::Suppression;
@@ -11,6 +14,36 @@ use crate::domain::finding::line_at;
 use crate::domain::finding::Finding;
 
 const REFERENCE: &str = ".arbiter/reference.json";
+
+// What the ledger counts in one run: the suppressions, how many of them the
+// reference does not hold, the third parties the lockfiles resolve, and how
+// many of those the reference does not hold. A count against the reference
+// is none when no reference is recorded.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct LedgerAccount {
+    pub counted: Vec<Suppression>,
+    pub added: Option<usize>,
+    pub third: usize,
+    pub third_added: Option<usize>,
+}
+
+pub fn account(found: &Graph) -> LedgerAccount {
+    let counted = counted(found);
+    let added = reference(&found.root).map(|reference| added(&counted, &reference).len());
+    let packages = packages(found);
+    let third_added = recorded_packages(&found.root).map(|recorded| {
+        packages
+            .iter()
+            .filter(|name| !recorded.contains(name))
+            .count()
+    });
+    LedgerAccount {
+        counted,
+        added,
+        third: packages.len(),
+        third_added,
+    }
+}
 
 // Named suppressions of the repository's own units, the record's subjects
 // among them; a fixture's belong to some test.

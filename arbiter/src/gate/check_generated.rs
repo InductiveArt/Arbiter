@@ -20,9 +20,8 @@ pub fn check_generated_task() -> Task {
     )
     .line(
         "each unit's generated code compared with what its contracts generate, and its \
-         contracts with the image the user signed, by every language that compares any; a \
-         fixing run regenerates first, and a unit on a test path is a fixture and is never \
-         compared",
+         contracts with the image the user signed, by every language that compares any; it \
+         rewrites nothing, and a unit on a test path is a fixture and is never compared",
     )
 }
 
@@ -44,13 +43,7 @@ fn check_generated(
         context.checkpoint()?;
         let home = folder.path.join(&unit.path);
         for language in &languages {
-            let drifts = language.drift(
-                &folder.path,
-                &home,
-                mode.fixing,
-                mode.cold,
-                &mut checks.notes,
-            );
+            let drifts = language.drift(&folder.path, &home, mode.cold, &mut checks.notes);
             for drift in drifts {
                 checks.outcomes.push(CheckOutcome {
                     check: drift.check,

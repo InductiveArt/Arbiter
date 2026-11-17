@@ -179,7 +179,7 @@ fn the_first_gate_seeds_the_decision_files_and_never_overwrites() {
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).expect("the folder is writable");
 
-    arbiter::gate::seeded(&root);
+    arbiter::core::seeds::seeded(&root);
     let units = fs::read_to_string(root.join(".arbiter/units.toml")).expect("units.toml seeded");
     assert!(units.starts_with("# The unit graph, declared."));
     assert!(
@@ -199,112 +199,12 @@ fn the_first_gate_seeds_the_decision_files_and_never_overwrites() {
         "[units.\"libs/x\"]\ndeps = []\n",
     )
     .expect("the folder is writable");
-    arbiter::gate::seeded(&root);
+    arbiter::core::seeds::seeded(&root);
     let kept = fs::read_to_string(root.join(".arbiter/units.toml")).expect("still readable");
     assert!(
         kept.starts_with("[units."),
         "a written decision is never overwritten"
     );
-
-    let _ = fs::remove_dir_all(&root);
-}
-
-#[test]
-fn a_warm_key_follows_the_dependency_cone() {
-    let root = std::env::temp_dir().join(format!("arbiter-warm-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&root);
-    let demo = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/demo");
-    let copied = std::process::Command::new("cp")
-        .args(["-R", demo, root.to_string_lossy().as_ref()])
-        .status()
-        .expect("cp runs");
-    assert!(copied.success());
-
-    let keyed = |root: &std::path::Path| {
-        let found = graphed(&root.to_string_lossy()).expect("the folder exists");
-        let defs_units: Vec<usize> = found.defs.iter().map(|def| def.unit).collect();
-        let warmth = arbiter::core::warm::warmth(
-            &found.root,
-            &found.repo,
-            &found.packs,
-            &found.edges,
-            &defs_units,
-        );
-        let mut keys = std::collections::HashMap::new();
-        for (index, unit) in found.repo.units.iter().enumerate() {
-            if let Some(Some(key)) = warmth.keys.get(index) {
-                keys.insert(unit.path.to_string_lossy().to_string(), key.clone());
-            }
-        }
-        keys
-    };
-
-    let before = keyed(&root);
-    fs::write(
-        root.join("ui/src/button.ts"),
-        "export function Button(): string {\n  return \"pressed\";\n}\n",
-    )
-    .expect("the folder is writable");
-    let after = keyed(&root);
-
-    assert_ne!(before["ui"], after["ui"], "the edited unit colds");
-    assert_ne!(
-        before["web"], after["web"],
-        "a user of the edited unit colds"
-    );
-    assert_eq!(before["app"], after["app"], "a stranger to the edit stays");
-
-    let _ = fs::remove_dir_all(&root);
-}
-
-#[test]
-fn the_store_answers_the_key_and_forgets_a_failure() {
-    let root = std::env::temp_dir().join(format!("arbiter-store-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&root);
-    fs::create_dir_all(&root).expect("the folder is writable");
-    fs::create_dir_all(root.join("libs/x/src")).expect("the folder is writable");
-    fs::write(
-        root.join("libs/x/pyproject.toml"),
-        "[project]\nname = \"x\"\n",
-    )
-    .expect("the folder is writable");
-    fs::write(root.join("libs/x/src/x.py"), "value = 1\n").expect("the folder is writable");
-
-    let found = graphed(&root.to_string_lossy()).expect("the folder exists");
-    let defs_units: Vec<usize> = found.defs.iter().map(|def| def.unit).collect();
-    let warmth = arbiter::core::warm::warmth(
-        &found.root,
-        &found.repo,
-        &found.packs,
-        &found.edges,
-        &defs_units,
-    );
-    let index = found
-        .repo
-        .units
-        .iter()
-        .position(|unit| unit.path.to_string_lossy() == "libs/x")
-        .expect("the unit exists");
-    let unit = std::path::Path::new("libs/x");
-
-    assert!(
-        warmth.stored(index, unit).is_none(),
-        "an empty store is cold"
-    );
-    warmth.record(
-        index,
-        unit,
-        &[arbiter::core::warm::StoredCheck {
-            check: "lint".to_string(),
-            pack: "python".to_string(),
-            seconds: 1.5,
-        }],
-    );
-    let stored = warmth.stored(index, unit).expect("a green run is stored");
-    assert_eq!(stored.len(), 1);
-    assert_eq!(stored[0].check, "lint");
-    warmth.invalidate(unit);
-    assert!(warmth.stored(index, unit).is_none(), "a failure forgets");
 
     let _ = fs::remove_dir_all(&root);
 }
@@ -357,6 +257,14 @@ fn fix_splits_a_use_to_one_per_line() {
     let _ = fs::remove_dir_all(&root);
 }
 
+// The runner the gate runs its plans with, the arbiter binary performing
+// each attempt.
+fn runner() -> task_runner::execution::runner::Runner {
+    task_runner::execution::runner::Runner::new()
+        .task_executable(env!("CARGO_BIN_EXE_arbiter"))
+        .task_arguments(&["attempt"])
+}
+
 #[test]
 fn a_fixing_run_reads_what_its_repairs_leave() {
     let root = std::env::temp_dir().join(format!("arbiter-fixing-{}", std::process::id()));
@@ -381,7 +289,7 @@ fn a_fixing_run_reads_what_its_repairs_leave() {
     }
     let asked = root.to_string_lossy().to_string();
 
-    let fixed = arbiter::gate::run(&asked, true, true).expect("the gate runs");
+    let fixed = arbiter::gate::run::run(&asked, true, true, runner()).expect("the gate runs");
     let user = fs::read_to_string(root.join("src/user.rs")).expect("the file stays readable");
     assert!(
         !user.contains("::*"),
@@ -396,7 +304,7 @@ fn a_fixing_run_reads_what_its_repairs_leave() {
         "the run reads the file as the repairs left it"
     );
 
-    let again = arbiter::gate::run(&asked, true, true).expect("the gate runs");
+    let again = arbiter::gate::run::run(&asked, true, true, runner()).expect("the gate runs");
     assert!(
         again
             .findings

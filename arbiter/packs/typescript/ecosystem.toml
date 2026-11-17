@@ -10,18 +10,15 @@ lacks = ["main", "exports", "bin"]
 # The adapter: what holds a TypeScript unit to the bar, in the order run.
 # Each tool is pinned, so every unit is held to one bar, not to a machine's.
 [[check]]
-name = "lint"
 tool = "lint_typescript"
 run = ["npx", "--yes", "@biomejs/biome@2.5.15", "check", "--error-on-warnings", "--max-diagnostics=none", "--config-path", "{pack}", "."]
 fix = ["npx", "--yes", "@biomejs/biome@2.5.15", "check", "--write", "--error-on-warnings", "--max-diagnostics=none", "--config-path", "{pack}", "."]
 
 [[check]]
-name = "types"
 tool = "check_typescript_types"
 run = ["npx", "--yes", "--package", "typescript@7.0.2", "tsc", "--noEmit", "-p", "."]
 
 [[check]]
-name = "test"
 tool = "test_typescript"
 # happy-dom rides beside vitest: a unit's config names its test environment,
 # and vitest resolves that package from its own install, not the unit's.

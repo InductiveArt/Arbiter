@@ -2,6 +2,7 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use crate::declaration::caching::Caching;
 use crate::declaration::fan_out::FanOut;
 use crate::declaration::read::Read;
 use crate::declaration::read::When;
@@ -31,6 +32,12 @@ pub enum InvalidPlan {
     FanOut {
         task: String,
         reason: &'static str,
+    },
+    // A cache test reading a type other than the one its task leaves.
+    CacheTest {
+        task: String,
+        reads: &'static str,
+        leaves: &'static str,
     },
 }
 
@@ -71,6 +78,15 @@ impl Plan {
         for task in &tasks {
             if !seen.insert(task.name.as_str()) {
                 return Err(InvalidPlan::DuplicateName(task.name.clone()));
+            }
+            if let Caching::Accepted(test) = &task.caching {
+                if test.output != task.produces {
+                    return Err(InvalidPlan::CacheTest {
+                        task: task.name.clone(),
+                        reads: test.output.name,
+                        leaves: task.produces.name,
+                    });
+                }
             }
         }
         let fanned = fanned(&tasks, fan_outs)?;
@@ -299,6 +315,25 @@ mod tests {
                 assert_eq!((first.as_str(), second.as_str()), ("a", "a2"));
             }
             other => panic!("two producers were not refused: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_plan_rejects_a_cache_test_reading_a_type_its_task_does_not_leave() {
+        let tested = a().cached_when(|_: &B| true);
+        match Plan::new("p", &[tested], &["a"]).err() {
+            Some(InvalidPlan::CacheTest {
+                task,
+                reads,
+                leaves,
+            }) => {
+                assert_eq!(task, "a");
+                assert!(
+                    reads.ends_with("::B") && leaves.ends_with("::A"),
+                    "{reads} is read, {leaves} is left"
+                );
+            }
+            other => panic!("the cache test was not refused: {other:?}"),
         }
     }
 

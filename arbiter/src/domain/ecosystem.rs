@@ -28,13 +28,15 @@ pub struct MembersOnly {
     pub lacks: Vec<String>,
 }
 
-// One program a unit is run through, as the words that start it. A word
-// holding `{pack}` is given the folder the config files are written to.
+// One program a unit is run through, as the words that start it, the words
+// that repair what it finds when it can, and how its findings are read. A
+// word holding `{pack}` is given the folder the config files are written to.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Tool {
     #[serde(rename = "tool")]
     pub name: String,
     pub run: Vec<String>,
+    pub fix: Option<Vec<String>>,
     pub findings: Option<ReadableRun>,
 }
 
@@ -100,7 +102,7 @@ mod tests {
     fn a_record_reads_as_an_ecosystem_with_each_check_entry_one_of_its_tools() {
         let record = "name = \"rust\"\nmarker = \"Cargo.toml\"\n\
                       [members_only]\nhas = [\"workspace\"]\nlacks = [\"package\"]\n\
-                      [[check]]\nname = \"fmt\"\ntool = \"format_rust\"\n\
+                      [[check]]\ntool = \"format_rust\"\n\
                       run = [\"cargo\", \"fmt\", \"--check\"]\nfix = [\"cargo\", \"fmt\"]\n";
         let read: Ecosystem = toml::from_str(record).expect("the record is read");
         assert_eq!(
@@ -116,6 +118,7 @@ mod tests {
                         "fmt".to_string(),
                         "--check".to_string()
                     ],
+                    fix: Some(vec!["cargo".to_string(), "fmt".to_string()]),
                     findings: None,
                 }],
                 configs: Vec::new(),
@@ -126,7 +129,7 @@ mod tests {
     #[test]
     fn a_check_entry_may_name_the_run_its_findings_are_read_from_its_reader_and_its_root() {
         let record = "name = \"rust\"\nmarker = \"Cargo.toml\"\n\
-                      [[check]]\nname = \"clippy\"\ntool = \"lint_rust\"\n\
+                      [[check]]\ntool = \"lint_rust\"\n\
                       run = [\"cargo\", \"clippy\"]\n\
                       findings = { reader = \"cargo_json\", \
                       run = [\"cargo\", \"clippy\", \"--message-format=json\"], \
@@ -192,6 +195,7 @@ mod tests {
             tools: vec![Tool {
                 name: "lint_python".to_string(),
                 run: vec!["ruff".to_string(), "check".to_string()],
+                fix: None,
                 findings: None,
             }],
             configs: vec![Config {

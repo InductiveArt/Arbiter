@@ -382,6 +382,20 @@ pub fn square() -> Task {
     .cached()
 }
 
+// The same square, the cache naming only an even one, so an odd square is
+// computed again on every run.
+pub fn square_cached_when_even() -> Task {
+    Task::new(
+        "square_cached_when_even",
+        |_: &mut TaskContext, number: In<Number>| {
+            Ok::<Squared, TaskFailure>(Squared {
+                value: number.value * number.value,
+            })
+        },
+    )
+    .cached_when(|squared: &Squared| squared.value % 2 == 0)
+}
+
 // The same square after a pause long enough to tell items run side by side.
 pub fn slow_square() -> Task {
     Task::new("slow_square", |_: &mut TaskContext, number: In<Number>| {
@@ -444,6 +458,7 @@ pub fn listed() -> Vec<Task> {
         printer(),
         costly(),
         square(),
+        square_cached_when_even(),
         slow_square(),
         sum(),
         unsummed(),

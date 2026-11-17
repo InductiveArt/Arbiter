@@ -1,10 +1,11 @@
 use std::fs;
 use std::path::PathBuf;
 
+use crate::core::ecosystems::ecosystems;
 use crate::core::measures;
 use crate::core::repository::is_test;
-use crate::gate::Run;
-use crate::ledger;
+use crate::domain::unit::shown;
+use crate::report::gate_run::GateRun;
 
 const TEMPLATE: &str = include_str!("court.html");
 
@@ -12,8 +13,8 @@ const TEMPLATE: &str = include_str!("court.html");
 // evidence beside the report. The page is self-contained - the snapshot is
 // embedded, nothing is fetched - and the snapshot alone is the contract any
 // other console may draw from.
-pub fn write(run: &Run) -> Option<PathBuf> {
-    let folder = run.root.join(".arbiter").join("last");
+pub fn write(run: &GateRun) -> Option<PathBuf> {
+    let folder = run.root().join(".arbiter").join("last");
     fs::create_dir_all(&folder).ok()?;
     let data = snapshot(run);
     fs::write(
@@ -43,7 +44,7 @@ fn task_node(node: &crate::core::task::Node) -> serde_json::Value {
     })
 }
 
-fn snapshot(run: &Run) -> serde_json::Value {
+fn snapshot(run: &GateRun) -> serde_json::Value {
     let found = &run.graph;
     let outcomes: Vec<serde_json::Value> = run
         .outcomes
@@ -55,8 +56,8 @@ fn snapshot(run: &Run) -> serde_json::Value {
                 output.push_str("\n… truncated; the whole output is in the report");
             }
             serde_json::json!({
-                "unit": if outcome.unit.is_empty() { "." } else { &outcome.unit },
-                "pack": outcome.pack,
+                "unit": shown(&outcome.unit),
+                "pack": outcome.language,
                 "check": outcome.check,
                 "passed": outcome.passed,
                 "warm": outcome.warm,
@@ -65,19 +66,16 @@ fn snapshot(run: &Run) -> serde_json::Value {
             })
         })
         .collect();
-    let adapters: Vec<serde_json::Value> = crate::packs::all()
+    let adapters: Vec<serde_json::Value> = ecosystems(&crate::packs::all())
+        .unwrap_or_default()
         .iter()
-        .filter_map(|pack| {
-            let adapter = pack.adapter()?;
-            let parsed = adapter.parse::<toml::Value>().ok()?;
-            let checks: Vec<String> = parsed
-                .get("check")?
-                .as_array()?
+        .map(|ecosystem| {
+            let checks: Vec<&str> = ecosystem
+                .tools
                 .iter()
-                .filter_map(|check| check.get("name").and_then(toml::Value::as_str))
-                .map(str::to_string)
+                .map(|tool| tool.name.as_str())
                 .collect();
-            Some(serde_json::json!({ "pack": pack.label(), "checks": checks }))
+            serde_json::json!({ "pack": ecosystem.name, "checks": checks })
         })
         .collect();
     let units_list: Vec<serde_json::Value> = (0..found.repo.units.len())
@@ -101,14 +99,9 @@ fn snapshot(run: &Run) -> serde_json::Value {
             digest.eat(finding.file.to_string_lossy().as_bytes());
             digest.eat(&[0]);
             digest.eat(finding.reason.as_bytes());
-            serde_json::json!({
-                "id": digest.hex()[..12].to_string(),
-                "check": finding.check,
-                "file": finding.file.to_string_lossy(),
-                "line": finding.line.unwrap_or(0),
-                "rule": finding.rule,
-                "reason": finding.reason,
-            })
+            let mut entry = finding.written();
+            entry["id"] = serde_json::Value::from(digest.hex()[..12].to_string());
+            entry
         })
         .collect();
     let rules: Vec<serde_json::Value> = crate::tasks::laws::groups()
@@ -147,7 +140,9 @@ fn snapshot(run: &Run) -> serde_json::Value {
         .into_iter()
         .map(|(place, members)| serde_json::json!({ "place": place, "members": members }))
         .collect();
-    let counted: Vec<serde_json::Value> = ledger::counted(found)
+    let counted: Vec<serde_json::Value> = run
+        .ledger
+        .counted
         .iter()
         .map(|suppression| {
             serde_json::json!({
@@ -159,9 +154,9 @@ fn snapshot(run: &Run) -> serde_json::Value {
         .collect();
     serde_json::json!({
         "version": crate::core::VERSION,
-        "root": run.root.to_string_lossy(),
-        "units": run.units,
-        "files": run.files,
+        "root": run.root().to_string_lossy(),
+        "units": run.units(),
+        "files": run.files(),
         "foreign": found.repo.foreign.iter().map(|place| {
             serde_json::Value::String(place.to_string_lossy().to_string())
         }).collect::<Vec<serde_json::Value>>(),
@@ -176,14 +171,14 @@ fn snapshot(run: &Run) -> serde_json::Value {
         "families": families,
         "declared": declared,
         "tangles": tangles,
-        "suppressions": { "counted": counted, "added": run.added },
-        "third": { "locked": run.third, "added": run.third_added },
+        "suppressions": { "counted": counted, "added": run.ledger.added },
+        "third": { "locked": run.ledger.third, "added": run.ledger.third_added },
     })
 }
 
 // The written unit declarations, so the panel shows intent beside the real.
-fn declared_units(run: &Run) -> Vec<serde_json::Value> {
-    let Ok(text) = fs::read_to_string(run.root.join(crate::core::declarations::DECLARATIONS))
+fn declared_units(run: &GateRun) -> Vec<serde_json::Value> {
+    let Ok(text) = fs::read_to_string(run.root().join(crate::core::declarations::DECLARATIONS))
     else {
         return Vec::new();
     };

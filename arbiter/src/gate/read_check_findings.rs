@@ -1,5 +1,3 @@
-mod read_cargo_json;
-
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -9,29 +7,29 @@ use task_runner::declaration::pull::In;
 use task_runner::declaration::task::Task;
 use task_runner::record::task_failure::TaskFailure;
 
+use crate::domain::cargo_json::read_cargo_json;
+use crate::domain::cargo_json::workspace_root;
 use crate::domain::diagnostic::Diagnostic;
 use crate::domain::ecosystem::Reader;
 use crate::domain::finding::Finding;
 use crate::domain::folder::Folder;
+use crate::domain::planned_checks::PlannedChecks;
 use crate::domain::subprocess::SubprocessExit;
 use crate::domain::unit_check::UnitCheck;
-use crate::wip_tasks::read_check_findings::read_cargo_json::read_cargo_json;
-use crate::wip_tasks::read_check_findings::read_cargo_json::workspace_root;
 
 pub fn read_check_findings_task() -> Task {
     Task::new(
         "read_check_findings",
         |context: &mut TaskContext,
-         (folder, checks, exits): (
+         (folder, planned, exits): (
             In<Folder>,
-            In<Vec<UnitCheck>>,
+            In<PlannedChecks>,
             In<Vec<SubprocessExit>>,
-        )| { read_check_findings(context, &folder, &checks, &exits) },
+        )| { read_check_findings(context, &folder, &planned.checks, &exits) },
     )
     .line(
         "what each check printed, read into findings when it has a reader, their files placed \
-         from the root printed for them; a check that did not exit with 0 and leaves no finding \
-         is one finding, and every check is read even after one could not be",
+         from the root printed for them; every check is read even after one could not be",
     )
 }
 
@@ -88,7 +86,7 @@ fn read_check(
     let Some((exit, rest)) = ran.split_first() else {
         return Err(TaskFailure::from("no exit was handed for it"));
     };
-    let mut found = match &check.reading {
+    let found = match &check.reading {
         None => Vec::new(),
         Some(reading) => {
             let diagnostics = match reading.reader {
@@ -100,14 +98,16 @@ fn read_check(
                 let base = match (&reading.root, rest.first()) {
                     (None, _) => check.subprocess.folder.clone(),
                     (Some(root), Some(located)) => {
-                        if located.code != Some(0) {
+                        if !located.exited_with_zero() {
                             return Err(TaskFailure::from(format!(
                                 "no root for its paths: {}",
                                 located.ended(&root.program)
                             )));
                         }
                         match reading.reader {
-                            Reader::CargoJson => workspace_root(&located.stdout)?,
+                            Reader::CargoJson => {
+                                workspace_root(&located.stdout).map_err(TaskFailure::from)?
+                            }
                         }
                     }
                     (Some(_), None) => {
@@ -118,19 +118,6 @@ fn read_check(
             }
         }
     };
-    if exit.code != Some(0) && found.is_empty() {
-        found.push(Finding {
-            check: check.check.clone(),
-            rule: None,
-            file: check.unit.clone(),
-            line: None,
-            reason: format!(
-                "{}; all it printed is kept in the record of {}",
-                exit.ended(&check.subprocess.program),
-                check.subprocess.name
-            ),
-        });
-    }
     Ok(found)
 }
 
@@ -222,6 +209,8 @@ mod tests {
             program: "cargo".to_string(),
             arguments: Vec::new(),
             folder: folder.to_path_buf(),
+            configs: Vec::new(),
+            cone: None,
         }
     }
 
@@ -232,6 +221,7 @@ mod tests {
         let at = listed.join(unit);
         UnitCheck {
             check: "lint_rust".to_string(),
+            ecosystem: "rust".to_string(),
             unit: PathBuf::from(unit),
             subprocess: program(&name, &at),
             reading: Some(CheckReading {

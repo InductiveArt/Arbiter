@@ -10,8 +10,8 @@ use crate::core::units::group_files_by_unit;
 use crate::domain::ecosystem::Ecosystem;
 use crate::domain::folder::Folder;
 use crate::domain::found_units::FoundUnits;
-use crate::wip_tasks::find_units::list_files::list_files;
-use crate::wip_tasks::find_units::read_markers::read_markers;
+use crate::gate::find_units::list_files::list_files;
+use crate::gate::find_units::read_markers::read_markers;
 
 pub fn find_units_task() -> Task {
     Task::new(

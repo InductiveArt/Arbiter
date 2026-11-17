@@ -57,19 +57,16 @@ impl Language for Proto {
         Vec::new()
     }
 
-    fn drift(
-        &self,
-        root: &Path,
-        folder: &Path,
-        fixing: bool,
-        cold: bool,
-        notes: &mut Vec<String>,
-    ) -> Vec<Drift> {
-        let mut found: Vec<Drift> = generation::drift(root, folder, fixing, cold)
+    fn drift(&self, root: &Path, folder: &Path, cold: bool, notes: &mut Vec<String>) -> Vec<Drift> {
+        let mut found: Vec<Drift> = generation::drift(root, folder, false, cold)
             .into_iter()
             .collect();
         found.extend(contracts::drift(root, folder, notes));
         found
+    }
+
+    fn regenerate(&self, root: &Path, folder: &Path, cold: bool) -> Option<Drift> {
+        generation::drift(root, folder, true, cold)
     }
 
     fn record(&self, root: &Path, repo: &Repo) -> Vec<String> {

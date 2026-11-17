@@ -2,6 +2,8 @@ use std::env;
 use std::process::ExitCode;
 
 use arbiter::commands;
+use arbiter::gate::listed;
+use task_runner::attempt::task_process::run_task_process;
 
 fn main() -> ExitCode {
     sigpipe();
@@ -18,6 +20,9 @@ fn main() -> ExitCode {
         Some("ledger") => commands::ledger::run(&arguments),
         Some("tasks") => commands::tasks::run(),
         Some("languages") => commands::languages::run(),
+        // The gate's runner starts this binary once per attempt, so the one
+        // binary both runs a plan and performs its attempts.
+        Some("attempt") => run_task_process(&arguments[1..], &listed()),
         Some(command) => {
             eprintln!("arbiter: no command named {command}");
             commands::table::taught();
